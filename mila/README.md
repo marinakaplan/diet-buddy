@@ -20,6 +20,22 @@ npm test           # בדיקות מנוע (node)
 
 הזמנה למעגל: `/?invite=TOKEN` (הקוד מופיע בגיליון ״להזמין חברה״).
 
+## חיבור ל-Supabase (משתמשות אמיתיות)
+
+1. פרויקט Supabase ייעודי (לא משותף עם אפליקציה אחרת – הפרדת נתונים).
+2. להריץ את `supabase/migrations/0001_mila_core.sql` (SQL Editor או MCP). המיגרציה יוצרת טבלאות, נועלת אותן ב-RLS, ומגדירה את כל ה-RPC.
+3. Authentication → Providers → Email: לבדיקות פנימיות לכבות "Confirm email" (אחרת כל נרשמת צריכה לאשר מייל לפני הכניסה). ב-URL Configuration להוסיף את כתובת האתר ל-Redirect URLs (לאיפוס סיסמה).
+4. למלא ב-`js/config.js` את `SUPABASE_URL` ואת מפתח ה-anon/publishable. כשהם ריקים האפליקציה רצה במצב דמו מקומי.
+5. לבדוק: `BASE_URL=https://<deployment> node tests/e2e.two-users.js` (שתי משתמשות אמיתיות, מעגל משותף, בנק וקופה).
+
+בדיקות השרת ללא Supabase (Postgres מקומי):
+```bash
+psql -d mila -f supabase/local_shim.sql && psql -d mila -f supabase/migrations/0001_mila_core.sql
+psql -v ON_ERROR_STOP=1 -d mila -f supabase/tests/server_rules.sql
+```
+
+פריסה: Vercel project `mila-app` (root: `mila/`, סטטי) → https://mila-app-marinaprojects.vercel.app
+
 ## מבנה
 
 | קובץ | תפקיד |
@@ -30,8 +46,14 @@ npm test           # בדיקות מנוע (node)
 | `js/app.js` | שכבת הממשק: ניתוב, מסכים S01–S21, גיליונות, טקסטים |
 | `js/icons.js` | אייקוני SVG, לוגו ואווטארים חייכנים |
 | `js/demo.js` | זריעת נתוני דוגמה דרך אותו מנוע ואותם חוקים |
-| `tests/engine.test.js` | תרחישי קבלה AT-02…AT-20 ואינווריאנטים חשבונאיים |
-| `mila-schema.sql` | סכמת PostgreSQL/Supabase לפי סעיף 22, כולל טריגר תקרה ויומן לקריאה בלבד |
+| `js/api.js`, `js/config.js` | שכבת Supabase: אימות, סנכרון מצב מהשרת, פעולות RPC |
+| `supabase/migrations/0001_mila_core.sql` | **השרת**: סכמה, RLS, פונקציות RPC שאוכפות הרשאות, תקרה ויומן |
+| `supabase/tests/server_rules.sql` | בדיקות שרת: שתי משתמשות, הפרדת נתונים, מקרי קצה |
+| `tests/engine.test.js` | תרחישי קבלה AT-02…AT-20 ואינווריאנטים חשבונאיים (מנוע לקוח) |
+| `tests/e2e.two-users.js` | בדיקת מוצר מקצה לקצה בדפדפן עם שתי משתמשות אמיתיות |
+| `docs/AUDIT.md` | ביקורת מימוש מול האפיון |
+| `vendor/supabase.js` | supabase-js 2.49.4 (ללא תלות ב-CDN) |
+| `mila-schema.sql` | טיוטת סכמה ראשונה (היסטורי; המיגרציה היא המקור) |
 | `manifest.json`, `sw.js` | PWA: התקנה למסך הבית ועבודה לא מקוונת |
 
 ## חוקי המשחק שממומשים
@@ -48,6 +70,6 @@ npm test           # בדיקות מנוע (node)
 
 ## מה עדיין לא כאן
 
-- שרת: המנוע רץ כרגע בדפדפן מעל `localStorage` (local-first). הוא כתוב כך שאפשר להעביר אותו אחד־לאחד לשרת מול `mila-schema.sql`; "חברות" בדמו מדומות במכשיר.
+- מצב דמו: ללא Supabase, המנוע רץ בדפדפן מעל `localStorage` ו"חברות" מדומות. במצב ענן כל החוקים נאכפים בשרת.
 - התראות דחיפה אמיתיות (ההגדרות קיימות, הסטטוסים קיימים, השליחה לא).
 - שכבת ההשפעה/תרומות (P2) — בכוונה לא קיימת במוצר, לפי האפיון.
