@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#FFF6F3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="description" content="מילה — התחייבויות שעושות שינוי. בשבילי, ביחד ובחברה.">
+  <title>מילה. — המילה שלך שווה משהו</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='2' y='2' width='44' height='44' rx='14' fill='%23D9F565'/%3E%3Cpath d='M15 21c1.5-2.5 4.5-2.5 6 0M27 21c1.5-2.5 4.5-2.5 6 0M18 30c3 3 9 3 12 0' stroke='%231B1B1F' stroke-width='2.6' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+  <div class="bg-blobs" aria-hidden="true"><i></i></div>
+
+  <div id="app">
+    <main id="screen" aria-live="polite"></main>
+
+    <nav id="nav" class="hidden" aria-label="ניווט ראשי">
+      <button data-tab="me" onclick="App.tab('me')"><span class="ic" id="nav-ic-me"></span>אני</button>
+      <button data-tab="circles" onclick="App.tab('circles')"><span class="ic" id="nav-ic-circles"></span>מעגלים</button>
+      <button data-tab="today" onclick="App.tab('today')"><span class="ic" id="nav-ic-today"></span>היום</button>
+    </nav>
+  </div>
+
+  <div id="sheet-backdrop" onclick="App.closeSheet()"></div>
+  <div id="sheet" role="dialog" aria-modal="true"></div>
+  <div id="toast" role="status"></div>
+
+  <script src="js/engine.js?v=1"></script>
+  <script src="js/icons.js?v=1"></script>
+  <script src="js/demo.js?v=1"></script>
+  <script src="js/app.js?v=1"></script>
+</body>
+</html>

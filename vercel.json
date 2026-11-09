@@ -1,0 +1,28 @@
+{
+    "rewrites": [
+        { "source": "/api/meals", "destination": "/api/data?table=meals" },
+        { "source": "/api/weights", "destination": "/api/data?table=weights" },
+        { "source": "/api/measurements", "destination": "/api/data?table=measurements" },
+        { "source": "/api/blood-tests", "destination": "/api/data?table=blood-tests" },
+        { "source": "/api/exercises", "destination": "/api/data?table=exercises" },
+        { "source": "/api/water", "destination": "/api/data?table=water" },
+        { "source": "/api/favorites", "destination": "/api/data?table=favorites" },
+        { "source": "/api/group/create", "destination": "/api/group?action=create" },
+        { "source": "/api/group/join", "destination": "/api/group?action=join" },
+        { "source": "/api/group/leave", "destination": "/api/group?action=leave" },
+        { "source": "/api/group/leaderboard", "destination": "/api/group?action=leaderboard" },
+        { "source": "/api/group/activity", "destination": "/api/group?action=activity" },
+        { "source": "/api/group/challenge-create", "destination": "/api/group?action=challenge-create" },
+        { "source": "/api/group/challenge-join", "destination": "/api/group?action=challenge-join" },
+        { "source": "/api/group/challenge-progress", "destination": "/api/group?action=challenge-progress" },
+        { "source": "/api/group/challenge-complete", "destination": "/api/group?action=challenge-complete" },
+        { "source": "/api/group/goal-create", "destination": "/api/group?action=goal-create" },
+        { "source": "/api/group/goal-progress", "destination": "/api/group?action=goal-progress" },
+        { "source": "/api/user/register", "destination": "/api/user?action=register" },
+        { "source": "/api/user/login", "destination": "/api/user?action=login" },
+        { "source": "/api/user/sync", "destination": "/api/user?action=sync" },
+        { "source": "/api/user/loaduser", "destination": "/api/user?action=loaduser" },
+        { "source": "/api/(.*)", "destination": "/api/$1" },
+        { "source": "/(.*)", "destination": "/$1" }
+    ]
+}

@@ -1,11 +1,9 @@
 {
-  "name": "mila",
-  "version": "0.1.0",
-  "private": true,
-  "description": "מילה — משחק חברתי של התחייבויות. PWA סטטי בעברית, ללא build step.",
-  "scripts": {
-    "start": "npx --yes serve -l 3456 --no-clipboard -c 0 .",
-    "dev": "python3 -m http.server 3456",
-    "test": "node tests/engine.test.js"
-  }
+    "name": "diet-agent",
+    "version": "1.0.0",
+    "private": true,
+    "dependencies": {
+        "@supabase/supabase-js": "^2.99.2",
+        "@vercel/blob": "^2.3.1"
+    }
 }
