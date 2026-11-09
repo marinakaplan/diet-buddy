@@ -97,6 +97,7 @@ const Mila = (() => {
     return state;
   }
   function save() {
+    if (state && state.meta && state.meta.cloud) return; // במצב ענן השרת הוא מקור האמת; לא שומרים עותק מקומי
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
   }
   function reset() { state = emptyState(); save(); return state; }
@@ -191,6 +192,7 @@ const Mila = (() => {
     return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] || null;
   }
   function revokeInvite(token) { const i = state.invites[token]; if (i) i.status = 'revoked'; save(); }
+  function revokeCircleInvites(circleId) { if (!isAdmin(circleId)) throw err('רק מנהלת יכולה לבטל קישורים'); Object.values(state.invites).filter(i => i.circleId === circleId).forEach(i => { i.status = 'revoked'; }); save(); }
   function inviteUrl(token) { return `${location.origin}${location.pathname}?invite=${token}`; }
 
   function previewInvite(token) {
@@ -417,6 +419,11 @@ const Mila = (() => {
   /* רענון סטטוסים: scheduled -> open -> (אוטומטי) confirmed_miss אחרי חלון */
   function refreshStatuses(at = now()) {
     if (state.meta && state.meta.seeding) return; // בזמן זריעת דמו אין הכרעות אוטומטיות
+    if (state.meta && state.meta.cloud) {
+      // במצב ענן ההכרעות האוטומטיות נעשות בשרת (fn_settle). כאן רק פותחים ימים שהגיעו.
+      for (const o of Object.values(state.obligations)) if (o.status === 'scheduled' && !o.outcome && at >= windowOf(o).opens) o.status = 'open';
+      return;
+    }
     let changed = false;
     for (const o of Object.values(state.obligations)) {
       if (o.status === 'cancelled' || o.outcome) continue;
@@ -738,11 +745,11 @@ const Mila = (() => {
 
   return {
     RULES, TEMPLATES, WORD_ICONS, ACHIEVEMENTS, REACTIONS, AVATAR_COLORS,
-    load, save, reset, getState, setState, uid, nowISO, now, setClock,
+    load, save, reset, emptyState, getState, setState, uid, nowISO, now, setClock,
     today, addDays, diffDays, dateRange, fmtDate, fmtDateLong, relDay, fmtTime, toLocalDate, hashStr,
     createUser, me, user, updateSettings, renameMe,
     createCircle, updateCircle, myCircles, membership, isMember, isAdmin, circleMembers, circleRound, leaveCircle, removeMember,
-    createInvite, currentInvite, revokeInvite, inviteUrl, previewInvite, acceptInvite,
+    createInvite, currentInvite, revokeInvite, revokeCircleInvites, inviteUrl, previewInvite, acceptInvite,
     wordDef, commitment, myCommitments, activeCommitments, obligationsOf, capCheck, activeWordsOn,
     createPersonalWord, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment, updateWordVisibility,
     windowOf, isOpenNow, refreshStatuses, excusesUsed, report, canCorrect, correct,

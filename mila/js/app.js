@@ -16,6 +16,17 @@ const App = (() => {
   const REACTION_ICON = { clap: 'clap', heart: 'heart', muscle: 'muscle', fire: 'flame', star: 'star' };
   const REACTION_LABEL = { clap: 'כל הכבוד', heart: 'אוהבת', muscle: 'חזקה', fire: 'אש', star: 'כוכבת' };
 
+  /* Store: אותו ממשק פעולות, שני מימושים – מקומי (דמו) או שרת (Supabase). */
+  const Local = {};
+  for (const k of ['updateSettings','renameMe','updateCircle','leaveCircle','removeMember','cancelProposal','endCommitment','updateWordVisibility','report','correct','encourage','sendEncouragement','block','unblock','reportAbuse','markAllRead','markSummarySeen','deleteAccount','acceptInvite','adoptGroupWord','proposeGroupWord','createPersonalWord','createCircle','createInvite','previewInvite']) Local[k] = async (...a) => Mila[k](...a);
+  Local.inviteToken = (circleId) => (Mila.currentInvite(circleId) || {}).token || null;
+  Local.cachedPreview = (token) => Mila.previewInvite(token);
+  Local.revokeCircleInvites = async (circleId) => { Mila.revokeCircleInvites(circleId); return Mila.createInvite(circleId); };
+  const Store = () => (Api.isCloud() ? Api.cloud : Local);
+  const isCloud = () => Api.isCloud();
+  let authForm = { email: '', password: '', name: '', age: false, terms: false, mode: 'signup' };
+  let busy = false;
+
   let stack = [];
   let wiz = null;        // אשף יצירת מילה
   let gwiz = null;       // אשף מילה קבוצתית
@@ -38,8 +49,9 @@ const App = (() => {
   }
   function tab(name) { stack = [{ name, params: {} }]; render(); window.scrollTo({ top: 0 }); }
   function current() { return stack[stack.length - 1]; }
-  function render() {
-    closeSheet(true);
+  function sheetOpen() { return $('#sheet').classList.contains('open'); }
+  function render({ keepSheet = false } = {}) {
+    if (!keepSheet) closeSheet(true);
     Mila.refreshStatuses();
     const cur = current();
     const screen = SCREENS[cur.name];
@@ -77,7 +89,7 @@ const App = (() => {
   function confirmSheet({ title, sub, okText = 'אישור', okClass = 'dark', onOk, cancelText = 'ביטול' }) {
     sheet(`<div class="sheet-title">${esc(title)}</div><div class="sheet-sub">${sub || ''}</div>
       <div class="btn-row"><button class="btn soft" onclick="App.closeSheet()">${esc(cancelText)}</button><button class="btn ${okClass}" id="sheet-ok">${esc(okText)}</button></div>`);
-    $('#sheet-ok').onclick = () => { try { onOk(); } catch (e) { fail(e); } };
+    $('#sheet-ok').onclick = async () => { try { await onOk(); } catch (e) { fail(e); } };
   }
 
   /* ---------- רכיבים משותפים ---------- */
@@ -125,7 +137,7 @@ const App = (() => {
         <div class="ex"><span class="tile pink">${icon('users')}</span><div>8,000 צעדים עם החברות<small>כל אחת נמדדת בפני עצמה · הקופה משותפת</small></div></div>
         <div class="ex"><span class="tile lav">${icon('book')}</span><div>קריאה 10 עמודים<small>רצף של 14 הצלחות = הישג</small></div></div>
       </div>
-      <button class="btn primary" onclick="App.go('signup')">נתחיל</button>
+      ${Api.enabled ? `<button class="btn primary" onclick="App.authScreen('signup')">נרשמות</button><button class="btn ghost mt" style="margin-top:10px" onclick="App.authScreen('login')">כבר יש לי חשבון</button>` : `<button class="btn primary" onclick="App.go('signup')">נתחיל</button>`}
       <button class="btn text mt" onclick="App.startDemo()">${icon('sparkle', 18)} להציץ עם נתוני דוגמה</button>
       <div class="disclaimer">שקלי מילה הם מטבע משחק, לא כסף אמיתי. אי אפשר לרכוש, למשוך או להמיר אותם.</div>
     </div>`;
@@ -158,9 +170,68 @@ const App = (() => {
     Mila.getState().me = u.id; Mila.save();
     const token = pendingInviteToken; pendingInviteToken = null;
     go('start', {}, { reset: true });
-    if (token) go('invite', { token });
+    if (token) openInvite(token);
   }
   let pendingInviteToken = null;
+
+  /* ============================================================
+     S02b — הרשמה / כניסה אמיתיות (Supabase Auth)
+     ============================================================ */
+  function authScreen(mode) { authForm.mode = mode; go('auth'); }
+  SCREENS.auth = () => {
+    const f = authForm; const login = f.mode === 'login'; const reset = f.mode === 'reset';
+    const can = reset ? !!f.email.trim() : login ? (f.email.trim() && f.password.length >= 6) : (f.email.trim() && f.password.length >= 6 && f.name.trim() && f.age && f.terms);
+    return `${topbar({ title: '' })}
+      <div class="step-title">${reset ? 'איפוס סיסמה' : login ? 'כניסה' : 'יוצרות חשבון'}</div>
+      <div class="step-sub">${reset ? 'נשלח קישור לאיפוס לאימייל.' : login ? 'אימייל וסיסמה.' : 'השם יוצג לחברות במעגלים. האימייל רק לכניסה.'}</div>
+      ${!login && !reset ? `<div class="field"><label>שם תצוגה</label><input class="input" value="${esc(f.name)}" maxlength="30" autocomplete="given-name" oninput="App.authSet('name', this.value)"></div>` : ''}
+      <div class="field"><label>אימייל</label><input class="input ltr" type="email" value="${esc(f.email)}" autocomplete="email" inputmode="email" oninput="App.authSet('email', this.value)"></div>
+      ${!reset ? `<div class="field"><label>סיסמה</label><input class="input ltr" type="password" value="${esc(f.password)}" autocomplete="${login ? 'current-password' : 'new-password'}" minlength="6" oninput="App.authSet('password', this.value)"><div class="hint">6 תווים לפחות</div></div>` : ''}
+      ${!login && !reset ? `<div class="checkbox-row ${f.age ? 'on' : ''}" onclick="App.authToggle('age')"><span class="box">${f.age ? icon('check', 16) : ''}</span><span>אני בת 18 ומעלה</span></div>
+      <div class="checkbox-row ${f.terms ? 'on' : ''}" onclick="App.authToggle('terms')"><span class="box">${f.terms ? icon('check', 16) : ''}</span><span>הבנתי: שקלי מילה הם מטבע משחק בלבד, ללא ערך כספי, ללא רכישה או פדיון.</span></div>` : ''}
+      <div class="mt-lg"><button class="btn primary" id="auth-go" ${can && !busy ? '' : 'disabled'} onclick="App.authSubmit()">${busy ? 'רגע…' : reset ? 'שליחת קישור' : login ? 'כניסה' : 'הרשמה'}</button></div>
+      <div class="btn-row mt">${login ? `<button class="btn text" onclick="App.authScreen('signup')">אין לי חשבון</button><button class="btn text" onclick="App.authScreen('reset')">שכחתי סיסמה</button>` : `<button class="btn text" onclick="App.authScreen('login')">כבר יש לי חשבון</button>`}</div>
+      <div class="note">${icon('lock', 18)}<span>לא נבקש גישה לאנשי הקשר ולא נשלח הודעות בשמך. הנתונים נשמרים בשרת מאובטח ונגישים רק לך ולמעגלים שתבחרי.</span></div>`;
+  };
+  function authSet(k, v) { authForm[k] = v; const b = $('#auth-go'); if (b) { const f = authForm; const login = f.mode === 'login'; const reset = f.mode === 'reset'; b.disabled = !(reset ? f.email.trim() : login ? (f.email.trim() && f.password.length >= 6) : (f.email.trim() && f.password.length >= 6 && f.name.trim() && f.age && f.terms)); } }
+  function authToggle(k) { authForm[k] = !authForm[k]; render(); }
+  async function authSubmit() {
+    if (busy) return; busy = true; render();
+    try {
+      const f = authForm;
+      if (f.mode === 'reset') { await Api.resetPassword(f.email); toast('אם האימייל רשום, נשלח אליו קישור לאיפוס'); authForm.mode = 'login'; }
+      else if (f.mode === 'login') { await Api.signIn({ email: f.email, password: f.password }); afterAuth(); return; }
+      else {
+        const r = await Api.signUp({ email: f.email, password: f.password, name: f.name, ageConfirmed: f.age });
+        if (r.needsConfirmation) { toast('שלחנו אימייל לאישור. אחרי האישור אפשר להיכנס.'); authForm.mode = 'login'; }
+        else { afterAuth(); return; }
+      }
+    } catch (e) { fail(e); } finally { busy = false; }
+    render();
+  }
+  function afterAuth() {
+    busy = false;
+    authForm = { email: '', password: '', name: authForm.name, age: false, terms: false, mode: 'signup' };
+    Api.startAutoSync();
+    const token = pendingInviteToken; pendingInviteToken = null;
+    if (!Mila.me()) { go('profile', {}, { reset: true }); return; }
+    const first = !Mila.activeCommitments().length && !Mila.myCircles().length;
+    go(first ? 'start' : 'today', {}, { reset: true });
+    if (token) openInvite(token);
+  }
+  /* השלמת פרופיל – כשיש session אבל עדיין אין פרופיל (למשל אחרי אישור אימייל) */
+  SCREENS.profile = () => `
+    <div class="welcome" style="justify-content:flex-start;padding-top:40px">
+      <div class="step-title">כמעט שם. איך קוראים לך?</div><div class="step-sub">השם יוצג לחברות במעגלים שתבחרי.</div>
+      <div class="field"><input class="input" id="pf-name" placeholder="שם תצוגה" maxlength="30" value="${esc(authForm.name)}" oninput="App.authSet('name', this.value)"></div>
+      <div class="checkbox-row ${authForm.age ? 'on' : ''}" onclick="App.authToggle('age')"><span class="box">${authForm.age ? icon('check', 16) : ''}</span><span>אני בת 18 ומעלה</span></div>
+      <div class="mt-lg"><button class="btn primary" onclick="App.completeProfile()">ממשיכות</button></div>
+      <button class="btn text mt" onclick="App.signOut()">יציאה</button>
+    </div>`;
+  async function completeProfile() {
+    try { if (!authForm.name.trim()) return toast('צריך שם תצוגה'); if (!authForm.age) return toast('בגרסת הבטא המשחק פתוח לבנות 18 ומעלה'); await Api.completeProfile({ name: authForm.name, ageConfirmed: true }); afterAuth(); } catch (e) { fail(e); }
+  }
+  async function signOut() { try { await Api.signOut(); } catch (e) { /* ignore */ } stack = []; go('welcome', {}, { reset: true }); }
 
   /* ============================================================
      S03 — התחלת משחק
@@ -268,9 +339,9 @@ const App = (() => {
     sheet(`<div class="sheet-title">יום מוחרג</div><div class="sheet-sub">יום שלא מזכה ולא מחייב. לא שובר רצף, לא נספר להישג 14 ימים. בלי פירוט, רק סיבה כללית.</div>
       ${['מחלה', 'אירוע משפחתי', 'נסיעה', 'אחר'].map(r => `<div class="choice" onclick="App.doReport('${id}','excused','${r}')"><span class="radio"></span><div class="body"><div class="t">${r}</div></div></div>`).join('')}`);
   }
-  function doReport(id, outcome, note = '') {
+  async function doReport(id, outcome, note = '') {
     try {
-      const { obligation, duplicate } = Mila.report(id, outcome, { note });
+      const { obligation, duplicate } = await Store().report(id, outcome, { note });
       closeSheet(true);
       if (duplicate) toast('הדיווח כבר נשמר');
       else if (outcome === 'success') toast('אמרת. עשית. שקל מילה נשמר.', 'lime');
@@ -291,10 +362,11 @@ const App = (() => {
   }
   let corrPick = null;
   function _corrPick(k) { corrPick = k; document.querySelectorAll('#sheet .choice').forEach(c => { c.classList.toggle('on', c.dataset.k === k); c.querySelector('.radio').innerHTML = c.dataset.k === k ? icon('check', 14) : ''; }); }
-  function doCorrect(id) {
+  async function doCorrect(id) {
     try {
       if (!corrPick) return toast('בחרי תוצאה מתוקנת');
-      Mila.correct(id, corrPick, $('#corr-reason').value);
+      const reason = $('#corr-reason').value;
+      await Store().correct(id, corrPick, reason);
       corrPick = null; closeSheet(true); toast('התיקון נרשם. הבנק והמעגל עודכנו.'); render();
     } catch (e) { fail(e); }
   }
@@ -368,9 +440,9 @@ const App = (() => {
   function validateStep1() { if (!wiz.title.trim()) throw { userMessage: 'צריך כותרת למילה' }; if (!wiz.rule.trim()) throw { userMessage: 'מה נחשב הצלחה? בלי כלל אי אפשר לתת מילה' }; }
   function wizPrev() { wiz.step -= 1; render(); }
   function wizCancel() { Mila.getState().drafts.word = { ...wiz }; Mila.save(); wiz = null; back(); if (Mila.getState().drafts.word && Mila.getState().drafts.word.title) toast('הטיוטה נשמרה'); }
-  function wizCommit() {
+  async function wizCommit() {
     try {
-      const { def, commitment } = Mila.createPersonalWord({ title: wiz.title, rule: wiz.rule, icon: wiz.icon, startDate: wiz.startDate, circleId: wiz.circleId, visibility: wiz.circleId ? wiz.visibility : 'private' });
+      const { def, commitment } = await Store().createPersonalWord({ title: wiz.title, rule: wiz.rule, icon: wiz.icon, startDate: wiz.startDate, circleId: wiz.circleId, visibility: wiz.circleId ? wiz.visibility : 'private' });
       wiz = null;
       stack = [{ name: 'today', params: {} }];
       go('word', { id: commitment.id, fresh: true });
@@ -414,20 +486,21 @@ const App = (() => {
   function wordMenu(id) {
     const c = Mila.commitment(id); const def = Mila.wordDef(c.defId);
     sheet(`<div class="sheet-title">${esc(def.title)}</div><div class="sheet-sub">פעולות על המילה</div>
-      ${def.circleId && def.visibility !== 'summary' && def.ownerId === Mila.me().id ? `<div class="list-row clickable" onclick="Mila.updateWordVisibility('${def.id}','summary'); App.closeSheet(); App.refresh(); App.toast('החשיפה צומצמה לסיכום בלבד')"><span class="tile sm gray">${icon('eyeOff', 18)}</span><div class="body"><div class="t">לצמצם חשיפה לסיכום בלבד</div><div class="m">אי אפשר להרחיב בחזרה בלי לבחור מחדש</div></div></div>` : ''}
+      ${def.circleId && def.visibility !== 'summary' && def.ownerId === Mila.me().id ? `<div class="list-row clickable" onclick="App.setVisibility('${def.id}','summary')"><span class="tile sm gray">${icon('eyeOff', 18)}</span><div class="body"><div class="t">לצמצם חשיפה לסיכום בלבד</div><div class="m">אי אפשר להרחיב בחזרה בלי לבחור מחדש</div></div></div>` : ''}
       ${c.status === 'active' ? `<div class="list-row clickable" onclick="App.endWord('${id}')"><span class="tile sm pink">${icon('x', 18)}</span><div class="body"><div class="t">לסיים את המילה מוקדם</div><div class="m">הימים שהוכרעו נשארים. ימים עתידיים מתבטלים.</div></div></div>` : ''}
       <div class="list-row clickable" onclick="App.closeSheet(); App.openWordWizard({title:'${esc(def.title).replace(/'/g, '&#39;')}', rule:'${esc(def.rule).replace(/'/g, '&#39;')}', icon:'${def.icon}', startDate:'${c.endDate >= Mila.today() ? Mila.addDays(c.endDate, 1) : Mila.today()}'})"><span class="tile sm lime">${icon('repeat', 18)}</span><div class="body"><div class="t">עוד סיבוב עם אותה מילה</div><div class="m">סבב חדש מתחיל רק כשאת בוחרת</div></div></div>`);
   }
   function endWord(id) {
-    confirmSheet({ title: 'לסיים את המילה מוקדם?', sub: 'ההיסטוריה נשמרת. ימים שעוד לא הגיעו לא יחייבו שקל. אפשר לתת אותה מילה שוב בכל זמן.', okText: 'לסיים', okClass: 'pink', onOk: () => { Mila.endCommitment(id); closeSheet(true); toast('המילה הסתיימה. ההיסטוריה נשמרה.'); render(); } });
+    confirmSheet({ title: 'לסיים את המילה מוקדם?', sub: 'ההיסטוריה נשמרת. ימים שעוד לא הגיעו לא יחייבו שקל. אפשר לתת אותה מילה שוב בכל זמן.', okText: 'לסיים', okClass: 'pink', onOk: async () => { await Store().endCommitment(id); closeSheet(true); toast('המילה הסתיימה. ההיסטוריה נשמרה.'); render(); } });
   }
+  async function setVisibility(defId, vis) { try { await Store().updateWordVisibility(defId, vis); closeSheet(true); render(); toast('החשיפה צומצמה לסיכום בלבד'); } catch (e) { fail(e); } }
 
   /* ============================================================
      S16 — סיכום סבב
      ============================================================ */
   SCREENS.summary = ({ id }) => {
     const s = Mila.roundSummary(id);
-    Mila.markSummarySeen(id);
+    if (!s.commitment.summarySeen) { s.commitment.summarySeen = true; Store().markSummarySeen(id).catch(() => {}); }
     const rate = s.stats.rate === null ? null : s.stats.rate;
     const line = rate === null ? 'סבב ללא הכרעות' : rate >= 0.85 ? 'כמעט בלי להחמיץ. זו עקביות.' : rate >= 0.6 ? 'רוב הימים עמדת. זה מה שבונה הרגל.' : 'סבב לא פשוט. כל יום שעמדת בו נשמר.';
     return `${topbar({ title: 'סיכום סבב', back: true })}
@@ -458,7 +531,7 @@ const App = (() => {
       }).join('') : `<div class="card empty"><span class="tile lg pink">${icon('users', 28)}</span><div class="t">עוד אין לך מעגל</div><div class="m">מעגל הוא קבוצה פרטית של חברות. כל אחת בוחרת לאילו מילים להצטרף. הצטרפות לא מחייבת כלום.</div><div class="btn-row"><button class="btn primary" onclick="App.go('circleNew')">פותחת מעגל</button><button class="btn ghost" onclick="App.joinByCodeSheet()">יש לי קוד</button></div></div>`}
 
       ${pendingPreview && pendingPreview.ok ? `<div class="section-title">הזמנות חדשות</div>
-        <div class="row-card" onclick="App.go('invite',{token:'${pending.token}'})">${avatarStack([pendingPreview.inviter], 40, 1)}<div class="body"><div class="t">${esc(pendingPreview.inviter.name)} הזמינה אותך</div><div class="m">${esc(pendingPreview.circle.name)}${pendingPreview.sampleWord ? ` · לאתגר: ${esc(pendingPreview.sampleWord.title)}` : ''}</div></div>${icon('chev', 20)}</div>` : ''}
+        <div class="row-card" onclick="App.openInvite('${pending.token}')">${avatarStack([pendingPreview.inviter], 40, 1)}<div class="body"><div class="t">${esc(pendingPreview.inviter.name)} הזמינה אותך</div><div class="m">${esc(pendingPreview.circle.name)}${pendingPreview.sampleWord ? ` · לאתגר: ${esc(pendingPreview.sampleWord.title)}` : ''}</div></div>${icon('chev', 20)}</div>` : ''}
 
       ${proposals.length ? `<div class="section-title">מילים שמחכות לך</div>${proposals.map(({ d, c }) => `<div class="word-row" onclick="App.go('groupWord',{id:'${d.id}'})">${wordTile(d)}<div class="body"><div class="name">${esc(d.title)}</div><div class="meta"><span class="chip outline">${esc(c.name)}</span><span class="chip lav">${Mila.adopters(d.id).length} בפנים</span></div></div>${icon('chev', 18)}</div>`).join('')}` : ''}
       ${circles.length ? `<div class="note mt">${icon('info', 18)}<span>הזמנה למעגל היא קישור או קוד. לא נבקש גישה לאנשי הקשר שלך.</span></div>` : ''}`;
@@ -474,13 +547,19 @@ const App = (() => {
       <div class="tiny muted mt">הצטרפות למעגל לא יוצרת התחייבות ולא מחייבת שקל.</div>`);
     setTimeout(() => $('#join-code') && $('#join-code').focus(), 50);
   }
-  function joinByCode() {
+  async function joinByCode() {
     const raw = ($('#join-code').value || '').trim();
     const m = raw.match(/invite=([A-Za-z0-9]+)/);
     const token = (m ? m[1] : raw).toUpperCase();
-    const p = Mila.previewInvite(token);
-    if (!p.ok) return toast(Mila.previewInvite(token).reason === 'not_found' ? 'הקוד לא נמצא. בדקי אותו שוב.' : 'לא ניתן להשתמש בקוד הזה');
-    closeSheet(true); go('invite', { token });
+    try {
+      const p = await Store().previewInvite(token);
+      if (!p.ok) return toast(p.reason === 'not_found' ? 'הקוד לא נמצא. בדקי אותו שוב.' : p.reason === 'expired' ? 'תוקף הקוד פג. בקשי קישור חדש.' : 'לא ניתן להשתמש בקוד הזה');
+      closeSheet(true); go('invite', { token });
+    } catch (e) { fail(e); }
+  }
+  /* טוען תצוגה מקדימה של הזמנה (בענן – מהשרת) ואז מנווט */
+  async function openInvite(token) {
+    try { await Store().previewInvite(token); go('invite', { token }); } catch (e) { fail(e); }
   }
 
   /* ============================================================
@@ -498,9 +577,9 @@ const App = (() => {
       <div class="mt-lg"><button class="btn primary" ${cwiz.name.trim() ? '' : 'disabled'} onclick="App.cwCreate()">יצירת המעגל וקישור הזמנה</button></div>`;
   };
   function cwSet(k, v) { cwiz[k] = v; const b = $('#screen .btn.primary'); if (b) b.disabled = !cwiz.name.trim(); }
-  function cwCreate() {
+  async function cwCreate() {
     try {
-      const { circle } = Mila.createCircle(cwiz);
+      const { circle } = await Store().createCircle(cwiz);
       cwiz = null;
       stack = [{ name: 'circles', params: {} }];
       go('circle', { id: circle.id });
@@ -571,7 +650,7 @@ const App = (() => {
     const items = Mila.feed(id, 25);
     if (!items.length) return `<div class="empty"><span class="tile lg lav">${icon('sparkle', 28)}</span><div class="t">עוד שקט כאן</div><div class="m">כשחברות מדווחות, מצטרפות או שולחות עידוד – זה מופיע פה.</div></div>`;
     return `<div class="card tight">${items.map(e => `<div class="feed-item">${avatar(e.actor, 38)}<div class="body"><div class="t">${feedText(e)}</div><div class="m">${timeAgo(e.createdAt)}</div>
-      ${['day_success', 'streak', 'group_word_adopted', 'word_committed'].includes(e.type) ? `<div class="reactions">${Mila.REACTIONS.map(r => { const n = e.reactions.filter(x => x.reaction === r).length; const mine = e.reactions.some(x => x.reaction === r && x.userId === Mila.me().id); return (n || true) ? `<button class="react ${mine ? 'on' : ''}" onclick="Mila.encourage('${e.id}','${r}'); App.refresh()">${icon(REACTION_ICON[r], 14)}${n ? ` ${n}` : ''}</button>` : ''; }).join('')}</div>` : ''}
+      ${['day_success', 'streak', 'group_word_adopted', 'word_committed'].includes(e.type) ? `<div class="reactions">${Mila.REACTIONS.map(r => { const n = e.reactions.filter(x => x.reaction === r).length; const mine = e.reactions.some(x => x.reaction === r && x.userId === Mila.me().id); return (n || true) ? `<button class="react ${mine ? 'on' : ''}" onclick="App.react('${e.id}','${r}')">${icon(REACTION_ICON[r], 14)}${n ? ` ${n}` : ''}</button>` : ''; }).join('')}</div>` : ''}
     </div></div>`).join('')}</div>`;
   }
   function circleRank(id) {
@@ -598,13 +677,15 @@ const App = (() => {
   }
   function removeMember(circleId, userId) {
     const u = Mila.user(userId);
-    confirmSheet({ title: `להסיר את ${u.name} מהמעגל?`, sub: 'היא לא תוכל לראות את המעגל ואת התוצאות העתידיות. היתרה האישית שלה לא נמחקת.', okText: 'להסיר', okClass: 'pink', onOk: () => { Mila.removeMember(circleId, userId); closeSheet(true); render(); toast('הוסרה מהמעגל'); } });
+    confirmSheet({ title: `להסיר את ${u.name} מהמעגל?`, sub: 'היא לא תוכל לראות את המעגל ואת התוצאות העתידיות. היתרה האישית שלה לא נמחקת.', okText: 'להסיר', okClass: 'pink', onOk: async () => { await Store().removeMember(circleId, userId); closeSheet(true); render(); toast('הוסרה מהמעגל'); } });
   }
   function encourageSheet(circleId, toUserId) {
     const u = Mila.user(toUserId);
     sheet(`<div class="sheet-title">עידוד ל${esc(u.name)}</div><div class="sheet-sub">מילה טובה, בלי טקסט חופשי.</div>
-      <div class="react-picker">${Mila.REACTIONS.map(r => `<button title="${REACTION_LABEL[r]}" onclick="Mila.sendEncouragement('${circleId}','${toUserId}','${r}'); App.closeSheet(); App.toast('נשלח ${REACTION_LABEL[r]}'); App.refresh()">${icon(REACTION_ICON[r], 24)}</button>`).join('')}</div>`);
+      <div class="react-picker">${Mila.REACTIONS.map(r => `<button title="${REACTION_LABEL[r]}" onclick="App.sendEncouragement('${circleId}','${toUserId}','${r}')">${icon(REACTION_ICON[r], 24)}</button>`).join('')}</div>`);
   }
+  async function react(eventId, reaction) { try { await Store().encourage(eventId, reaction); render(); } catch (e) { fail(e); } }
+  async function sendEncouragement(circleId, toUserId, reaction) { try { await Store().sendEncouragement(circleId, toUserId, reaction); closeSheet(true); toast(`נשלח ${REACTION_LABEL[reaction]}`); render(); } catch (e) { fail(e); } }
   function circleMenu(id) {
     const admin = Mila.isAdmin(id);
     sheet(`<div class="sheet-title">${esc(Mila.getState().circles[id].name)}</div>
@@ -614,16 +695,21 @@ const App = (() => {
       <div class="list-row clickable" onclick="App.leaveCircle('${id}')"><span class="tile sm pink">${icon('logout', 18)}</span><div class="body"><div class="t">לעזוב את המעגל</div><div class="m">המילים שלך במעגל יסתיימו. ההיסטוריה נשמרת.</div></div></div>`);
   }
   function leaveCircle(id) {
-    confirmSheet({ title: 'לעזוב את המעגל?', sub: 'לא תראי יותר את המעגל ותוצאותיו. מילים פעילות במעגל יסתיימו מוקדם. השקלים שנשמרו נשארים בבנק שלך.', okText: 'לעזוב', okClass: 'pink', onOk: () => { Mila.leaveCircle(id); closeSheet(true); tab('circles'); toast('עזבת את המעגל'); } });
+    confirmSheet({ title: 'לעזוב את המעגל?', sub: 'לא תראי יותר את המעגל ותוצאותיו. מילים פעילות במעגל יסתיימו מוקדם. השקלים שנשמרו נשארים בבנק שלך.', okText: 'לעזוב', okClass: 'pink', onOk: async () => { await Store().leaveCircle(id); closeSheet(true); tab('circles'); toast('עזבת את המעגל'); } });
   }
-  function inviteSheet(circleId) {
-    let inv = Mila.currentInvite(circleId) || Mila.createInvite(circleId);
-    const url = Mila.inviteUrl(inv.token);
-    sheet(`<div class="sheet-title">להזמין למעגל</div><div class="sheet-sub">״הוזמנתי״ לא אומר ״התחייבתי״. מי שמצטרפת בוחרת בעצמה.</div>
-      <div class="card soft center" style="margin-bottom:12px"><div class="tiny muted">קוד הזמנה</div><div class="bold" style="font-size:2rem;letter-spacing:.2em;direction:ltr">${inv.token}</div><div class="tiny muted">בתוקף עד ${Mila.fmtDate(Mila.toLocalDate(new Date(inv.expiresAt)))} · ${inv.maxUses - inv.uses} שימושים</div></div>
-      <div class="btn-row"><button class="btn dark" onclick="App.shareInvite('${esc(url)}')">${icon('share', 18)} שיתוף</button><button class="btn soft" onclick="App.copyText('${esc(url)}')">${icon('copy', 18)} העתקה</button></div>
-      ${Mila.isAdmin(circleId) ? `<button class="btn text mt" onclick="Mila.revokeInvite('${inv.token}'); App.inviteSheet('${circleId}'); App.toast('נוצר קישור חדש')">לבטל ולהנפיק קישור חדש</button>` : ''}`);
+  async function inviteSheet(circleId) {
+    try {
+      let token = Store().inviteToken(circleId);
+      if (!token) token = (await Store().createInvite(circleId)).token;
+      const url = Mila.inviteUrl(token);
+      const inv = Object.values(Mila.getState().invites).filter(i => i.circleId === circleId && i.status === 'active').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      sheet(`<div class="sheet-title">להזמין למעגל</div><div class="sheet-sub">״הוזמנתי״ לא אומר ״התחייבתי״. מי שמצטרפת בוחרת בעצמה.</div>
+        <div class="card soft center" style="margin-bottom:12px"><div class="tiny muted">קוד הזמנה</div><div class="bold" style="font-size:2rem;letter-spacing:.2em;direction:ltr">${token}</div><div class="tiny muted">${inv ? `בתוקף עד ${Mila.fmtDate(Mila.toLocalDate(new Date(inv.expiresAt)))} · ${inv.maxUses - inv.uses} שימושים` : 'בתוקף 7 ימים'}</div></div>
+        <div class="btn-row"><button class="btn dark" onclick="App.shareInvite('${esc(url)}')">${icon('share', 18)} שיתוף</button><button class="btn soft" onclick="App.copyText('${esc(url)}')">${icon('copy', 18)} העתקה</button></div>
+        ${Mila.isAdmin(circleId) ? `<button class="btn text mt" onclick="App.rotateInvite('${circleId}')">לבטל את הקישורים הקיימים ולהנפיק חדש</button>` : ''}`);
+    } catch (e) { fail(e); }
   }
+  async function rotateInvite(circleId) { try { await Store().revokeCircleInvites(circleId); toast('הקישורים הקודמים בוטלו. נוצר קישור חדש'); inviteSheet(circleId); } catch (e) { fail(e); } }
   async function shareInvite(url) {
     const text = `די, בואי נעשה את זה באמת. תני מילה איתי: ${url}`;
     if (navigator.share) { try { await navigator.share({ text }); } catch (e) { /* בוטל */ } }
@@ -635,23 +721,23 @@ const App = (() => {
   SCREENS.circleManage = ({ id }) => {
     const c = Mila.getState().circles[id];
     if (!Mila.isAdmin(id)) return `${topbar({ title: 'ניהול מעגל' })}<div class="empty"><div class="t">רק מנהלת יכולה לנהל</div></div>`;
-    const inv = Mila.currentInvite(id);
+    const inv = Object.values(Mila.getState().invites).filter(i => i.circleId === id && i.status === 'active').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
     return `${topbar({ title: 'ניהול מעגל' })}
       <div class="field"><label>שם</label><input class="input" value="${esc(c.name)}" maxlength="50" onchange="App.cmSet('${id}','name',this.value)"></div>
       <div class="field"><label>תיאור</label><input class="input" value="${esc(c.description)}" maxlength="120" onchange="App.cmSet('${id}','description',this.value)"></div>
       <div class="field"><label>מי מציעה מילים</label><div class="seg"><button class="${c.whoCanPropose === 'all' ? 'on' : ''}" onclick="App.cmSet('${id}','whoCanPropose','all')">כולן</button><button class="${c.whoCanPropose === 'admins' ? 'on' : ''}" onclick="App.cmSet('${id}','whoCanPropose','admins')">מנהלות בלבד</button></div></div>
       <div class="field"><label>מקסימום חברות</label><div class="chips">${[4, 6, 8, 12].map(n => `<button class="chip select ${c.maxMembers === n ? 'on' : ''}" onclick="App.cmSet('${id}','maxMembers',${n})">${n}</button>`).join('')}</div></div>
-      <div class="card tight"><div class="card-title">קישור הזמנה</div>${inv ? `<div class="kv"><span class="k">קוד</span><span class="v" style="direction:ltr;letter-spacing:.15em">${inv.token}</span></div><div class="kv"><span class="k">תוקף</span><span class="v">${Mila.fmtDate(Mila.toLocalDate(new Date(inv.expiresAt)))}</span></div><div class="kv"><span class="k">שימושים</span><span class="v">${inv.uses} / ${inv.maxUses}</span></div><div class="btn-row mt"><button class="btn soft sm" onclick="App.inviteSheet('${id}')">שיתוף</button><button class="btn danger sm" onclick="Mila.revokeInvite('${inv.token}'); App.refresh(); App.toast('הקישור בוטל')">ביטול קישור</button></div>` : `<button class="btn soft sm" onclick="Mila.createInvite('${id}'); App.refresh()">הנפקת קישור חדש</button>`}</div>
+      <div class="card tight"><div class="card-title">קישור הזמנה</div>${inv ? `<div class="kv"><span class="k">קוד</span><span class="v" style="direction:ltr;letter-spacing:.15em">${inv.token || (inv.hint + '····')}</span></div><div class="kv"><span class="k">תוקף</span><span class="v">${Mila.fmtDate(Mila.toLocalDate(new Date(inv.expiresAt)))}</span></div><div class="kv"><span class="k">שימושים</span><span class="v">${inv.uses} / ${inv.maxUses}</span></div><div class="btn-row mt"><button class="btn soft sm" onclick="App.inviteSheet('${id}')">שיתוף</button><button class="btn danger sm" onclick="App.rotateInvite('${id}')">ביטול והנפקה מחדש</button></div>` : `<button class="btn soft sm" onclick="App.inviteSheet('${id}')">הנפקת קישור חדש</button>`}</div>
       <div class="note">${icon('info', 18)}<span>מנהלת לא יכולה להפעיל מילה, לערוך דיווח או לשנות יתרה עבור אחרת. אם תעזבי, הניהול עובר לחברה הוותיקה.</span></div>`;
   };
-  function cmSet(id, k, v) { try { Mila.updateCircle(id, { [k]: v }); render(); } catch (e) { fail(e); } }
+  async function cmSet(id, k, v) { try { await Store().updateCircle(id, { [k]: v }); render(); } catch (e) { fail(e); } }
 
   /* ============================================================
      S11 — קבלת הזמנה
      ============================================================ */
   SCREENS.invite = ({ token }) => {
-    const p = Mila.previewInvite(token);
-    if (!p.ok) return `${topbar({ title: 'הזמנה' })}<div class="card empty"><span class="tile lg gray">${icon('hourglass', 28)}</span><div class="t">${p.reason === 'expired' ? 'תוקף ההזמנה פג' : p.reason === 'revoked' ? 'ההזמנה בוטלה' : 'ההזמנה לא נמצאה'}</div><div class="m">${Mila.previewInvite(token).reason === 'expired' ? 'בקשי מהחברה קישור חדש. זה לוקח שנייה.' : 'בדקי את הקוד או בקשי קישור חדש.'}</div><button class="btn soft" onclick="App.tab('circles')">למעגלים שלי</button></div>`;
+    const p = Store().cachedPreview(token) || { ok: false, reason: 'not_found' };
+    if (!p.ok) return `${topbar({ title: 'הזמנה' })}<div class="card empty"><span class="tile lg gray">${icon('hourglass', 28)}</span><div class="t">${p.reason === 'expired' ? 'תוקף ההזמנה פג' : p.reason === 'revoked' ? 'ההזמנה בוטלה' : 'ההזמנה לא נמצאה'}</div><div class="m">${p.reason === 'expired' ? 'בקשי מהחברה קישור חדש. זה לוקח שנייה.' : 'בדקי את הקוד או בקשי קישור חדש.'}</div><button class="btn soft" onclick="App.tab('circles')">למעגלים שלי</button></div>`;
     return `${topbar({ title: 'הזמנה למעגל' })}
       <div class="sheet-hero">${avatar(p.inviter, 72)}<div class="sheet-title" style="margin-top:10px">${esc(p.inviter.name)} הזמינה אותך</div><div class="sheet-sub">״די, בואי נעשה את זה באמת. תני מילה איתי.״</div></div>
       <div class="card"><div style="display:flex;gap:12px;align-items:center">${circleTile(p.circle, 'lg')}<div><div class="bold" style="font-size:1.15rem">${esc(p.circle.name)}</div><div class="small muted">${esc(p.circle.description || 'מעגל פרטי')}</div></div></div>
@@ -665,8 +751,8 @@ const App = (() => {
       ${p.alreadyMember ? `<button class="btn primary" onclick="App.go('circle',{id:'${p.circle.id}'})">את כבר במעגל · לפתוח</button>` : `<button class="btn primary" onclick="App.acceptInvite('${token}')">הצטרפי למעגל</button>`}
       <div class="btn-row mt"><button class="btn text" onclick="App.declineInvite('${token}')">לא עכשיו</button><button class="btn text" onclick="App.safetySheet('${p.inviter.id}', null, '${token}')">${icon('flag', 16)} דיווח</button></div>`;
   };
-  function acceptInvite(token) {
-    try { const c = Mila.acceptInvite(token); const S = Mila.getState(); if (S.pendingInvite && S.pendingInvite.token === token) { delete S.pendingInvite; Mila.save(); } stack = [{ name: 'circles', params: {} }]; go('circle', { id: c.id }); toast('הצטרפת למעגל. שום מילה לא מתחילה בלי שתבחרי.', 'lime'); } catch (e) { fail(e); }
+  async function acceptInvite(token) {
+    try { const c = await Store().acceptInvite(token); const S = Mila.getState(); if (S.pendingInvite && S.pendingInvite.token === token) { delete S.pendingInvite; Mila.save(); } stack = [{ name: 'circles', params: {} }]; go('circle', { id: c.id }); toast('הצטרפת למעגל. שום מילה לא מתחילה בלי שתבחרי.', 'lime'); } catch (e) { fail(e); }
   }
   function declineInvite(token) { const S = Mila.getState(); if (S.pendingInvite && S.pendingInvite.token === token) { delete S.pendingInvite; Mila.save(); } back('circles'); }
 
@@ -691,8 +777,8 @@ const App = (() => {
   };
   function gwSet(k, v) { gwiz[k] = v; }
   function gwTemplate(i) { const t = Mila.TEMPLATES[i]; gwiz.title = t.title; gwiz.rule = t.rule; gwiz.icon = t.icon; render(); }
-  function gwPropose() {
-    try { const def = Mila.proposeGroupWord(gwiz.circleId, gwiz); const cid = gwiz.circleId; gwiz = null; stack = [{ name: 'circles', params: {} }, { name: 'circle', params: { id: cid } }]; go('groupWord', { id: def.id, fresh: true }); } catch (e) { fail(e); }
+  async function gwPropose() {
+    try { const def = await Store().proposeGroupWord(gwiz.circleId, gwiz); const cid = gwiz.circleId; gwiz = null; stack = [{ name: 'circles', params: {} }, { name: 'circle', params: { id: cid } }]; go('groupWord', { id: def.id, fresh: true }); } catch (e) { fail(e); }
   }
 
   /* ============================================================
@@ -735,10 +821,10 @@ const App = (() => {
       <div class="kv"><span class="k">${icon('eye', 18)} החברות רואות</span><span class="v">${def.visibility === 'summary' ? 'סיכום' : 'סטטוס יומי'}</span></div>
       <div class="btn-row mt"><button class="btn soft" onclick="App.closeSheet()">עוד לא</button><button class="btn primary" onclick="App.adopt('${id}')">נתתי מילה</button></div>`);
   }
-  function adopt(id) {
-    try { const k = Mila.adoptGroupWord(id); closeSheet(true); go('word', { id: k.id, fresh: true }, { replace: true }); toast('נתת מילה. עכשיו זה שלכן ביחד.', 'lime'); } catch (e) { fail(e); if (e.code === 'CAP') render(); }
+  async function adopt(id) {
+    try { const k = await Store().adoptGroupWord(id); closeSheet(true); go('word', { id: k.id, fresh: true }, { replace: true }); toast('נתת מילה. עכשיו זה שלכן ביחד.', 'lime'); } catch (e) { fail(e); if (e.code === 'CAP') render(); }
   }
-  function cancelProposal(id) { confirmSheet({ title: 'לבטל את ההצעה?', sub: 'עוד אף אחת לא הצטרפה, אז אין חיובים.', okText: 'לבטל הצעה', okClass: 'pink', onOk: () => { Mila.cancelProposal(id); closeSheet(true); back(); toast('ההצעה בוטלה'); } }); }
+  function cancelProposal(id) { confirmSheet({ title: 'לבטל את ההצעה?', sub: 'עוד אף אחת לא הצטרפה, אז אין חיובים.', okText: 'לבטל הצעה', okClass: 'pink', onOk: async () => { await Store().cancelProposal(id); closeSheet(true); back(); toast('ההצעה בוטלה'); } }); }
 
   /* ============================================================
      S14 — בנק מילה
@@ -788,10 +874,10 @@ const App = (() => {
      ============================================================ */
   SCREENS.notifications = () => {
     const list = Mila.notifications();
-    setTimeout(() => Mila.markAllRead(), 400);
+    if (Mila.unreadCount()) setTimeout(() => Store().markAllRead().catch(() => {}), 400);
     const ic = { invite: ['users', 'pink'], encouragement: ['clap', 'lime'], group_word: ['pencil', 'lav'], achievement: ['medal', 'peach'], reminder: ['bell', 'sky'] };
     return `${topbar({ title: 'עדכונים' })}
-      ${list.length ? `<div class="card tight">${list.map(n => { const [i, c] = ic[n.type] || ['bell', 'gray']; const act = n.ref && n.ref.token ? `App.go('invite',{token:'${n.ref.token}'})` : n.ref && n.ref.defId ? `App.go('groupWord',{id:'${n.ref.defId}'})` : n.ref && n.ref.circleId ? `App.go('circle',{id:'${n.ref.circleId}'})` : n.ref && n.ref.type ? `App.tab('me')` : ''; return `<div class="list-row ${act ? 'clickable' : ''}" ${act ? `onclick="${act}"` : ''}><span class="tile sm ${c}">${icon(i, 18)}</span><div class="body"><div class="t" style="${n.read ? 'font-weight:600' : ''}">${esc(n.title)}</div><div class="m">${esc(n.body || '')}${n.body ? ' · ' : ''}${timeAgo(n.createdAt)}</div></div>${act ? icon('chev', 18) : ''}</div>`; }).join('')}</div>` : `<div class="empty"><span class="tile lg sky">${icon('bell', 28)}</span><div class="t">שקט כאן</div><div class="m">תזכורות, הזמנות ועידודים יופיעו פה. פעם ביום, מקובץ.</div></div>`}
+      ${list.length ? `<div class="card tight">${list.map(n => { const [i, c] = ic[n.type] || ['bell', 'gray']; const act = n.ref && n.ref.token ? `App.openInvite('${n.ref.token}')` : n.ref && n.ref.defId ? `App.go('groupWord',{id:'${n.ref.defId}'})` : n.ref && n.ref.circleId ? `App.go('circle',{id:'${n.ref.circleId}'})` : n.ref && n.ref.type ? `App.tab('me')` : ''; return `<div class="list-row ${act ? 'clickable' : ''}" ${act ? `onclick="${act}"` : ''}><span class="tile sm ${c}">${icon(i, 18)}</span><div class="body"><div class="t" style="${n.read ? 'font-weight:600' : ''}">${esc(n.title)}</div><div class="m">${esc(n.body || '')}${n.body ? ' · ' : ''}${timeAgo(n.createdAt)}</div></div>${act ? icon('chev', 18) : ''}</div>`; }).join('')}</div>` : `<div class="empty"><span class="tile lg sky">${icon('bell', 28)}</span><div class="t">שקט כאן</div><div class="m">תזכורות, הזמנות ועידודים יופיעו פה. פעם ביום, מקובץ.</div></div>`}
       <div class="tiny muted center mt">התראות ניתנות לשליטה בהגדרות. תוכן רגיש לא מופיע במסך הנעילה.</div>`;
   };
 
@@ -803,21 +889,24 @@ const App = (() => {
     const blocked = Mila.blockedUsers();
     const tog = (k, t, m) => `<div class="toggle-row"><div><div class="t">${t}</div><div class="m">${m}</div></div><button class="switch ${s[k] ? 'on' : ''}" role="switch" aria-checked="${!!s[k]}" onclick="App.setSetting('${k}', ${!s[k]})"></button></div>`;
     return `${topbar({ title: 'הגדרות' })}
-      <div class="card tight"><div class="field" style="margin:6px 0 10px"><label>שם תצוגה</label><input class="input" value="${esc(u.name)}" maxlength="30" onchange="Mila.renameMe(this.value); App.toast('השם עודכן')"></div>
+      <div class="card tight"><div class="field" style="margin:6px 0 10px"><label>שם תצוגה</label><input class="input" value="${esc(u.name)}" maxlength="30" onchange="App.rename(this.value)"></div>
         <div class="kv"><span class="k">${icon('clock', 18)} אזור זמן</span><span class="v">${esc(u.timezone)}</span></div>
         <div class="kv"><span class="k">${icon('bell', 18)} שעת תזכורת</span><input class="input ltr" type="time" value="${s.reminderTime}" style="width:auto;padding:8px 12px" onchange="App.setSetting('reminderTime', this.value)"></div></div>
       <div class="card tight">${tog('pushReminders', 'תזכורת דיווח', 'פעם ביום, מקובץ לכל המילים')}${tog('socialDigest', 'עדכוני מעגל', 'סיכום יומי של מה שקרה אצל החברות')}${tog('hideFromLeaderboard', 'להסתיר אותי מהדירוג', 'ממשיכה לשחק, בלי להופיע בטבלה')}${tog('lockScreenPrivacy', 'פרטיות במסך נעילה', 'התראות בלי שמות מילים')}</div>
-      <div class="card tight"><div class="card-title">בטיחות</div>${blocked.length ? blocked.map(b => `<div class="list-row">${avatar(b, 32)}<div class="body"><div class="t">${esc(b.name)}</div><div class="m">חסומה</div></div><button class="btn xs soft" onclick="Mila.unblock('${b.id}'); App.refresh()">ביטול חסימה</button></div>`).join('') : '<div class="small muted">אין משתמשות חסומות. חסימה ודיווח זמינים מתוך כל מעגל.</div>'}</div>
+      <div class="card tight"><div class="card-title">בטיחות</div>${blocked.length ? blocked.map(b => `<div class="list-row">${avatar(b, 32)}<div class="body"><div class="t">${esc(b.name)}</div><div class="m">חסומה</div></div><button class="btn xs soft" onclick="App.unblock('${b.id}')">ביטול חסימה</button></div>`).join('') : '<div class="small muted">אין משתמשות חסומות. חסימה ודיווח זמינים מתוך כל מעגל.</div>'}</div>
       <div class="card tight"><div class="card-title">מה זה שקל מילה?</div><div class="small muted">יחידת משחק שנוצרת רק כשיום מוכרע. הצלחה שומרת שקל, פספוס זוקף שקל לקופת המעגל, החרגה לא יוצרת מטבע. אי אפשר לרכוש, למכור, להעביר או להמיר שקלי מילה לכסף. אין חוב ואין יתרה שלילית. בעתיד, אם יהיה תקציב תרומות ממומן על ידי שותף, הצלחות יוכלו להעניק משקל בבחירת מטרות. זה לא קיים עדיין.</div></div>
       <div class="card tight"><div class="list-row clickable" onclick="App.exportData()"><span class="tile sm sky">${icon('download', 18)}</span><div class="body"><div class="t">ייצוא הנתונים שלי</div><div class="m">קובץ JSON עם המילים, הדיווחים והתנועות</div></div></div>
         ${S.meta.demo ? `<div class="list-row clickable" onclick="App.resetDemo()"><span class="tile sm peach">${icon('repeat', 18)}</span><div class="body"><div class="t">איפוס נתוני הדוגמה</div><div class="m">חזרה למסך הפתיחה</div></div></div>` : ''}
+        ${isCloud() ? `<div class="list-row clickable" onclick="App.signOut()"><span class="tile sm gray">${icon('logout', 18)}</span><div class="body"><div class="t">יציאה מהחשבון</div><div class="m">${esc((Api.session && Api.session.user && Api.session.user.email) || '')}</div></div></div>` : ''}
         <div class="list-row clickable" onclick="App.deleteAccount()"><span class="tile sm pink">${icon('trash', 18)}</span><div class="body"><div class="t" style="color:var(--danger)">מחיקת חשבון</div><div class="m">הפרטים שלך נמחקים. תנועות במעגלים הופכות לאנונימיות.</div></div></div></div>
       <div class="tiny muted center mt">מילה · גרסת בטא · 18+ · שקלי מילה הם מטבע משחק בלבד</div>`;
   };
-  function setSetting(k, v) { Mila.updateSettings({ [k]: v }); render(); }
+  async function setSetting(k, v) { try { await Store().updateSettings({ [k]: v }); render(); } catch (e) { fail(e); } }
+  async function rename(name) { try { if (!name.trim()) return; await Store().renameMe(name); toast('השם עודכן'); } catch (e) { fail(e); } }
+  async function unblock(id) { try { await Store().unblock(id); render(); } catch (e) { fail(e); } }
   function exportData() { const blob = new Blob([Mila.exportData()], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mila-export.json'; a.click(); URL.revokeObjectURL(a.href); toast('הקובץ ירד'); }
   function resetDemo() { confirmSheet({ title: 'לאפס את נתוני הדוגמה?', sub: 'הכול יימחק מהמכשיר ותחזרי למסך הפתיחה.', okText: 'איפוס', okClass: 'pink', onOk: () => { Mila.reset(); closeSheet(true); go('welcome', {}, { reset: true }); } }); }
-  function deleteAccount() { confirmSheet({ title: 'למחוק את החשבון?', sub: 'הפעולה סופית. המילים, הדיווחים וההישגים שלך יימחקו מהמכשיר. במעגלים ייוותרו תנועות אנונימיות לצורך תקינות הקופות.', okText: 'מחיקה סופית', okClass: 'danger', onOk: () => { Mila.deleteAccount(); closeSheet(true); go('welcome', {}, { reset: true }); toast('החשבון נמחק'); } }); }
+  function deleteAccount() { confirmSheet({ title: 'למחוק את החשבון?', sub: 'הפעולה סופית. המילים, הדיווחים וההישגים שלך יימחקו מהמכשיר. במעגלים ייוותרו תנועות אנונימיות לצורך תקינות הקופות.', okText: 'מחיקה סופית', okClass: 'danger', onOk: async () => { await Store().deleteAccount(); closeSheet(true); go('welcome', {}, { reset: true }); toast('החשבון נמחק'); } }); }
 
   /* ============================================================
      S19 — בטיחות: חסימה ודיווח
@@ -829,20 +918,36 @@ const App = (() => {
       <div class="field"><label>סיבת הדיווח</label>${reasons.map(r => `<div class="choice" onclick="App.doReportAbuse('${u ? 'user' : inviteToken ? 'invite' : 'circle'}','${u ? u.id : inviteToken || circleId}','${r}')"><span class="radio"></span><div class="body"><div class="t">${r}</div></div></div>`).join('')}</div>
       ${u && !Mila.isBlocked(Mila.me().id, u.id) ? `<button class="btn danger" onclick="App.blockUser('${u.id}')">${icon('shield', 18)} לחסום את ${esc(u.name)}</button><div class="tiny muted center mt">היא לא תוכל להזמין אותך או להופיע בפיד שלך.</div>` : ''}`);
   }
-  function doReportAbuse(entityType, entityId, reason) { Mila.reportAbuse({ entityType, entityId, reason }); closeSheet(true); toast('הדיווח התקבל. תודה שעזרת לשמור על המקום הזה.'); }
-  function blockUser(id) { Mila.block(id); closeSheet(true); toast('נחסמה'); render(); }
+  async function doReportAbuse(entityType, entityId, reason) { try { await Store().reportAbuse({ entityType, entityId, reason }); closeSheet(true); toast('הדיווח התקבל. תודה שעזרת לשמור על המקום הזה.'); } catch (e) { fail(e); } }
+  async function blockUser(id) { try { await Store().block(id); closeSheet(true); toast('נחסמה'); render(); } catch (e) { fail(e); } }
 
   /* ============================================================
      אתחול
      ============================================================ */
-  function init() {
+  async function init() {
     Mila.load();
     $('#nav-ic-today').innerHTML = ICONS.home(22); $('#nav-ic-circles').innerHTML = ICONS.users(22); $('#nav-ic-me').innerHTML = ICONS.user(22);
     const params = new URLSearchParams(location.search);
     const token = params.get('invite');
     if (token) { history.replaceState(null, '', location.pathname); }
+    if (Api.enabled) {
+      $('#screen').innerHTML = '<div class="empty" style="padding-top:40vh"><div class="muted small">טוענות…</div></div>';
+      try {
+        await Api.init();
+        if (Api.isCloud()) {
+          await Api.sync();
+          Api.onSync(() => { if (!sheetOpen() && !busy) render({ keepSheet: true }); });
+          Api.startAutoSync();
+          if (!Mila.me()) { pendingInviteToken = token; go('profile', {}, { reset: true }); return; }
+          go('today', {}, { reset: true }); if (token) openInvite(token); return;
+        }
+      } catch (e) { console.error(e); toast('לא הצלחנו להתחבר לשרת. אפשר לנסות שוב בעוד רגע.'); }
+      // אין session: אם יש מצב דמו מקומי שמור – נכבד אותו; אחרת מסך פתיחה
+      if (Mila.me() && Mila.getState().meta.demo) { go('today', {}, { reset: true }); return; }
+      pendingInviteToken = token; go('welcome', {}, { reset: true }); return;
+    }
     if (!Mila.me()) { pendingInviteToken = token; go('welcome', {}, { reset: true }); }
-    else { go('today', {}, { reset: true }); if (token) go('invite', { token }); }
+    else { go('today', {}, { reset: true }); if (token) openInvite(token); }
     setInterval(() => { if (document.visibilityState === 'visible' && TOP.includes(current().name)) { const before = JSON.stringify(Object.values(Mila.getState().obligations).map(o => o.status)); Mila.refreshStatuses(); if (JSON.stringify(Object.values(Mila.getState().obligations).map(o => o.status)) !== before) render(); } }, 60000);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); });
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -851,7 +956,8 @@ const App = (() => {
 
   return {
     go, back, tab, refresh, closeSheet, toast, startDemo,
-    suChange, suToggle, signup,
+    suChange, suToggle, signup, authScreen, authSet, authToggle, authSubmit, completeProfile, signOut,
+    setVisibility, react, sendEncouragement, rotateInvite, openInvite, rename, unblock,
     reportSheet, confirmMiss, excuseSheet, doReport, correctionSheet, _corrPick, doCorrect,
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
