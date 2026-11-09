@@ -15,7 +15,7 @@ enabled = true
 [vars]
 APP_ENV = "staging"
 ALLOW_TEST_LOGIN = "true"          # כניסת בדיקה (ללא גוגל) — רק בסביבת הבדיקות
-GOOGLE_CLIENT_ID = ""              # מזהה הלקוח של Google OAuth (ציבורי). הסוד נשמר כ-secret: wrangler secret put GOOGLE_CLIENT_SECRET
+GOOGLE_CLIENT_ID = "254071228810-r6ap3ke8gkt6l4tkkkp4ghk27gd08v9f.apps.googleusercontent.com"              # מזהה הלקוח של Google OAuth (ציבורי). הסוד נשמר כ-secret: wrangler secret put GOOGLE_CLIENT_SECRET
 
 [[d1_databases]]
 binding = "DB"
@@ -35,7 +35,7 @@ enabled = true
 [env.production.vars]
 APP_ENV = "production"
 ALLOW_TEST_LOGIN = "false"
-GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_ID = "254071228810-r6ap3ke8gkt6l4tkkkp4ghk27gd08v9f.apps.googleusercontent.com"
 
 [[env.production.d1_databases]]
 binding = "DB"
