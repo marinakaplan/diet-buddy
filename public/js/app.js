@@ -278,9 +278,10 @@ const App = (() => {
     return `
       <div class="topbar" style="padding-bottom:4px">
         <div class="topbar-side"><button class="icon-btn" aria-label="התראות" onclick="App.go('notifications')">${icon('bell', 24)}${unread ? '<span class="badge-dot"></span>' : ''}</button></div>
-        <div class="title-wrap"></div>
+        <div class="title-wrap">${active.length < Mila.RULES.DAILY_CAP ? `<button class="btn primary sm" onclick="App.openWordWizard()">${icon('plus', 16)} תני מילה</button>` : ''}</div>
         <div class="topbar-side end"><button class="icon-btn" aria-label="הפרופיל שלי" onclick="App.tab('me')">${avatar(u, 40)}</button></div>
       </div>
+      ${Mila.getState().meta.demo ? `<div class="demo-banner">נתוני דוגמה: המעגלים, החברות וההיסטוריה כאן מומצאים כדי להראות איך זה נראה. <a href="#" onclick="event.preventDefault(); App.resetDemo()">איפוס והתחלה אמיתית</a></div>` : ''}
       <div class="greeting"><div><div class="hello">${greet}, ${esc(u.name)} ${icon(hour >= 21 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${cards.length ? `${hebrewPlural(cards.length, 'מילה אחת פעילה', 'מילים פעילות')} היום${done ? ` · ${done} הוכרעו` : ''}` : 'אין מילים על הכף היום'}</div></div></div>
 
       ${main ? `<div class="card ring-card">
@@ -299,7 +300,7 @@ const App = (() => {
       ${upcoming.length ? `<div class="section-title">מתחילות בקרוב</div>${upcoming.map(c => `<div class="word-row" onclick="App.go('word',{id:'${c.id}'})">${wordTile(c.def, 'sm')}<div class="body"><div class="name">${esc(c.def.title)}</div><div class="meta">מתחילה ${Mila.relDay(c.startDate)}</div></div>${icon('chev', 18)}</div>`).join('')}` : ''}
 
       <div class="card pastel-lime clickable tight mt" onclick="App.go('bank')">
-        <div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('coins')}</span><div style="flex:1"><div class="bold">בנק מילה · ${coinLabel(bank.earnedTotal)}</div><div class="small muted">${bank.pendingSlots > 0 ? `עוד ${bank.pendingSlots} שקלים להכרעה בסבב הזה` : 'כל השקלים בסבב הוכרעו'}</div></div>${icon('chev', 20)}</div>
+        <div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('coins')}</span><div style="flex:1"><div class="bold">השקלים שלי · ${coinLabel(bank.earnedTotal)}</div><div class="small muted">${bank.pendingSlots > 0 ? `עוד ${bank.pendingSlots} שקלים להכרעה בסבב הזה` : 'כל השקלים בסבב הוכרעו'}</div></div>${icon('chev', 20)}</div>
       </div>
 
       ${digest.length ? `<div class="section-title">מה קורה במעגלים <small onclick="App.tab('circles')" style="cursor:pointer">הכול</small></div>
@@ -611,7 +612,8 @@ const App = (() => {
     const liveGroup = groupWords.filter(d => (d.endDate || '9999') >= Mila.today());
     const hero = liveGroup[0];
     const heroAdopters = hero ? Mila.adopters(hero.id) : [];
-    return `${topbar({ title: 'המילה שלנו', end: `<button class="icon-btn" aria-label="עוד" onclick="App.circleMenu('${id}')">${icon('more', 22)}</button>` })}
+    const canPropose = c.whoCanPropose === 'all' || Mila.isAdmin(id);
+    return `${topbar({ title: 'המילה שלנו', end: `${canPropose ? `<button class="icon-btn lime" aria-label="מילה חדשה למעגל" onclick="App.openGroupWizard('${id}')">${icon('plus', 22)}</button>` : ''}<button class="icon-btn" aria-label="עוד" onclick="App.circleMenu('${id}')">${icon('more', 22)}</button>` })}
       <div class="avatar-hero">${avatarStack(members, 44, 3)}</div>
       <div class="center"><div class="bold" style="font-size:1.35rem">${hero ? esc(hero.title) : esc(c.name)}</div><div class="muted small">${hero ? `האתגר של מעגל ${esc(c.name)}` : (c.description ? esc(c.description) : 'מעגל פרטי')}</div>
         <div class="chips" style="justify-content:center;margin-top:10px">${hero ? `<span class="chip lav">${avatarStack(heroAdopters, 18, 3)} ${heroAdopters.length} בפנים</span>` : ''}<span class="chip">${members.length} חברות</span></div></div>
@@ -698,7 +700,9 @@ const App = (() => {
   async function sendEncouragement(circleId, toUserId, reaction) { try { await Store().sendEncouragement(circleId, toUserId, reaction); closeSheet(true); toast(`נשלח ${REACTION_LABEL[reaction]}`); render(); } catch (e) { fail(e); } }
   function circleMenu(id) {
     const admin = Mila.isAdmin(id);
-    sheet(`<div class="sheet-title">${esc(Mila.getState().circles[id].name)}</div>
+    const c = Mila.getState().circles[id];
+    sheet(`<div class="sheet-title">${esc(c.name)}</div>
+      ${c.whoCanPropose === 'all' || admin ? `<div class="list-row clickable" onclick="App.closeSheet(); App.openGroupWizard('${id}')"><span class="tile sm lav">${icon('pencil', 18)}</span><div class="body"><div class="t">להציע מילה למעגל</div><div class="m">כלל אחד לכולן, כל אחת בוחרת אם להצטרף</div></div></div>` : ''}
       <div class="list-row clickable" onclick="App.inviteSheet('${id}')"><span class="tile sm lime">${icon('share', 18)}</span><div class="body"><div class="t">להזמין חברה</div><div class="m">קישור או קוד עם תוקף</div></div></div>
       ${admin ? `<div class="list-row clickable" onclick="App.closeSheet(); App.go('circleManage',{id:'${id}'})"><span class="tile sm lav">${icon('settings', 18)}</span><div class="body"><div class="t">ניהול המעגל</div><div class="m">שם, הרשאות, קישור, חברות</div></div></div>` : ''}
       <div class="list-row clickable" onclick="App.closeSheet(); App.safetySheet(null,'${id}')"><span class="tile sm gray">${icon('flag', 18)}</span><div class="body"><div class="t">דיווח על המעגל</div><div class="m">תוכן פוגעני או לחץ</div></div></div>
@@ -844,7 +848,7 @@ const App = (() => {
     const S = Mila.getState();
     const circles = Object.keys(b.byCircle).filter(k => k !== 'personal').map(k => S.circles[k]).filter(Boolean);
     const txs = b.transactions.filter(t => bankFilter === 'all' || (bankFilter === 'earn' ? t.type === 'EARN' : t.type !== 'EARN'));
-    return `${topbar({ title: 'בנק מילה', subtitle: 'היסטוריית השקלים שלי' })}
+    return `${topbar({ title: 'השקלים שלי', subtitle: 'מה שמרתי, מה עבר לקופות' })}
       <div class="card balance-card pastel-lime"><div class="label">יתרת שקלי מילה</div><div class="amount">${icon('coins', 40)}<span class="num">${b.earnedTotal}</span><span class="cur">₪ מילה</span></div><div class="note" style="display:inline-flex;margin:6px 0 0;padding:6px 12px">${icon('info', 16)}<span>מטבע משחק בלבד. אין ערך כספי, רכישה, משיכה או המרה.</span></div></div>
       <div class="stat-grid mb"><div class="stat lime"><div class="n">${b.earnedCurrentRound}${icon('check', 18)}</div><div class="l">שמרתי בסבב</div></div><div class="stat pink"><div class="n">${b.missedCurrentRound}${icon('coin', 18)}</div><div class="l">פספסתי</div></div><div class="stat lav"><div class="n">${b.pendingSlots}${icon('hourglass', 18)}</div><div class="l">ממתינים להכרעה</div></div></div>
       ${circles.length || b.byCircle.personal ? `<div class="card tight"><div class="card-title">לפי מעגל</div>${circles.map(c => `<div class="kv"><span class="k">${circleTile(c, 'sm')} ${esc(c.name)}</span><span class="v"><span class="chip lime">${b.byCircle[c.id].earned} נשמרו</span> <span class="chip pink">${b.byCircle[c.id].missed} בקופה</span></span></div>`).join('')}${b.byCircle.personal ? `<div class="kv"><span class="k"><span class="tile sm gray">${icon('lock', 18)}</span> מילים פרטיות</span><span class="v"><span class="chip lime">${b.byCircle.personal.earned} נשמרו</span> <span class="chip pink">${b.byCircle.personal.missed} פספוסים</span></span></div>` : ''}</div>` : ''}
@@ -870,7 +874,7 @@ const App = (() => {
     const completed = hist.filter(h => h.status === 'completed').length;
     return `${topbar({ title: 'אני', back: false, end: `<button class="icon-btn" aria-label="הגדרות" onclick="App.go('settings')">${icon('settings', 24)}</button>` })}
       <div class="sheet-hero" style="margin-top:0">${avatar(u, 84)}<div class="sheet-title" style="margin-top:10px">${esc(u.name)}</div><div class="sheet-sub">${completed ? `${hebrewPlural(completed, 'סבב אחד הושלם', 'סבבים הושלמו')} · ` : ''}${hebrewPlural(active.length, 'מילה פעילה', 'מילים פעילות')}</div></div>
-      <div class="card tight clickable pastel-lime" onclick="App.go('bank')"><div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('coins')}</span><div style="flex:1"><div class="bold">${coinLabel(b.earnedTotal)}</div><div class="small muted">בנק מילה · היסטוריה ותנועות</div></div>${icon('chev', 20)}</div></div>
+      <div class="card tight clickable pastel-lime" onclick="App.go('bank')"><div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('coins')}</span><div style="flex:1"><div class="bold">${coinLabel(b.earnedTotal)}</div><div class="small muted">השקלים שלי · היסטוריה ותנועות</div></div>${icon('chev', 20)}</div></div>
       <div class="stat-grid mb"><div class="stat lime"><div class="n">${b.earnedTotal}</div><div class="l">נשמרו סה״כ</div></div><div class="stat pink"><div class="n">${b.missedTotal}</div><div class="l">פספוסים</div></div><div class="stat lav"><div class="n">${ach.filter(a => a.earned).length}</div><div class="l">הישגים</div></div></div>
       <div class="section-title">הישגים <small>${ach.filter(a => a.earned).length}/${ach.length}</small></div>
       <div class="ach-grid">${ach.map(a => `<div class="ach ${a.earned ? '' : 'locked'}"><span class="tile sm ${a.earned ? 'lime' : 'gray'}">${icon(a.icon, 20)}</span><div><div class="t">${esc(a.title)}</div><div class="m">${esc(a.desc)}</div></div></div>`).join('')}</div>

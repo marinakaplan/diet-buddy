@@ -417,3 +417,7 @@ textarea.input { min-height: 84px; resize: vertical; }
 .ideas-cat { font-size: .74rem; color: var(--ink-3); margin: 10px 0 6px; }
 .ideas .chips { gap: 6px; }
 .ideas .chip.select { padding: 7px 10px; font-size: .82rem; }
+
+.demo-banner { background: var(--peach-soft); border: 1px solid #FFD6BE; color: var(--peach-ink); font-size: .78rem; padding: 8px 12px; margin: 0 0 14px; }
+.demo-banner a { font-weight: 600; }
+.topbar .title-wrap .btn.sm { width: auto; display: inline-flex; }

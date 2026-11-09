@@ -30,15 +30,15 @@ const MilaDemo = (() => {
 
     // --- מעגל 1: חברות קרובות (סבב ביום 8) ---
     const roundStart = Mila.addDays(today, -7);
-    const c1 = Mila.createCircle({ name: 'חברות קרובות', description: 'הבנות מהתיכון. צעדים, מים ושינה.', color: 'pink', roundStart: Mila.addDays(roundStart, -14) }).circle;
+    const c1 = Mila.createCircle({ name: 'חברות קרובות (דוגמה)', description: 'מעגל לדוגמה. הבנות מהתיכון: צעדים, מים ושינה.', color: 'pink', roundStart: Mila.addDays(roundStart, -14) }).circle;
     addMembers(c1.id, [yael, noa, inbal, maya], Mila.addDays(roundStart, -14));
 
     // --- מעגל 2: הבנות מהמשרד ---
-    const c2 = Mila.createCircle({ name: 'הבנות מהמשרד', description: 'אתגרי משרד קטנים, בלי לחץ.', color: 'lavender', roundStart: Mila.addDays(today, -3) }).circle;
+    const c2 = Mila.createCircle({ name: 'הבנות מהמשרד (דוגמה)', description: 'מעגל לדוגמה. אתגרי משרד קטנים, בלי לחץ.', color: 'lavender', roundStart: Mila.addDays(today, -3) }).circle;
     addMembers(c2.id, [dana, shira, rotem], Mila.addDays(today, -3));
 
     // --- מעגל 3: קבוצת ריצה ---
-    const c3 = Mila.createCircle({ name: 'קבוצת ריצה', description: 'שלוש ריצות בשבוע הופכות להרגל.', color: 'mint', roundStart: Mila.addDays(today, -1) }).circle;
+    const c3 = Mila.createCircle({ name: 'קבוצת ריצה (דוגמה)', description: 'מעגל לדוגמה. שלוש ריצות בשבוע הופכות להרגל.', color: 'mint', roundStart: Mila.addDays(today, -1) }).circle;
     addMembers(c3.id, [hila], Mila.addDays(today, -1));
     // במעגל הריצה הילה היא המנהלת
     S.memberships.find(m => m.circleId === c3.id && m.userId === hila.id).role = 'admin';
