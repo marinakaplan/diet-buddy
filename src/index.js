@@ -4,6 +4,7 @@ import { AppError, json, localDate, nowISO } from './util.js';
 import * as auth from './auth.js';
 import * as game from './game.js';
 import { myState } from './state.js';
+import { serveStatic } from './static.js';
 
 const ACTIONS = {
   createPersonalWord: game.createPersonalWord, proposeGroupWord: game.proposeGroupWord, adoptGroupWord: game.adoptGroupWord, cancelProposal: game.cancelProposal,
@@ -18,7 +19,7 @@ const ACTIONS = {
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
-    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
+    if (!url.pathname.startsWith('/api/')) return env.ASSETS ? env.ASSETS.fetch(req) : serveStatic(req);
     try {
       return await handleApi(req, env, ctx, url);
     } catch (e) {

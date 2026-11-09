@@ -5,9 +5,10 @@
   "description": "מילה — משחק חברתי של התחייבויות. Cloudflare Workers + D1 + Static Assets.",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "deploy:prod": "wrangler deploy --env production",
+    "embed": "node scripts/embed-assets.mjs",
+    "dev": "npm run embed && wrangler dev",
+    "deploy": "npm run embed && wrangler deploy --env=\"\"",
+    "deploy:prod": "npm run embed && wrangler deploy --env production",
     "db:migrate:local": "wrangler d1 migrations apply mila-db --local",
     "db:migrate": "wrangler d1 migrations apply mila-db --remote",
     "db:migrate:prod": "wrangler d1 migrations apply mila-db --remote --env production",

@@ -7,11 +7,7 @@ compatibility_date = "2025-10-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
-[assets]
-directory = "./public"
-binding = "ASSETS"
-not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+# הקבצים הסטטיים מוטמעים ב-Worker (scripts/embed-assets.mjs). ראו README על Static Assets.
 
 [observability]
 enabled = true
@@ -24,7 +20,7 @@ GOOGLE_CLIENT_ID = ""              # מזהה הלקוח של Google OAuth (צי
 [[d1_databases]]
 binding = "DB"
 database_name = "mila-db"
-database_id = "00000000-0000-0000-0000-000000000001"
+database_id = "da20c770-cfac-47a2-abd7-b7e15fde46a9"
 migrations_dir = "migrations"
 
 # ---------- ייצור ----------
@@ -32,11 +28,6 @@ migrations_dir = "migrations"
 name = "mila"
 workers_dev = true
 
-[env.production.assets]
-directory = "./public"
-binding = "ASSETS"
-not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
 
 [env.production.observability]
 enabled = true
@@ -49,5 +40,5 @@ GOOGLE_CLIENT_ID = ""
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "mila-db-prod"
-database_id = "00000000-0000-0000-0000-000000000002"
+database_id = "8bacb983-b3e6-4bbd-89ac-2b2bc80fbfa2"
 migrations_dir = "migrations"
