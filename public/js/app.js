@@ -282,7 +282,7 @@ const App = (() => {
         <div class="topbar-side end"><button class="icon-btn" aria-label="הפרופיל שלי" onclick="App.tab('me')">${avatar(u, 40)}</button></div>
       </div>
       ${Mila.getState().meta.demo ? `<div class="demo-banner">נתוני דוגמה: המעגלים, החברות וההיסטוריה כאן מומצאים כדי להראות איך זה נראה. <a href="#" onclick="event.preventDefault(); App.resetDemo()">איפוס והתחלה אמיתית</a></div>` : ''}
-      <div class="greeting"><div><div class="hello">${greet}, ${esc(u.name)} ${icon(hour >= 21 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${cards.length ? `${hebrewPlural(cards.length, 'מילה אחת פעילה', 'מילים פעילות')} היום${done ? ` · ${done} הוכרעו` : ''}` : 'אין מילים על הכף היום'}</div></div></div>
+      <div class="greeting"><div><div class="hello">${greet}, ${esc(u.name)} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${todaySubtitle(cards)}</div></div></div>
 
       ${main ? `<div class="card ring-card">
           ${ring(main.st.dayIndex, Mila.RULES.ROUND_DAYS, `<div class="label">סבב נוכחי</div><div class="big"><b>${main.st.dayIndex}</b> מתוך ${Mila.RULES.ROUND_DAYS}</div>`)}
@@ -292,15 +292,15 @@ const App = (() => {
 
       ${pendingSum.length ? pendingSum.map(c => `<div class="card pastel-lav clickable tight" onclick="App.go('summary',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">סיכום סבב מוכן: ${esc(Mila.wordDef(c.defId).title)}</div><div class="small muted">14 ימים אחרי. הנה כל מה שקיימת.</div></div>${icon('chev', 20)}</div></div>`).join('') : ''}
 
-      <div class="section-title">המילים שלי להיום ${cards.length ? `<small>${done}/${cards.length}</small>` : ''}</div>
+      <div class="section-title">במה אני עומדת היום ${cards.length ? `<small>${done}/${cards.length}</small>` : ''}</div>
       ${cards.length ? cards.map(todayRow).join('') : `<div class="card empty"><span class="tile lg lime">${icon('pencil', 28)}</span><div class="t">מה המילה הראשונה שלך?</div><div class="m">דבר קטן, מדיד, ל-14 יום. שקל מילה אחד על הכף בכל יום.</div><button class="btn primary" onclick="App.openWordWizard()">תני מילה</button></div>`}
       ${cards.length && active.length < Mila.RULES.DAILY_CAP ? `<button class="btn ghost mt" onclick="App.openWordWizard()">${icon('plus', 20)} תני עוד מילה</button>` : ''}
-      ${cards.length && active.length >= Mila.RULES.DAILY_CAP ? `<div class="note">${icon('info', 18)}<span>שלוש מילים על הכף – זו התקרה היומית. מילה חדשה תוכל להתחיל כשאחת מסתיימת.</span></div>` : ''}
+      ${cards.length && active.length >= Mila.RULES.DAILY_CAP ? `<div class="note">${icon('info', 18)}<span>שלוש מילים זה המקסימום ליום. כשאחת מסתיימת, אפשר לתת חדשה.</span></div>` : ''}
 
       ${upcoming.length ? `<div class="section-title">מתחילות בקרוב</div>${upcoming.map(c => `<div class="word-row" onclick="App.go('word',{id:'${c.id}'})">${wordTile(c.def, 'sm')}<div class="body"><div class="name">${esc(c.def.title)}</div><div class="meta">מתחילה ${Mila.relDay(c.startDate)}</div></div>${icon('chev', 18)}</div>`).join('')}` : ''}
 
       <div class="card pastel-lime clickable tight mt" onclick="App.go('bank')">
-        <div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('coins')}</span><div style="flex:1"><div class="bold">השקלים שלי · ${coinLabel(bank.earnedTotal)}</div><div class="small muted">${bank.pendingSlots > 0 ? `עוד ${bank.pendingSlots} שקלים להכרעה בסבב הזה` : 'כל השקלים בסבב הוכרעו'}</div></div>${icon('chev', 20)}</div>
+        <div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('coins')}</span><div style="flex:1"><div class="bold">השקלים שלי · ${coinLabel(bank.earnedTotal)}</div><div class="small muted">${bank.pendingSlots > 0 ? `עוד ${bank.pendingSlots} שקלים על הכף עד סוף הסבב` : 'הסבב הזה הוכרע עד הסוף'}</div></div>${icon('chev', 20)}</div>
       </div>
 
       ${digest.length ? `<div class="section-title">מה קורה במעגלים <small onclick="App.tab('circles')" style="cursor:pointer">הכול</small></div>
@@ -309,11 +309,19 @@ const App = (() => {
     `;
   };
 
+  function todaySubtitle(cards) {
+    if (!cards.length) return 'אין מילה על הכף היום';
+    const left = cards.filter(x => !x.outcome).length;
+    const kept = cards.filter(x => x.outcome === 'success').length;
+    if (left === 0) return kept === cards.length ? 'עמדת בכולן היום. אמרת, עשית.' : 'היום הוכרע. מחר מתחילות מחדש.';
+    if (left === cards.length) return cards.length === 1 ? 'מילה אחת לעמוד בה היום' : `${cards.length} מילים לעמוד בהן היום`;
+    return left === 1 ? 'נשארה עוד מילה אחת להיום' : `נשארו עוד ${left} מילים להיום`;
+  }
   function todayRow(x) {
     const st = x.outcome === 'success' ? 'done' : x.outcome === 'miss' ? 'miss' : x.outcome === 'excused' ? 'excused' : x.late ? 'late' : '';
     const mark = x.outcome === 'success' ? icon('check', 18) : x.outcome === 'miss' ? icon('x', 16) : x.outcome === 'excused' ? icon('minus', 16) : '';
-    const meta = x.outcome === 'success' ? '<span class="chip lime">נשמר</span>' : x.outcome === 'miss' ? `<span class="chip pink">${x.circle ? 'בקופת המעגל' : 'פספוס'}</span>` : x.outcome === 'excused' ? '<span class="chip lav">החרגה</span>' : x.late ? `<span class="chip peach">${icon('clock', 13)} להשלמה מאתמול עד 10:00</span>` : `<span class="chip">${icon('coin', 13)} שקל על הכף</span>`;
-    const streak = x.stats.current ? `<span class="chip">${icon('flame', 13)} ${x.stats.current} ברצף</span>` : '';
+    const meta = x.outcome === 'success' ? '<span class="chip lime">עמדת במילה</span>' : x.outcome === 'miss' ? '<span class="chip pink">לא היום</span>' : x.outcome === 'excused' ? '<span class="chip lav">יום מוחרג</span>' : x.late ? `<span class="chip peach">${icon('clock', 13)} אתמול, אפשר להשלים עד 10:00</span>` : '';
+    const streak = x.stats.current >= 2 ? `<span class="chip">${icon('flame', 13)} ${x.stats.current} ימים ברצף</span>` : '';
     return `<div class="word-row ${x.outcome === 'success' ? 'done' : ''}">
       <button class="check ${st}" aria-label="דיווח" onclick="event.stopPropagation(); App.reportSheet('${x.id}')">${mark}</button>
       <div class="body" onclick="App.go('word',{id:'${x.commitmentId}'})"><div class="name">${esc(x.def.title)}</div><div class="meta">${meta}${streak}${x.circle ? `<span class="chip outline">${esc(x.circle.name)}</span>` : ''}</div></div>
