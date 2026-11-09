@@ -1,5 +1,5 @@
 /* בדיקת מוצר מקצה לקצה בדפדפן, שתי משתמשות בשני "טלפונים" (שני הקשרי דפדפן נפרדים).
-   הזרימה: א נרשמת ← פותחת מעגל ← קישור הזמנה ← ב נרשמת דרך הקישור ומצטרפת ← א מילה קבוצתית ←
+   הזרימה: א נרשמת ← פותחת קבוצה ← קישור הזמנה ← ב נרשמת דרך הקישור ומצטרפת ← א מילה קבוצתית ←
    ב מאמצת ← שתיהן מדווחות ← בנק וקופה ועדכונים אצל שתיהן ← רענון/מכשיר חדש שומר הכול ← ניתוק רשת.
    הכניסה: /api/auth/test-login (קיים רק כש-ALLOW_TEST_LOGIN="true", סביבת בדיקות).
    הרצה: BASE_URL=http://127.0.0.1:8787 node tests/e2e.two-users.cjs */
@@ -53,11 +53,11 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   await a.page.goto(BASE + '/'); await ready(a); await shot(a, '01-welcome');
   await signUpViaUi(a, A); await shot(a, '02-a-start');
 
-  console.log('2. א פותחת מעגל ומקבלת קישור הזמנה');
+  console.log('2. א פותחת קבוצה ומקבלת קישור הזמנה');
   await a.page.evaluate(() => App.go('circleNew'));
   await a.page.fill('input[placeholder="למשל: הבנות מהמשרד"]', 'הבנות של יעל');
-  await a.page.click('text=יצירת המעגל וקישור הזמנה');
-  await a.page.waitForSelector('text=קוד הזמנה', { timeout: 20000 });
+  await a.page.click('text=פותחת ומזמינה');
+  await a.page.waitForSelector('text=מי איתך?', { timeout: 20000 });
   const token = await a.page.evaluate(() => Api.cloud.inviteToken(Mila.myCircles()[0].id));
   const circleId = await a.page.evaluate(() => Mila.myCircles()[0].id);
   assert.ok(token && token.length === 6);
@@ -65,29 +65,29 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
 
   console.log('3. ב פותחת את הקישור בטלפון שלה, נרשמת, רואה תצוגה מקדימה ומצטרפת');
   await signUpViaUi(b, B, `${BASE}/?invite=${token}`);
-  await b.page.waitForSelector('text=יש לי מילה איתך', { timeout: 20000 });
+  await b.page.waitForSelector('text=באה איתי?', { timeout: 20000 });
   await shot(b, '04-b-invite-preview');
-  await b.page.click('text=הצטרפי למעגל');
-  await b.page.waitForSelector('text=המילה שלנו', { timeout: 20000 });
+  await b.page.click('text=אני בפנים');
+  await b.page.waitForSelector('text=מי מובילה?', { timeout: 20000 });
   let sB = await state(b);
   assert.strictEqual(Object.values(sB.obligations).filter(o => o.userId === sB.me).length, 0, 'AT-02: הצטרפות יצרה אירועים');
   assert.strictEqual(sB.memberships.filter(m => !m.leftAt).length, 2);
 
   console.log('4. א מציעה מילה קבוצתית ומאמצת אותה');
   await a.page.evaluate((id) => App.openGroupWizard(id), circleId);
-  await a.page.click('.chips.scroll .chip.select >> nth=1');
-  await a.page.click('text=להציע למעגל');
-  await a.page.waitForSelector('text=ההצעה פורסמה במעגל', { timeout: 20000 });
+  await a.page.click('.ideas .chip.select >> nth=1');
+  await a.page.click('text=חותמת ומזמינה');
+  await a.page.waitForSelector('text=החברות קיבלו הודעה', { timeout: 20000 });
   const defId = await a.page.evaluate(() => Object.values(Mila.getState().wordDefs).find(d => d.kind === 'group').id);
-  await a.page.click('text=מילה שלי, אני בפנים'); await a.page.click('text=חותמת על זה');
-  await a.page.waitForSelector('text=המילה על הכף', { timeout: 20000 });
+  await a.page.click('button:has-text("אני בפנים")'); await a.page.click('text=חותמת על זה');
+  await a.page.waitForSelector('text=על הכף מ-', { timeout: 20000 });
 
   console.log('5. ב רואה את המילה (דרך רענון) ומאמצת');
   await sync(b);
   await b.page.evaluate(() => App.tab('circles')); await b.page.waitForSelector('text=מילים שמחכות לך', { timeout: 20000 }); await shot(b, '05-b-circles');
   await b.page.evaluate((id) => App.go('groupWord', { id }), defId);
-  await b.page.click('text=מילה שלי, אני בפנים'); await b.page.click('text=חותמת על זה');
-  await b.page.waitForSelector('text=המילה על הכף', { timeout: 20000 });
+  await b.page.click('button:has-text("אני בפנים")'); await b.page.click('text=חותמת על זה');
+  await b.page.waitForSelector('text=על הכף מ-', { timeout: 20000 });
   assert.strictEqual(await b.page.evaluate((id) => Mila.adopters(id).length, defId), 2, 'AT-04');
 
   console.log('6. שתיהן מדווחות: א הצליחה, ב פספסה');

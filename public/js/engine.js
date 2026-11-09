@@ -5,7 +5,7 @@
    כל פעולה מקבלת state, מאמתת הרשאות וחוקים, וכותבת ביומן.
 
    חוקים מרכזיים (לפי האפיון):
-   - סבב = 14 ימים.          - לכל היותר 3 אירועים מחייבים ביום, בכל המעגלים יחד.
+   - סבב = 14 ימים.          - לכל היותר 3 אירועים מחייבים ביום, בכל הקבוצות יחד.
    - שקל מילה נוצר רק בהכרעה. - הצלחה -> EARN ; פספוס -> MISS_TO_CIRCLE / MISS_PERSONAL ; החרגה -> אין מטבע.
    - יומן תנועות append-only. תיקון = REVERSE + תנועה חדשה, לא מחיקה.
    - דיווח חוזר מחזיר את ההכרעה הקיימת (idempotent).
@@ -123,7 +123,7 @@ const Mila = (() => {
   function updateSettings(patch) { Object.assign(me().settings, patch); save(); }
   function renameMe(name) { me().name = name.trim(); save(); }
 
-  /* ---------- מעגלים ---------- */
+  /* ---------- קבוצות ---------- */
   function activeMemberships(circleId) {
     return state.memberships.filter(m => m.circleId === circleId && !m.leftAt);
   }
@@ -141,8 +141,8 @@ const Mila = (() => {
   function circleMembers(circleId) { return activeMemberships(circleId).map(m => ({ ...state.users[m.userId], role: m.role, joinedAt: m.joinedAt })); }
 
   function createCircle({ name, description = '', color, whoCanPropose = 'all', maxMembers = RULES.MAX_MEMBERS_DEFAULT, roundStart = today() }) {
-    if (!name || !name.trim()) throw err('שם המעגל לא יכול להיות ריק');
-    if (name.trim().length > 50) throw err('שם המעגל ארוך מדי (עד 50 תווים)');
+    if (!name || !name.trim()) throw err('שם הקבוצה לא יכול להיות ריק');
+    if (name.trim().length > 50) throw err('שם הקבוצה ארוך מדי (עד 50 תווים)');
     const id = uid('c');
     const circle = {
       id, name: name.trim(), description: description.trim(), ownerId: state.me,
@@ -159,7 +159,7 @@ const Mila = (() => {
   }
 
   function updateCircle(circleId, patch) {
-    if (!isAdmin(circleId)) throw err('רק מנהלת המעגל יכולה לשנות את פרטיו');
+    if (!isAdmin(circleId)) throw err('רק מנהלת הקבוצה יכולה לשנות את פרטיו');
     const c = state.circles[circleId];
     const allowed = ['name', 'description', 'whoCanPropose', 'maxMembers', 'color'];
     for (const k of allowed) if (k in patch) c[k] = patch[k];
@@ -167,7 +167,7 @@ const Mila = (() => {
     return c;
   }
 
-  /* סבב של מעגל: חלונות של 14 יום מעוגנים ל-roundStart */
+  /* סבב של קבוצה: חלונות של 14 יום מעוגנים ל-roundStart */
   function circleRound(circleId, date = today()) {
     const c = state.circles[circleId];
     const d = diffDays(c.roundStart, date);
@@ -204,7 +204,7 @@ const Mila = (() => {
     const circle = state.circles[inv.circleId];
     if (!circle || circle.status !== 'active') return { ok: false, reason: 'not_found' };
     const inviter = state.users[inv.inviterId];
-    // משתמשת חסומה לא נחשפת לפרטי המעגל
+    // משתמשת חסומה לא נחשפת לפרטי הקבוצה
     if (isBlocked(inv.inviterId, state.me) || isBlocked(state.me, inv.inviterId)) return { ok: false, reason: 'not_found' };
     const members = circleMembers(circle.id);
     const sample = Object.values(state.wordDefs).find(d => d.circleId === circle.id && d.kind === 'group' && d.status !== 'cancelled');
@@ -215,7 +215,7 @@ const Mila = (() => {
     const p = previewInvite(token);
     if (!p.ok) throw err(inviteError(p.reason));
     if (p.alreadyMember) return state.circles[p.circle.id];
-    if (p.memberCount >= p.maxMembers) throw err('המעגל מלא. אפשר לבקש ממנהלת המעגל להגדיל את מספר המקומות.');
+    if (p.memberCount >= p.maxMembers) throw err('הקבוצה מלא. אפשר לבקש ממנהלת הקבוצה להגדיל את מספר המקומות.');
     state.memberships.push({ id: uid('m'), circleId: p.circle.id, userId: state.me, role: 'member', joinedAt: nowISO(), leftAt: null });
     p.inv.uses += 1;
     addEvent(p.circle.id, state.me, 'member_joined', {});
@@ -224,7 +224,7 @@ const Mila = (() => {
     return state.circles[p.circle.id];
   }
   function inviteError(reason) {
-    return { not_found: 'הקישור לא נמצא. אולי הוא הוקלד לא נכון?', revoked: 'הקישור בוטל על ידי המעגל. אפשר לבקש קישור חדש.', expired: 'תוקף הקישור פג. אפשר לבקש הזמנה חדשה.', full: 'הקישור הזה כבר נוצל במלואו. אפשר לבקש קישור חדש.' }[reason] || 'לא ניתן להצטרף כרגע.';
+    return { not_found: 'הקישור לא נמצא. אולי הוא הוקלד לא נכון?', revoked: 'הקישור בוטל על ידי הקבוצה. אפשר לבקש קישור חדש.', expired: 'תוקף הקישור פג. אפשר לבקש הזמנה חדשה.', full: 'הקישור הזה כבר נוצל במלואו. אפשר לבקש קישור חדש.' }[reason] || 'לא ניתן להצטרף כרגע.';
   }
 
   function leaveCircle(circleId, { endWords = true } = {}) {
@@ -237,14 +237,14 @@ const Mila = (() => {
     }
     m.leftAt = nowISO();
     if (endWords) {
-      // סיום מוקדם של מילים פעילות במעגל – ההיסטוריה נשמרת, אירועים עתידיים מבוטלים
+      // סיום מוקדם של מילים פעילות בקבוצה – ההיסטוריה נשמרת, אירועים עתידיים מבוטלים
       myCommitments().filter(c => (state.wordDefs[c.defId] || {}).circleId === circleId && c.status === 'active').forEach(c => endCommitment(c.id, 'left_circle'));
     }
     addEvent(circleId, state.me, 'member_left', {});
     save();
   }
   function removeMember(circleId, userId) {
-    if (!isAdmin(circleId)) throw err('רק מנהלת המעגל יכולה להסיר חברות');
+    if (!isAdmin(circleId)) throw err('רק מנהלת הקבוצה יכולה להסיר חברות');
     const m = membership(circleId, userId);
     if (!m) return;
     m.leftAt = nowISO();
@@ -340,10 +340,10 @@ const Mila = (() => {
     if (banned.test(title) || banned.test(rule)) throw err('הניסוח הזה עלול להיות מסוכן. נסי מילה שמוסיפה משהו טוב ליום, במקום להגביל בצורה קיצונית.');
   }
 
-  /* יצירת מילה אישית (ואופציונלית – חשיפה למעגל אחד) */
+  /* יצירת מילה אישית (ואופציונלית – חשיפה לקבוצה אחד) */
   function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, visibility = 'private' }) {
     validateWordInput({ title, rule });
-    if (circleId && !isMember(circleId)) throw err('את לא חברה במעגל הזה');
+    if (circleId && !isMember(circleId)) throw err('את לא חברה בקבוצה הזו');
     const cap = capCheck(state.me, startDate);
     if (!cap.ok) throw Object.assign(err('יש לך כבר שלוש מילים על הכף בימים האלה'), { code: 'CAP', cap });
     const def = { id: uid('w'), kind: 'personal', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility: circleId ? visibility : 'private', version: 1, startDate, status: 'active', createdAt: nowISO() };
@@ -370,16 +370,16 @@ const Mila = (() => {
   /* הצעת מילה קבוצתית */
   function proposeGroupWord(circleId, { title, rule, icon = 'leaf', startDate, visibility = 'status' }) {
     const circle = state.circles[circleId];
-    if (!circle) throw err('מעגל לא נמצא');
-    if (!isMember(circleId)) throw err('את לא חברה במעגל הזה');
-    if (circle.whoCanPropose === 'admins' && !isAdmin(circleId)) throw err('במעגל הזה רק מנהלות מציעות מילים');
+    if (!circle) throw err('קבוצה לא נמצאה');
+    if (!isMember(circleId)) throw err('את לא חברה בקבוצה הזו');
+    if (circle.whoCanPropose === 'admins' && !isAdmin(circleId)) throw err('בקבוצה הזו רק מנהלות מציעות מילים');
     validateWordInput({ title, rule });
     if (!startDate) startDate = today();
     const def = { id: uid('w'), kind: 'group', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility, version: 1, startDate, endDate: addDays(startDate, RULES.ROUND_DAYS - 1), status: 'proposed', createdAt: nowISO() };
     state.wordDefs[def.id] = def;
     addEvent(circleId, state.me, 'group_word_proposed', { defId: def.id, title: def.title });
     // התראה לחברות
-    for (const m of activeMemberships(circleId)) if (m.userId !== state.me) notify(m.userId, 'group_word', `מילה חדשה במעגל ${circle.name}`, `${me().name} מציעה: ${def.title}`, { defId: def.id, circleId });
+    for (const m of activeMemberships(circleId)) if (m.userId !== state.me) notify(m.userId, 'group_word', `באה איתי? · ${circle.name}`, `${me().name} נתנה מילה: ${def.title}`, { defId: def.id, circleId });
     save();
     return def;
   }
@@ -391,7 +391,7 @@ const Mila = (() => {
   function adoptGroupWord(defId) {
     const def = state.wordDefs[defId];
     if (!def || def.kind !== 'group') throw err('מילה לא נמצאה');
-    if (!isMember(def.circleId)) throw err('את לא חברה במעגל הזה');
+    if (!isMember(def.circleId)) throw err('את לא חברה בקבוצה הזו');
     if (def.status === 'cancelled') throw err('ההצעה בוטלה');
     if (myAdoption(defId)) return myAdoption(defId);
     const start = def.startDate < today() ? today() : def.startDate; // הצטרפות מאוחרת מתחילה מהיום
@@ -699,13 +699,13 @@ const Mila = (() => {
   /* ---------- הישגים ---------- */
   const ACHIEVEMENTS = {
     first_word: { title: 'נתתי מילה', desc: 'יצרת את ההתחייבות הראשונה שלך', icon: 'pencil' },
-    first_day: { title: 'חתום וסגור', desc: 'המילה הראשונה שקוימה', icon: 'check' },
+    first_day: { title: 'חתום וסגור', desc: 'השקל הראשון שהרווחת', icon: 'check' },
     streak_7: { title: 'מילה אחר מילה', desc: 'שבע הצלחות ברצף באותה מילה', icon: 'flame' },
     streak_14: { title: 'מילה בסלע', desc: '14 הצלחות ברצף. סבב מושלם', icon: 'trophy' },
-    first_circle: { title: 'מעגל ראשון', desc: 'הצטרפת למעגל', icon: 'users' },
+    first_circle: { title: 'קבוצה ראשונה', desc: 'הצטרפת לקבוצה', icon: 'users' },
     first_group_word: { title: 'יש לך מילה', desc: 'הצטרפת למילה משותפת', icon: 'link' },
     first_encouragement: { title: 'מילה טובה', desc: 'עודדת חברה', icon: 'clap' },
-    round_complete: { title: 'אמרת ועשית', desc: 'סיימת סבב של 14 ימים', icon: 'medal' },
+    round_complete: { title: 'אמרת ועשית', desc: 'סיימת סבב שלם', icon: 'medal' },
     second_round: { title: 'עוד סיבוב?', desc: 'חזרת לסבב שני', icon: 'repeat' },
   };
   function grant(userId, type, sourceRef) {
@@ -758,7 +758,7 @@ const Mila = (() => {
     return JSON.stringify({ user: u, commitments: myCommitments(), obligations: Object.values(state.obligations).filter(o => o.userId === state.me), ledger: state.ledger.filter(t => t.userId === state.me), achievements: state.achievements.filter(a => a.userId === state.me) }, null, 2);
   }
   function deleteAccount() {
-    // מחיקה: פרטי המשתמשת נמחקים; תנועות היסטוריות של מעגלים הופכות לאנונימיות לצורכי תקינות
+    // מחיקה: פרטי המשתמשת נמחקים; תנועות היסטוריות של קבוצות הופכות לאנונימיות לצורכי תקינות
     const id = state.me;
     for (const m of state.memberships) if (m.userId === id && !m.leftAt) m.leftAt = nowISO();
     state.users[id] = { id, name: 'משתתפת שעזבה', color: 'sky', deleted: true, settings: {} };

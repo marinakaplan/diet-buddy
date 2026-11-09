@@ -1,6 +1,6 @@
 /* ============================================================
    מילה — נתוני דמו (demo.js)
-   זורע מעגלים, חברות ומילים כדי שהאפליקציה תרגיש חיה מהרגע הראשון.
+   זורע קבוצות, חברות ומילים כדי שהאפליקציה תרגיש חיה מהרגע הראשון.
    כל הדיווחים של החברות נוצרים דרך אותו מנוע ואותם חוקים.
    ============================================================ */
 const MilaDemo = (() => {
@@ -28,19 +28,19 @@ const MilaDemo = (() => {
     const friends = FRIENDS.map(f => Mila.createUser({ name: f.name, ageConfirmed: true, color: f.color }));
     const [yael, noa, inbal, maya, dana, shira, rotem, hila] = friends;
 
-    // --- מעגל 1: חברות קרובות (סבב ביום 8) ---
+    // --- קבוצה 1: חברות קרובות (סבב ביום 8) ---
     const roundStart = Mila.addDays(today, -7);
-    const c1 = Mila.createCircle({ name: 'חברות קרובות (דוגמה)', description: 'מעגל לדוגמה. הבנות מהתיכון: צעדים, מים ושינה.', color: 'pink', roundStart: Mila.addDays(roundStart, -14) }).circle;
+    const c1 = Mila.createCircle({ name: 'חברות קרובות (דוגמה)', description: 'קבוצה לדוגמה. הבנות מהתיכון.', color: 'pink', roundStart: Mila.addDays(roundStart, -14) }).circle;
     addMembers(c1.id, [yael, noa, inbal, maya], Mila.addDays(roundStart, -14));
 
-    // --- מעגל 2: הבנות מהמשרד ---
-    const c2 = Mila.createCircle({ name: 'הבנות מהמשרד (דוגמה)', description: 'מעגל לדוגמה. אתגרי משרד קטנים, בלי לחץ.', color: 'lavender', roundStart: Mila.addDays(today, -3) }).circle;
+    // --- קבוצה 2: הבנות מהמשרד ---
+    const c2 = Mila.createCircle({ name: 'הבנות מהמשרד (דוגמה)', description: 'קבוצה לדוגמה. בלי לחץ.', color: 'lavender', roundStart: Mila.addDays(today, -3) }).circle;
     addMembers(c2.id, [dana, shira, rotem], Mila.addDays(today, -3));
 
-    // --- מעגל 3: קבוצת ריצה ---
-    const c3 = Mila.createCircle({ name: 'קבוצת ריצה (דוגמה)', description: 'מעגל לדוגמה. שלוש ריצות בשבוע הופכות להרגל.', color: 'mint', roundStart: Mila.addDays(today, -1) }).circle;
+    // --- קבוצה 3: קבוצת ריצה ---
+    const c3 = Mila.createCircle({ name: 'קבוצת ריצה (דוגמה)', description: 'קבוצה לדוגמה. ריצות קלות.', color: 'mint', roundStart: Mila.addDays(today, -1) }).circle;
     addMembers(c3.id, [hila], Mila.addDays(today, -1));
-    // במעגל הריצה הילה היא המנהלת
+    // בקבוצה הריצה הילה היא המנהלת
     S.memberships.find(m => m.circleId === c3.id && m.userId === hila.id).role = 'admin';
     S.memberships.find(m => m.circleId === c3.id && m.userId === meUser.id).role = 'member';
     c3.ownerId = hila.id;
@@ -66,15 +66,15 @@ const MilaDemo = (() => {
     const read = asUser(meUser.id, () => Mila.createPersonalWord({ title: 'קריאה 10 עמודים', rule: 'קוראת 10 עמודים מספר (לא מסך)', icon: 'book', startDate: roundStart }));
     simulate(read.commitment.id, 0.75, rand, iso, { excuses: 1 });
 
-    // --- הצעה פתוחה במעגל המשרד (תדגים את התקרה) ---
+    // --- הצעה פתוחה בקבוצה המשרד (תדגים את התקרה) ---
     const delivery = asUser(dana.id, () => Mila.proposeGroupWord(c2.id, { title: 'בלי משלוחים', rule: 'אף הזמנת אוכל במשלוח היום', icon: 'tools', startDate: Mila.addDays(today, -3) }));
     for (const u of [dana, shira]) { const k = adoptBackdated(delivery, u.id, Mila.addDays(today, -3), iso); simulate(k.id, 0.7, rand, iso); }
 
-    // --- הצעה במעגל הריצה ---
+    // --- הצעה בקבוצה הריצה ---
     const runWord = asUser(hila.id, () => Mila.proposeGroupWord(c3.id, { title: 'ריצה 20 דקות', rule: 'ריצה קלה של 20 דקות, בכל קצב', icon: 'run', startDate: today }));
     asUser(hila.id, () => Mila.adoptGroupWord(runWord.id));
 
-    // --- הזמנה ממאיה למעגל חדש ---
+    // --- הזמנה ממאיה לקבוצה חדשה ---
     const c4 = asUser(maya.id, () => Mila.createCircle({ name: 'הבנות של מאיה', description: 'אתגר בלי סוכר ל-14 יום', color: 'peach', roundStart: Mila.addDays(today, 2) }));
     asUser(maya.id, () => Mila.proposeGroupWord(c4.circle.id, { title: 'בלי סוכר', rule: 'ללא ממתקים ומשקאות ממותקים', icon: 'noSugar', startDate: Mila.addDays(today, 2) }));
     S.pendingInvite = { token: c4.invite.token, from: maya.id };
@@ -86,9 +86,9 @@ const MilaDemo = (() => {
 
     // --- התראות ---
     S.notifications = [];
-    Mila.notify(meUser.id, 'invite', 'מאיה הזמינה אותך למעגל', '״הבנות של מאיה״ · בלי סוכר 14 ימים', { token: c4.invite.token });
-    Mila.notify(meUser.id, 'encouragement', 'יעל שלחה לך עידוד', 'על ״הליכה 30 דקות״', { circleId: c1.id });
-    Mila.notify(meUser.id, 'group_word', 'מילה חדשה במעגל הבנות מהמשרד', 'דנה מציעה: בלי משלוחים', { defId: delivery.id, circleId: c2.id });
+    Mila.notify(meUser.id, 'invite', 'מאיה: באה איתי?', 'הבנות של מאיה · בלי סוכר', { token: c4.invite.token });
+    Mila.notify(meUser.id, 'encouragement', 'יעל שלחה לך מילה טובה', 'על הליכה 30 דקות', { circleId: c1.id });
+    Mila.notify(meUser.id, 'group_word', 'באה איתי? · הבנות מהמשרד', 'דנה נתנה מילה: בלי משלוחים', { defId: delivery.id, circleId: c2.id });
     S.notifications.forEach((n, i) => { n.createdAt = iso(i === 0 ? today : Mila.addDays(today, -1), 9 + i); });
 
     // סדר כרונולוגי לפיד: אירועי דמו קיבלו זמן אמיתי, נדגום להם זמנים מפוזרים

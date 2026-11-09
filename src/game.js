@@ -5,13 +5,13 @@ import { err, uid, nowISO, localDate, addDays, diffDays, isValidDate, windowOf, 
 
 const ACH = {
   first_word: ['נתתי מילה', 'יצרת את ההתחייבות הראשונה שלך'],
-  first_day: ['חתום וסגור', 'המילה הראשונה שקוימה'],
+  first_day: ['חתום וסגור', 'השקל הראשון שהרווחת'],
   streak_7: ['מילה אחר מילה', 'שבע הצלחות ברצף באותה מילה'],
   streak_14: ['מילה בסלע', '14 הצלחות ברצף. סבב מושלם'],
-  first_circle: ['מעגל ראשון', 'הצטרפת למעגל'],
+  first_circle: ['קבוצה ראשונה', 'הצטרפת לקבוצה'],
   first_group_word: ['יש לך מילה', 'הצטרפת למילה משותפת'],
   first_encouragement: ['מילה טובה', 'עודדת חברה'],
-  round_complete: ['אמרת ועשית', 'סיימת סבב של 14 ימים'],
+  round_complete: ['אמרת ועשית', 'סיימת סבב שלם'],
   second_round: ['עוד סיבוב?', 'חזרת לסבב שני'],
 };
 
@@ -94,7 +94,7 @@ export async function createPersonalWord(env, user, b) {
   if (start < today) throw err('VALIDATION', 'אי אפשר לתת מילה על ימים שעברו');
   if (diffDays(today, start) > 60) throw err('VALIDATION', 'אפשר לתכנן עד 60 יום קדימה');
   const circleId = b.circleId || null;
-  if (circleId && !(await isMember(env, circleId, user.id))) throw err('FORBIDDEN', 'את לא חברה במעגל הזה', 403);
+  if (circleId && !(await isMember(env, circleId, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
   const vis = circleId ? (['status', 'summary'].includes(b.visibility) ? b.visibility : 'status') : 'private';
   const cap = await capInfo(env, user.id, start);
   if (!cap.ok) throw err('CAP', 'יש לך כבר שלוש מילים על הכף בימים האלה', 409, { cap });
@@ -109,9 +109,9 @@ export async function createPersonalWord(env, user, b) {
 
 export async function proposeGroupWord(env, user, b) {
   const c = await first(env, `select * from circles where id = ? and status = 'active'`, b.circleId);
-  if (!c) throw err('NOT_FOUND', 'מעגל לא נמצא', 404);
-  if (!(await isMember(env, c.id, user.id))) throw err('FORBIDDEN', 'את לא חברה במעגל הזה', 403);
-  if (c.who_can_propose === 'admins' && !(await isAdmin(env, c.id, user.id))) throw err('FORBIDDEN', 'במעגל הזה רק מנהלות מציעות מילים', 403);
+  if (!c) throw err('NOT_FOUND', 'קבוצה לא נמצאה', 404);
+  if (!(await isMember(env, c.id, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
+  if (c.who_can_propose === 'admins' && !(await isAdmin(env, c.id, user.id))) throw err('FORBIDDEN', 'בקבוצה הזו רק מנהלות מציעות מילים', 403);
   const { title, rule } = validateWord(b.title, b.rule);
   const today = localDate(user.timezone);
   const start = isValidDate(b.startDate) ? b.startDate : today;
@@ -121,7 +121,7 @@ export async function proposeGroupWord(env, user, b) {
   const batch = [
     S(env, `insert into word_definitions(id, kind, circle_id, owner_id, title, rule, icon, visibility, start_date, end_date, status) values (?,?,?,?,?,?,?,?,?,?,'proposed')`, did, 'group', c.id, user.id, title, rule, icon(b.icon), vis, start, addDays(start, ROUND_DAYS - 1)),
     eventStmt(env, c.id, user.id, 'group_word_proposed', { defId: did, title }),
-    ...members.map(m => notifyStmt(env, m.user_id, 'group_word', `יש לי מילה איתך · ${c.name}`, `${user.display_name} נתנה מילה: ${title}`, { defId: did, circleId: c.id }, today)),
+    ...members.map(m => notifyStmt(env, m.user_id, 'group_word', `באה איתי? · ${c.name}`, `${user.display_name} נתנה מילה: ${title}`, { defId: did, circleId: c.id }, today)),
   ];
   await runBatch(env, batch);
   return { defId: did };
@@ -130,7 +130,7 @@ export async function proposeGroupWord(env, user, b) {
 export async function adoptGroupWord(env, user, b) {
   const d = await first(env, `select * from word_definitions where id = ? and kind = 'group'`, b.defId);
   if (!d) throw err('NOT_FOUND', 'מילה לא נמצאה', 404);
-  if (!(await isMember(env, d.circle_id, user.id))) throw err('FORBIDDEN', 'את לא חברה במעגל הזה', 403);
+  if (!(await isMember(env, d.circle_id, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
   if (d.status === 'cancelled') throw err('VALIDATION', 'ההצעה בוטלה');
   const existing = await first(env, `select id from word_commitments where definition_id = ? and user_id = ? and status <> 'cancelled'`, d.id, user.id);
   if (existing) return { commitmentId: existing.id, duplicate: true };
@@ -253,7 +253,7 @@ export async function correct(env, user, b) {
   if (outcome !== 'excused') stmts.push(S(env, `insert into virtual_ledger(id, obligation_id, user_id, definition_id, circle_id, transaction_type, amount, resolution_no, local_date, created_at) select ?, id, user_id, ?, ?, ?, 1, resolution_no, local_date, ? from daily_obligations where id = ? and resolved_at = ?`, uid(), d.id, d.circle_id, ledgerType(outcome, d.circle_id), at, o.id, at));
   await runBatch(env, stmts);
   const after = await first(env, `select resolved_at from daily_obligations where id = ?`, o.id);
-  if (after.resolved_at !== at) throw err('CONFLICT', 'ההכרעה השתנתה בינתיים. רענני ונסי שוב.', 409);
+  if (after.resolved_at !== at) throw err('CONFLICT', 'הדיווח השתנה בינתיים. רענני ונסי שוב.', 409);
   if (outcome === 'success') await afterSuccess(env, user, o, d);
   return { changed: true };
 }
@@ -281,13 +281,13 @@ export async function settle(env, user) {
   }
 }
 
-/* ---------- מעגלים ---------- */
+/* ---------- קבוצות ---------- */
 async function newInviteStmt(env, circleId, userId) {
   const tok = inviteCode();
   return { tok, stmt: S(env, `insert into circle_invites(token_hash, token_hint, circle_id, inviter_id, expires_at, max_uses) values (?,?,?,?,?,20)`, await sha256hex(tok), tok.slice(0, 2), circleId, userId, new Date(Date.now() + 7 * 86400000).toISOString()) };
 }
 export async function createCircle(env, user, b) {
-  const name = String(b.name || '').trim(); if (!name) throw err('VALIDATION', 'שם המעגל לא יכול להיות ריק'); if (name.length > 50) throw err('VALIDATION', 'שם המעגל ארוך מדי (עד 50 תווים)');
+  const name = String(b.name || '').trim(); if (!name) throw err('VALIDATION', 'שם הקבוצה לא יכול להיות ריק'); if (name.length > 50) throw err('VALIDATION', 'שם הקבוצה ארוך מדי (עד 50 תווים)');
   const cid = uid(); const today = localDate(user.timezone);
   const roundStart = isValidDate(b.roundStart) ? b.roundStart : today;
   const maxMembers = Math.min(50, Math.max(2, Number(b.maxMembers) || 8));
@@ -300,7 +300,7 @@ export async function createCircle(env, user, b) {
   return { circleId: cid, inviteToken: inv.tok };
 }
 export async function updateCircle(env, user, b) {
-  if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת המעגל יכולה לשנות את פרטיו', 403);
+  if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת הקבוצה יכולה לשנות את פרטיו', 403);
   const p = b.patch || {};
   const c = await first(env, `select * from circles where id = ?`, b.circleId);
   const name = p.name !== undefined ? String(p.name).trim() : c.name; if (!name || name.length > 50) throw err('VALIDATION', 'שם לא תקין');
@@ -334,20 +334,20 @@ export async function previewInvite(env, user, b) {
 }
 export async function acceptInvite(env, user, b) {
   const p = await previewInvite(env, user, b);
-  if (!p.ok) throw err('INVITE_INVALID', { not_found: 'הקישור לא נמצא. אולי הוקלד לא נכון?', revoked: 'הקישור בוטל על ידי המעגל. אפשר לבקש קישור חדש.', expired: 'תוקף הקישור פג. אפשר לבקש הזמנה חדשה.', full: 'הקישור הזה כבר נוצל במלואו.' }[p.reason]);
+  if (!p.ok) throw err('INVITE_INVALID', { not_found: 'הקישור לא נמצא. אולי הוקלד לא נכון?', revoked: 'הקישור בוטל על ידי הקבוצה. אפשר לבקש קישור חדש.', expired: 'תוקף הקישור פג. אפשר לבקש הזמנה חדשה.', full: 'הקישור הזה כבר נוצל במלואו.' }[p.reason]);
   const cid = p.circle.id;
   if (p.alreadyMember) return { circleId: cid };
-  if (p.memberCount >= p.maxMembers) throw err('CIRCLE_FULL', 'המעגל מלא. אפשר לבקש ממנהלת המעגל להגדיל את מספר המקומות.', 409);
+  if (p.memberCount >= p.maxMembers) throw err('CIRCLE_FULL', 'הקבוצה מלא. אפשר לבקש ממנהלת הקבוצה להגדיל את מספר המקומות.', 409);
   const hash = await sha256hex(p.inv.token);
   try {
     await runBatch(env, [
-      // ההצטרפות מותנית בכך שהמעגל עדיין לא מלא (בקשות מקבילות)
+      // ההצטרפות מותנית בכך שהקבוצה עדיין לא מלא (בקשות מקבילות)
       S(env, `insert into circle_memberships(id, circle_id, user_id, role) select ?, ?, ?, 'member' where (select count(*) from circle_memberships where circle_id = ? and left_at is null) < ?`, uid(), cid, user.id, cid, p.maxMembers),
       S(env, `update circle_invites set uses = uses + 1 where token_hash = ?`, hash),
       eventStmt(env, cid, user.id, 'member_joined', {}), ...grantStmts(env, user.id, 'first_circle', cid),
     ]);
   } catch (e) { if (e.code !== 'CONFLICT') throw e; }
-  if (!(await isMember(env, cid, user.id))) throw err('CIRCLE_FULL', 'המעגל התמלא בדיוק עכשיו.', 409);
+  if (!(await isMember(env, cid, user.id))) throw err('CIRCLE_FULL', 'הקבוצה התמלא בדיוק עכשיו.', 409);
   return { circleId: cid };
 }
 export async function leaveCircle(env, user, b) {
@@ -366,8 +366,8 @@ export async function leaveCircle(env, user, b) {
   await runBatch(env, stmts);
 }
 export async function removeMember(env, user, b) {
-  if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת המעגל יכולה להסיר חברות', 403);
-  if (b.userId === user.id) throw err('VALIDATION', 'כדי לצאת בעצמך השתמשי ב״לעזוב את המעגל״');
+  if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת הקבוצה יכולה להסיר חברות', 403);
+  if (b.userId === user.id) throw err('VALIDATION', 'כדי לצאת בעצמך השתמשי ב״לעזוב את הקבוצה״');
   await env.DB.batch([S(env, `update circle_memberships set left_at = ?, removed_by = ? where circle_id = ? and user_id = ? and left_at is null`, nowISO(), user.id, b.circleId, b.userId), eventStmt(env, b.circleId, user.id, 'member_removed', { userId: b.userId })]);
 }
 
@@ -403,7 +403,7 @@ export async function updateSettings(env, user, b) {
 export async function rename(env, user, b) { const n = String(b.name || '').trim(); if (!n || n.length > 30) throw err('VALIDATION', 'שם לא תקין'); await S(env, `update users set display_name = ? where id = ?`, n, user.id).run(); }
 export async function deleteAccount(env, user) {
   for (const cid of await myCircleIds(env, user.id)) await leaveCircle(env, user, { circleId: cid });
-  // הפרופיל הופך לאנונימי; התנועות ההיסטוריות נשארות לתקינות קופות המעגלים
+  // הפרופיל הופך לאנונימי; התנועות ההיסטוריות נשארות לתקינות הקופות
   await env.DB.batch([
     S(env, `update users set display_name = 'משתתפת שעזבה', email = null, google_sub = null, color = 'sky', status = 'deleted', settings = '{}' where id = ?`, user.id),
     S(env, `delete from sessions where user_id = ?`, user.id), S(env, `delete from notifications where user_id = ?`, user.id), S(env, `delete from user_blocks where blocker_id = ?`, user.id),
