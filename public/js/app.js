@@ -725,15 +725,15 @@ const App = (() => {
       if (!token) token = (await Store().createInvite(circleId)).token;
       const url = Mila.inviteUrl(token);
       const inv = Object.values(Mila.getState().invites).filter(i => i.circleId === circleId && i.status === 'active').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-      sheet(`<div class="sheet-title">להזמין למעגל</div><div class="sheet-sub">״הוזמנתי״ לא אומר ״התחייבתי״. מי שמצטרפת בוחרת בעצמה.</div>
+      sheet(`<div class="sheet-title">מי איתך במעגל?</div><div class="sheet-sub">בחרי את החברות שיעזרו לך לעמוד במילה שלך. שלחי להן את הקוד או את הקישור, והן בפנים. כל אחת בוחרת לבד לאילו מילים להצטרף.</div>
         <div class="card soft center" style="margin-bottom:12px"><div class="tiny muted">קוד הזמנה</div><div class="bold" style="font-size:2rem;letter-spacing:.2em;direction:ltr">${token}</div><div class="tiny muted">${inv ? `בתוקף עד ${Mila.fmtDate(Mila.toLocalDate(new Date(inv.expiresAt)))} · ${inv.maxUses - inv.uses} שימושים` : 'בתוקף 7 ימים'}</div></div>
         <div class="btn-row"><button class="btn dark" onclick="App.shareInvite('${esc(url)}')">${icon('share', 18)} שיתוף</button><button class="btn soft" onclick="App.copyText('${esc(url)}')">${icon('copy', 18)} העתקה</button></div>
-        ${Mila.isAdmin(circleId) ? `<button class="btn text mt" onclick="App.rotateInvite('${circleId}')">לבטל את הקישורים הקיימים ולהנפיק חדש</button>` : ''}`);
+        ${Mila.isAdmin(circleId) ? `<button class="btn text mt" onclick="App.rotateInvite('${circleId}')">הקוד דלף? להנפיק קוד חדש</button>` : ''}`);
     } catch (e) { fail(e); }
   }
   async function rotateInvite(circleId) { try { await Store().revokeCircleInvites(circleId); toast('הקישורים הקודמים בוטלו. נוצר קישור חדש'); inviteSheet(circleId); } catch (e) { fail(e); } }
   async function shareInvite(url) {
-    const text = `די, בואי נעשה את זה באמת. תני מילה איתי: ${url}`;
+    const text = `יש לי מילה איתך. בואי למעגל שלי במילה, נעמוד בזה ביחד: ${url}`;
     if (navigator.share) { try { await navigator.share({ text }); } catch (e) { /* בוטל */ } }
     else copyText(text);
   }
