@@ -1,0 +1,21 @@
+{
+  "name": "mila",
+  "version": "0.2.0",
+  "private": true,
+  "description": "מילה — משחק חברתי של התחייבויות. Cloudflare Workers + D1 + Static Assets.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "db:migrate:local": "wrangler d1 migrations apply mila-db --local",
+    "db:migrate": "wrangler d1 migrations apply mila-db --remote",
+    "db:migrate:prod": "wrangler d1 migrations apply mila-db --remote --env production",
+    "test:engine": "node tests/engine.test.cjs",
+    "test:api": "node tests/api.test.cjs",
+    "test:e2e": "node tests/e2e.two-users.cjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.0"
+  }
+}
