@@ -49,7 +49,7 @@ function validateWord(title, rule) {
   if (/(הרעב|לא לאכול כלום|צום של|להקיא|לפגוע|חיתוך|סמים|לשתות עד|להשמין)/.test(title + ' ' + rule)) throw err('VALIDATION', 'הניסוח הזה עלול להיות מסוכן. נסי מילה שמוסיפה משהו טוב ליום.');
   return { title, rule };
 }
-const ICONS = new Set(['walk', 'book', 'noPhone', 'water', 'sleep', 'run', 'noSugar', 'meditate', 'pencil', 'heart', 'leaf', 'coffee', 'dumbbell', 'call', 'tools']);
+const ICONS = new Set(['walk', 'run', 'dumbbell', 'book', 'noPhone', 'water', 'sleep', 'moon', 'noSugar', 'leaf', 'meditate', 'pencil', 'heart', 'smile', 'home', 'users', 'coffee', 'call', 'tools', 'star']);
 const icon = (i) => (ICONS.has(i) ? i : 'leaf');
 const COLORS = new Set(['lime', 'pink', 'lavender', 'mint', 'peach', 'sky']);
 

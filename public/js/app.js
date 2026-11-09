@@ -126,6 +126,14 @@ const App = (() => {
       <path class="ring-fill" d="M20 120 A100 100 0 0 1 220 120" fill="none" stroke-width="16" stroke-linecap="round" pathLength="100" stroke-dasharray="${(p * 100).toFixed(1)} 100"/>
     </svg></div>`;
   }
+  /* רעיונות למילה: מקובצים לפי תחום, לחיצה ממלאת את הטופס ואפשר לערוך */
+  function templateChips(handler, selectedTitle) {
+    const cats = [...new Set(Mila.TEMPLATES.map(t => t.cat))];
+    return `<div class="ideas mb">
+      <div class="ideas-head"><span class="bold small">רעיונות למילה</span><span class="tiny muted">לוחצים, זה ממלא את הטופס, ואפשר לשנות הכול</span></div>
+      ${cats.map(c => `<div class="ideas-cat">${esc(c)}</div><div class="chips">${Mila.TEMPLATES.map((t, i) => t.cat === c ? `<button class="chip select ${selectedTitle === t.title ? 'on' : ''}" onclick="App.${handler}(${i})">${icon(t.icon, 15)} ${esc(t.title)}</button>` : '').join('')}</div>`).join('')}
+    </div>`;
+  }
   function hebrewPlural(n, one, many) { return n === 1 ? one : `${n} ${many}`; }
 
   /* ============================================================
@@ -387,7 +395,7 @@ const App = (() => {
     const header = topbar({ title: 'לתת מילה', end: `<button class="icon-btn" aria-label="סגירה" onclick="App.wizCancel()">${icon('x', 22)}</button>` });
     if (wiz.step === 1) return `${header}${steps}
       <div class="step-title">אז, על מה את חותמת?</div><div class="step-sub">מילה קטנה, 14 ימים. משהו שאפשר לסמן עליו וי בסוף היום.</div>
-      <div class="chips scroll mb">${Mila.TEMPLATES.map((t, i) => `<button class="chip select ${wiz.title === t.title ? 'on' : ''}" onclick="App.wizTemplate(${i})">${icon(t.icon, 16)} ${esc(t.title)}</button>`).join('')}</div>
+      ${templateChips('wizTemplate', wiz.title)}
       <div class="field"><label>כותרת</label><input class="input" id="w-title" placeholder="למשל: 8,000 צעדים ביום" maxlength="60" value="${esc(wiz.title)}" oninput="App.wizSet('title', this.value)"></div>
       <div class="field"><label>מה נחשב הצלחה?</label><textarea class="input" id="w-rule" placeholder="הכלל שלפיו תסמני ״עמדתי במילה״" maxlength="200" oninput="App.wizSet('rule', this.value)">${esc(wiz.rule)}</textarea><div class="hint">בלי מידע רגיש. החברות רואות רק סטטוס, לא פרטים.</div></div>
       <div class="field"><label>אייקון</label><div class="icon-picker">${Mila.WORD_ICONS.map(ic => `<span class="tile ${tileColorFor(wiz.title || ic)} ${wiz.icon === ic ? 'on' : ''}" onclick="App.wizSet('icon','${ic}'); App.refresh()">${icon(ic, 24)}</span>`).join('')}</div></div>
@@ -768,10 +776,10 @@ const App = (() => {
     const opts = [[Mila.today(), 'מהיום', '14 יום מהיום, מי שמצטרפת אחר כך מתחילה מהיום שלה'], [r.nextStart, 'בסבב הבא', `מתחיל ב-${Mila.fmtDate(r.nextStart)}, כולן באותו קו התחלה`]];
     return `${topbar({ title: 'המילה שלנו', subtitle: c.name })}
       <div class="step-title">מה מציעים למעגל?</div><div class="step-sub">כלל אחד זהה לכולן, אבל כל אחת נמדדת בפני עצמה. אין קנס אמיתי ואין כישלון קולקטיבי.</div>
-      <div class="chips scroll mb">${Mila.TEMPLATES.map((t, i) => `<button class="chip select ${gwiz.title === t.title ? 'on' : ''}" onclick="App.gwTemplate(${i})">${icon(t.icon, 16)} ${esc(t.title)}</button>`).join('')}</div>
+      ${templateChips('gwTemplate', gwiz.title)}
       <div class="field"><label>כותרת</label><input class="input" placeholder="למשל: 8,000 צעדים ביום" maxlength="60" value="${esc(gwiz.title)}" oninput="App.gwSet('title', this.value)"></div>
       <div class="field"><label>מה נחשב הצלחה?</label><textarea class="input" maxlength="200" placeholder="כלל ברור שכולן יכולות למדוד" oninput="App.gwSet('rule', this.value)">${esc(gwiz.rule)}</textarea></div>
-      <div class="field"><label>אייקון</label><div class="icon-picker">${Mila.WORD_ICONS.slice(0, 10).map(ic => `<span class="tile ${tileColorFor(gwiz.title || ic)} ${gwiz.icon === ic ? 'on' : ''}" onclick="App.gwSet('icon','${ic}'); App.refresh()">${icon(ic, 24)}</span>`).join('')}</div></div>
+      <div class="field"><label>אייקון</label><div class="icon-picker">${Mila.WORD_ICONS.map(ic => `<span class="tile ${tileColorFor(gwiz.title || ic)} ${gwiz.icon === ic ? 'on' : ''}" onclick="App.gwSet('icon','${ic}'); App.refresh()">${icon(ic, 24)}</span>`).join('')}</div></div>
       <div class="field"><label>מתי מתחילים?</label>${opts.map(([d, l, m]) => `<div class="choice ${gwiz.startDate === d ? 'on' : ''}" onclick="App.gwSet('startDate','${d}'); App.refresh()"><span class="radio">${gwiz.startDate === d ? icon('check', 14) : ''}</span><div class="body"><div class="t">${l}</div><div class="m">${m}</div></div></div>`).join('')}</div>
       <div class="field"><label>מה החברות רואות</label><div class="seg"><button class="${gwiz.visibility === 'status' ? 'on' : ''}" onclick="App.gwSet('visibility','status'); App.refresh()">סטטוס יומי</button><button class="${gwiz.visibility === 'summary' ? 'on' : ''}" onclick="App.gwSet('visibility','summary'); App.refresh()">סיכום בלבד</button></div></div>
       <div class="mt-lg"><button class="btn primary" onclick="App.gwPropose()">להציע למעגל</button></div>
