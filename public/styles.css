@@ -421,3 +421,7 @@ textarea.input { min-height: 84px; resize: vertical; }
 .demo-banner { background: var(--peach-soft); border: 1px solid #FFD6BE; color: var(--peach-ink); font-size: .78rem; padding: 8px 12px; margin: 0 0 14px; }
 .demo-banner a { font-weight: 600; }
 .topbar .title-wrap .btn.sm { width: auto; display: inline-flex; }
+
+.ideas.collapsed { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; }
+.ideas-cats { margin: 0 -14px 8px; padding-inline: 14px; }
+.ideas-cats .chip { cursor: pointer; padding: 5px 10px; }

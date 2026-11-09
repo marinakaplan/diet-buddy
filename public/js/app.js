@@ -126,14 +126,22 @@ const App = (() => {
       <path class="ring-fill" d="M20 120 A100 100 0 0 1 220 120" fill="none" stroke-width="16" stroke-linecap="round" pathLength="100" stroke-dasharray="${(p * 100).toFixed(1)} 100"/>
     </svg></div>`;
   }
-  /* רעיונות למילה: מקובצים לפי תחום, לחיצה ממלאת את הטופס ואפשר לערוך */
+  /* רעיונות למילה: תחומים כטאבים, רק התחום הפתוח מוצג, ואחרי בחירה הכול מתקפל לשורה אחת */
+  let ideasCat = 0; let ideasOpen = true;
   function templateChips(handler, selectedTitle) {
     const cats = [...new Set(Mila.TEMPLATES.map(t => t.cat))];
+    if (selectedTitle && !ideasOpen) {
+      return `<div class="ideas collapsed mb"><span class="small">${icon('check', 14)} <b>${esc(selectedTitle)}</b></span><button class="btn text xs" onclick="App.ideasToggle(true)">רעיון אחר</button></div>`;
+    }
+    const cat = cats[Math.min(ideasCat, cats.length - 1)];
     return `<div class="ideas mb">
-      <div class="ideas-head"><span class="bold small">רעיונות למילה</span><span class="tiny muted">לוחצים, זה ממלא את הטופס, ואפשר לשנות הכול</span></div>
-      ${cats.map(c => `<div class="ideas-cat">${esc(c)}</div><div class="chips">${Mila.TEMPLATES.map((t, i) => t.cat === c ? `<button class="chip select ${selectedTitle === t.title ? 'on' : ''}" onclick="App.${handler}(${i})">${icon(t.icon, 15)} ${esc(t.title)}</button>` : '').join('')}</div>`).join('')}
+      <div class="ideas-head"><span class="bold small">צריכה רעיון?</span>${selectedTitle ? `<button class="btn text xs" onclick="App.ideasToggle(false)">סגירה</button>` : ''}</div>
+      <div class="chips scroll ideas-cats">${cats.map((c, i) => `<button class="chip ${c === cat ? 'lime' : ''}" onclick="App.ideasCat(${i})">${esc(c)}</button>`).join('')}</div>
+      <div class="chips">${Mila.TEMPLATES.map((t, i) => t.cat === cat ? `<button class="chip select ${selectedTitle === t.title ? 'on' : ''}" onclick="App.${handler}(${i})">${icon(t.icon, 15)} ${esc(t.title)}</button>` : '').join('')}</div>
     </div>`;
   }
+  function setIdeasCat(i) { ideasCat = i; ideasOpen = true; render(); }
+  function ideasToggle(open) { ideasOpen = open; render(); }
   function hebrewPlural(n, one, many) { return n === 1 ? one : `${n} ${many}`; }
 
   /* ============================================================
@@ -396,6 +404,7 @@ const App = (() => {
   function openWordWizard(prefill = {}) {
     const draft = Mila.getState().drafts.word;
     wiz = Object.assign({ step: 1, title: '', rule: '', icon: 'leaf', startDate: Mila.today(), circleId: null, visibility: 'status' }, draft || {}, prefill, { step: 1 });
+    ideasOpen = !wiz.title; ideasCat = 0;
     go('wordNew');
   }
   SCREENS.wordNew = () => {
@@ -448,7 +457,7 @@ const App = (() => {
   };
   function nextSunday() { const d = new Date(); const diff = (7 - d.getDay()) % 7 || 7; return Mila.addDays(Mila.today(), diff); }
   function wizSet(k, v) { wiz[k] = v; Mila.getState().drafts.word = { ...wiz }; Mila.save(); }
-  function wizTemplate(i) { const t = Mila.TEMPLATES[i]; wiz.title = t.title; wiz.rule = t.rule; wiz.icon = t.icon; wizSet('title', t.title); render(); }
+  function wizTemplate(i) { const t = Mila.TEMPLATES[i]; wiz.title = t.title; wiz.rule = t.rule; wiz.icon = t.icon; wizSet('title', t.title); ideasOpen = false; render(); }
   function wizNext() {
     try {
       if (wiz.step === 1) Mila.getState() && validateStep1();
@@ -621,7 +630,7 @@ const App = (() => {
     const hero = liveGroup[0];
     const heroAdopters = hero ? Mila.adopters(hero.id) : [];
     const canPropose = c.whoCanPropose === 'all' || Mila.isAdmin(id);
-    return `${topbar({ title: 'המילה שלנו', end: `${canPropose ? `<button class="icon-btn lime" aria-label="מילה חדשה למעגל" onclick="App.openGroupWizard('${id}')">${icon('plus', 22)}</button>` : ''}<button class="icon-btn" aria-label="עוד" onclick="App.circleMenu('${id}')">${icon('more', 22)}</button>` })}
+    return `${topbar({ title: 'המילה שלנו', end: `${canPropose ? `<button class="icon-btn lime" aria-label="מילה לכולנו" onclick="App.openGroupWizard('${id}')">${icon('plus', 22)}</button>` : ''}<button class="icon-btn" aria-label="עוד" onclick="App.circleMenu('${id}')">${icon('more', 22)}</button>` })}
       <div class="avatar-hero">${avatarStack(members, 44, 3)}</div>
       <div class="center"><div class="bold" style="font-size:1.35rem">${hero ? esc(hero.title) : esc(c.name)}</div><div class="muted small">${hero ? `האתגר של מעגל ${esc(c.name)}` : (c.description ? esc(c.description) : 'מעגל פרטי')}</div>
         <div class="chips" style="justify-content:center;margin-top:10px">${hero ? `<span class="chip lav">${avatarStack(heroAdopters, 18, 3)} ${heroAdopters.length} בפנים</span>` : ''}<span class="chip">${members.length} חברות</span></div></div>
@@ -684,7 +693,7 @@ const App = (() => {
     const S = Mila.getState();
     const personal = Object.values(S.wordDefs).filter(d => d.circleId === id && d.kind === 'personal' && d.visibility !== 'private');
     const canPropose = S.circles[id].whoCanPropose === 'all' || Mila.isAdmin(id);
-    return `${canPropose ? `<button class="btn ghost mb" onclick="App.openGroupWizard('${id}')">${icon('plus', 20)} להציע מילה למעגל</button>` : ''}
+    return `${canPropose ? `<button class="btn ghost mb" onclick="App.openGroupWizard('${id}')">${icon('plus', 20)} מילה לכולנו</button>` : ''}
       ${groupWords.length ? `<div class="section-title" style="margin-top:6px">מילים משותפות</div>${groupWords.map(d => { const ad = Mila.adopters(d.id); const mine = Mila.myAdoption(d.id); const over = (d.endDate || '9999') < Mila.today(); return `<div class="word-row" onclick="App.go('groupWord',{id:'${d.id}'})">${wordTile(d)}<div class="body"><div class="name">${esc(d.title)}</div><div class="meta">${avatarStack(ad, 18, 4)} ${ad.length} בפנים ${mine ? '<span class="chip lime">את בפנים</span>' : over ? '<span class="chip">הסתיימה</span>' : '<span class="chip lav">פתוחה</span>'}</div></div>${icon('chev', 18)}</div>`; }).join('')}` : ''}
       ${personal.length ? `<div class="section-title">מילים אישיות שחברות משתפות</div>${personal.map(d => { const k = Object.values(S.commitments).find(x => x.defId === d.id && x.status === 'active'); const u = Mila.user(d.ownerId); const st = k ? Mila.commitmentStats(k.id) : null; return `<div class="word-row" ${d.ownerId === Mila.me().id && k ? `onclick="App.go('word',{id:'${k.id}'})"` : ''}>${wordTile(d)}<div class="body"><div class="name">${esc(d.title)}</div><div class="meta">${avatar(u, 16)} ${esc(u.name)}${st && d.visibility === 'status' ? ` · ${st.success} הצלחות${st.current ? ` · ${st.current} ברצף` : ''}` : ''}</div></div></div>`; }).join('')}` : ''}
       ${!groupWords.length && !personal.length ? `<div class="empty"><span class="tile lg lime">${icon('pencil', 28)}</span><div class="t">עוד אין מילים במעגל</div><div class="m">הציעי מילה משותפת. כל חברה בוחרת אם להצטרף.</div></div>` : ''}`;
@@ -710,7 +719,7 @@ const App = (() => {
     const admin = Mila.isAdmin(id);
     const c = Mila.getState().circles[id];
     sheet(`<div class="sheet-title">${esc(c.name)}</div>
-      ${c.whoCanPropose === 'all' || admin ? `<div class="list-row clickable" onclick="App.closeSheet(); App.openGroupWizard('${id}')"><span class="tile sm lav">${icon('pencil', 18)}</span><div class="body"><div class="t">להציע מילה למעגל</div><div class="m">כלל אחד לכולן, כל אחת בוחרת אם להצטרף</div></div></div>` : ''}
+      ${c.whoCanPropose === 'all' || admin ? `<div class="list-row clickable" onclick="App.closeSheet(); App.openGroupWizard('${id}')"><span class="tile sm lav">${icon('pencil', 18)}</span><div class="body"><div class="t">מילה לכולנו</div><div class="m">מילה אחת שכל חברות המעגל יכולות להצטרף אליה</div></div></div>` : ''}
       <div class="list-row clickable" onclick="App.inviteSheet('${id}')"><span class="tile sm lime">${icon('share', 18)}</span><div class="body"><div class="t">להזמין חברה</div><div class="m">קישור או קוד עם תוקף</div></div></div>
       ${admin ? `<div class="list-row clickable" onclick="App.closeSheet(); App.go('circleManage',{id:'${id}'})"><span class="tile sm lav">${icon('settings', 18)}</span><div class="body"><div class="t">ניהול המעגל</div><div class="m">שם, הרשאות, קישור, חברות</div></div></div>` : ''}
       <div class="list-row clickable" onclick="App.closeSheet(); App.safetySheet(null,'${id}')"><span class="tile sm gray">${icon('flag', 18)}</span><div class="body"><div class="t">דיווח על המעגל</div><div class="m">תוכן פוגעני או לחץ</div></div></div>
@@ -781,24 +790,24 @@ const App = (() => {
   /* ============================================================
      S12 — הצעת מילה קבוצתית
      ============================================================ */
-  function openGroupWizard(circleId) { const r = Mila.circleRound(circleId); gwiz = { circleId, title: '', rule: '', icon: 'leaf', startDate: r.dayIndex <= 2 ? r.start : Mila.today(), visibility: 'status' }; go('groupWordNew'); }
+  function openGroupWizard(circleId) { ideasOpen = true; ideasCat = 0; const r = Mila.circleRound(circleId); gwiz = { circleId, title: '', rule: '', icon: 'leaf', startDate: r.dayIndex <= 2 ? r.start : Mila.today(), visibility: 'status' }; go('groupWordNew'); }
   SCREENS.groupWordNew = () => {
     const c = Mila.getState().circles[gwiz.circleId];
     const r = Mila.circleRound(gwiz.circleId);
     const opts = [[Mila.today(), 'מהיום', '14 יום מהיום, מי שמצטרפת אחר כך מתחילה מהיום שלה'], [r.nextStart, 'בסבב הבא', `מתחיל ב-${Mila.fmtDate(r.nextStart)}, כולן באותו קו התחלה`]];
-    return `${topbar({ title: 'המילה שלנו', subtitle: c.name })}
-      <div class="step-title">מה מציעים למעגל?</div><div class="step-sub">כלל אחד זהה לכולן, אבל כל אחת נמדדת בפני עצמה. אין קנס אמיתי ואין כישלון קולקטיבי.</div>
+    return `${topbar({ title: 'מילה לכולנו', subtitle: c.name })}
+      <div class="step-title">איזו מילה נותנות ביחד?</div><div class="step-sub">מילה אחת שכל חברות המעגל יכולות להצטרף אליה. כל אחת מדווחת ונמדדת לבד, ומי שמפספסת, השקל שלה עובר לקופה המשותפת.</div>
       ${templateChips('gwTemplate', gwiz.title)}
       <div class="field"><label>כותרת</label><input class="input" placeholder="למשל: 8,000 צעדים ביום" maxlength="60" value="${esc(gwiz.title)}" oninput="App.gwSet('title', this.value)"></div>
       <div class="field"><label>מה נחשב הצלחה?</label><textarea class="input" maxlength="200" placeholder="כלל ברור שכולן יכולות למדוד" oninput="App.gwSet('rule', this.value)">${esc(gwiz.rule)}</textarea></div>
       <div class="field"><label>אייקון</label><div class="icon-picker">${Mila.WORD_ICONS.map(ic => `<span class="tile ${tileColorFor(gwiz.title || ic)} ${gwiz.icon === ic ? 'on' : ''}" onclick="App.gwSet('icon','${ic}'); App.refresh()">${icon(ic, 24)}</span>`).join('')}</div></div>
       <div class="field"><label>מתי מתחילים?</label>${opts.map(([d, l, m]) => `<div class="choice ${gwiz.startDate === d ? 'on' : ''}" onclick="App.gwSet('startDate','${d}'); App.refresh()"><span class="radio">${gwiz.startDate === d ? icon('check', 14) : ''}</span><div class="body"><div class="t">${l}</div><div class="m">${m}</div></div></div>`).join('')}</div>
       <div class="field"><label>מה החברות רואות</label><div class="seg"><button class="${gwiz.visibility === 'status' ? 'on' : ''}" onclick="App.gwSet('visibility','status'); App.refresh()">סטטוס יומי</button><button class="${gwiz.visibility === 'summary' ? 'on' : ''}" onclick="App.gwSet('visibility','summary'); App.refresh()">סיכום בלבד</button></div></div>
-      <div class="mt-lg"><button class="btn primary" onclick="App.gwPropose()">להציע למעגל</button></div>
-      <div class="tiny muted center mt">ההצעה לא מחייבת אף אחת, גם לא אותך. אחרי שמישהי מצטרפת, שינוי מהותי דורש הסכמה מחדש.</div>`;
+      <div class="mt-lg"><button class="btn primary" onclick="App.gwPropose()">חותמת ומזמינה את כולן</button></div>
+      <div class="tiny muted center mt">החברות יקבלו הודעה ויבחרו אם להצטרף. גם את מצטרפת רק אם תבחרי.</div>`;
   };
   function gwSet(k, v) { gwiz[k] = v; }
-  function gwTemplate(i) { const t = Mila.TEMPLATES[i]; gwiz.title = t.title; gwiz.rule = t.rule; gwiz.icon = t.icon; render(); }
+  function gwTemplate(i) { const t = Mila.TEMPLATES[i]; gwiz.title = t.title; gwiz.rule = t.rule; gwiz.icon = t.icon; ideasOpen = false; render(); }
   async function gwPropose() {
     try { const def = await Store().proposeGroupWord(gwiz.circleId, gwiz); const cid = gwiz.circleId; gwiz = null; stack = [{ name: 'circles', params: {} }, { name: 'circle', params: { id: cid } }]; go('groupWord', { id: def.id, fresh: true }); } catch (e) { fail(e); }
   }
@@ -986,7 +995,7 @@ const App = (() => {
   return {
     go, back, tab, refresh, closeSheet, toast, startDemo,
     suChange, suToggle, signup, googleSignIn, authSet, authToggle, termsSheet, completeProfile, signOut,
-    setVisibility, react, sendEncouragement, rotateInvite, openInvite, rename, unblock,
+    setVisibility, react, sendEncouragement, rotateInvite, openInvite, rename, unblock, ideasCat: setIdeasCat, ideasToggle,
     reportSheet, confirmMiss, excuseSheet, doReport, correctionSheet, _corrPick, doCorrect,
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
