@@ -193,8 +193,8 @@ export async function adminStats(env, daysParam) {
   const socialOut = { encouragements: social.encouragements || 0, reactions: reactions.n || 0, overtakes: social.overtakes || 0, shared: social.shared || 0, sharedJoins: social.sharedJoins || 0, joins: social.joins || 0 };
 
   // ---------- פרגון ובטיחות ----------
-  const treatsRows = await many(`select name, count(*) as clicks from track_events where name like 'treat:%' and day between ? and ? group by name`, start, today);
-  const treats = ['cookie', 'espresso', 'latte'].map(k => ({ kind: k, clicks: Number((treatsRows.find(r => r.name === `treat:${k}`) || {}).clicks || 0) }));
+  const treatsRows = await many(`select name, count(*) as clicks from track_events where (name like 'treat:%' or name like 'support:%') and day between ? and ? group by name`, start, today);
+  const treats = ['18', '50', '100', '180', '360', 'other'].map(k => ({ kind: k, clicks: Number((treatsRows.find(r => r.name === `support:${k}`) || {}).clicks || 0) }));
   // ---------- אפליקציה על המסך והתראות ----------
   const appRows = await many(`select name, count(*) as n, count(distinct visitor_id) as v from track_events where name in ('app_open','install_sheet','install_prompt','installed','push_on','push_denied') and day between ? and ? group by name`, start, today);
   const appN = (k) => Number((appRows.find(r => r.name === k) || {}).v || 0);
@@ -217,7 +217,7 @@ export async function adminStats(env, daysParam) {
 }
 
 /* מעקב אירועים זול: מבקרת ייחודית ליום לכל שם. שמות מותרים בלבד. */
-const TRACK = new Set(['visit', 'visit_invite', 'signin_click', 'treat:cookie', 'treat:espresso', 'treat:latte', 'app_open', 'install_sheet', 'install_prompt', 'installed', 'push_on', 'push_denied']);
+const TRACK = new Set(['visit', 'visit_invite', 'signin_click', 'treat:cookie', 'treat:espresso', 'treat:latte', 'support:18', 'support:50', 'support:100', 'support:180', 'support:360', 'support:other', 'app_open', 'install_sheet', 'install_prompt', 'installed', 'push_on', 'push_denied']);
 export async function track(env, b) {
   const name = String(b.name || ''); const vis = String(b.visitor || '');
   if (!TRACK.has(name) || !/^[a-z0-9-]{8,40}$/.test(vis)) return { ok: false };
