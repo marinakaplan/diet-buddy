@@ -184,12 +184,14 @@ const App = (() => {
 
       <div class="race">
         <div class="race-head"><div class="promise-rot" aria-live="off">${PROMISES.map((t, i) => `<span style="--i:${i}">${t}</span>`).join('')}</div><div class="race-chips"><span style="--d:2.5s">3 אתגרים</span><span style="--d:2.6s">14 ימים</span><span style="--d:2.7s">חברות</span></div></div>
+        <div class="race-title"><b>🏁 מי מובילה?</b><span class="live"><i></i>עכשיו</span></div>
         <div class="race-body">
           <div class="race-places"><span class="first">1</span><span>2</span><span>3</span></div>
           <div class="race-rows">
-            <div class="rr noa">${avatar(ppl.noa, 28)}<span class="nm">נועה</span><span class="bar"><i style="--w:86%"></i></span><span class="pc">86%</span></div>
-            <div class="rr me">${avatar(ppl.me, 28)}<span class="nm">את</span><span class="bar"><i></i></span><span class="pc"><span class="a">83%</span><span class="b">91%</span></span></div>
-            <div class="rr dana">${avatar(ppl.dana, 28)}<span class="nm">דנה</span><span class="bar"><i style="--w:71%"></i></span><span class="pc">71%</span></div>
+            ${[['noa', 'נועה', 86], ['me', 'את', 91], ['dana', 'דנה', 71]].map(([k, nm, p]) => `<div class="ln ${k}" style="--to:${p / 100}">
+              <div class="track"><div class="trail"></div><span class="nm">${nm}</span><span class="flag">🏁</span><span class="runner">${k === 'me' ? '<span class="crown">👑</span>' : ''}${avatar(ppl[k], 30)}</span></div>
+              <span class="pc">${k === 'me' ? '<span class="a">83%</span><span class="b">91%</span>' : `${p}%`}</span>
+            </div>`).join('')}
             <div class="ovt">עקפת את נועה 😏</div>
           </div>
         </div>
