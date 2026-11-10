@@ -514,7 +514,7 @@ const App = (() => {
   SCREENS.wordNew = () => {
     if (!wiz) wiz = { step: 1, title: '', rule: '', icon: 'leaf', startDate: Mila.today(), circleId: null, visibility: 'status' };
     const steps = `<div class="steps">${[1, 2, 3, 4].map(i => `<i class="${i <= wiz.step ? 'on' : ''}"></i>`).join('')}</div>`;
-    const header = topbar({ title: 'אתגר משלך', end: `<button class="icon-btn" aria-label="סגירה" onclick="App.wizCancel()">${icon('x', 22)}</button>` });
+    const header = topbar({ title: 'אתגר משלך', start: `<button class="icon-btn" aria-label="חזרה" onclick="App.wizHeadBack()">${icon('back', 24)}</button>`, back: false, end: `<button class="icon-btn" aria-label="סגירה" onclick="App.wizCancel()">${icon('x', 22)}</button>` });
     if (wiz.step === 1) return `${header}${steps}
       <div class="step-title">מה האתגר?</div><div class="step-sub">משהו שאפשר לסמן עליו וי בסוף כל יום.</div>
       ${templateChips('wizTemplate', wiz.title)}
@@ -529,7 +529,7 @@ const App = (() => {
       ${opts.map(([d, l]) => `<div class="choice ${wiz.startDate === d ? 'on' : ''}" onclick="App.wizSet('startDate','${d}'); App.refresh()"><span class="radio">${wiz.startDate === d ? icon('check', 14) : ''}</span><div class="body"><div class="t">${l}</div><div class="m">${Mila.fmtDateLong(d)}</div></div></div>`).join('')}
       <div class="field"><label>או תאריך אחר</label><input class="input ltr" type="date" min="${Mila.today()}" value="${wiz.startDate}" onchange="App.wizSet('startDate', this.value); App.refresh()"></div>
       <div class="kv"><span class="k">${icon('calendar', 18)} הסבב</span><span class="v">${Mila.fmtDate(wiz.startDate)} – ${Mila.fmtDate(Mila.addDays(wiz.startDate, 13))}</span></div>
-      <div class="btn-row mt-lg"><button class="btn soft" onclick="App.wizPrev()">חזרה</button><button class="btn primary" onclick="App.wizNext()">המשך</button></div>`;
+      <button class="btn primary mt-lg" onclick="App.wizNext()">המשך</button>`;
     }
     if (wiz.step === 3) {
       const circles = Mila.myCircles();
@@ -541,7 +541,7 @@ const App = (() => {
       ${wiz.circleId ? `<div class="field mt"><label>מה החברות רואות</label>
         <div class="seg"><button class="${wiz.visibility === 'status' ? 'on' : ''}" onclick="App.wizSet('visibility','status'); App.refresh()">כל יום</button><button class="${wiz.visibility === 'summary' ? 'on' : ''}" onclick="App.wizSet('visibility','summary'); App.refresh()">רק בסוף</button></div>
         <div class="hint">${wiz.visibility === 'status' ? 'עמדת או פספסת, יום יום. בלי פרטים.' : 'רק אחוז ההצלחה בסוף הסבב.'}</div></div>` : ''}
-      <div class="btn-row mt-lg"><button class="btn soft" onclick="App.wizPrev()">חזרה</button><button class="btn primary" onclick="App.wizNext()">המשך</button></div>`;
+      <button class="btn primary mt-lg" onclick="App.wizNext()">המשך</button>`;
     }
     // step 4 — סיכום לפני נתינת מילה
     const cap = Mila.capCheck(Mila.me().id, wiz.startDate);
@@ -554,7 +554,7 @@ const App = (() => {
       </div>
       <div class="field"><label>אם אצליח, אני…</label><input class="input" maxlength="80" placeholder="למשל: קונה לעצמי משהו נחמד" value="${esc(wiz.reward || '')}" oninput="App.wizSet('reward', this.value)"><div class="hint">לא חובה. משהו קטן שיהיה שווה להתאמץ בשבילו.</div></div>
       ${!cap.ok ? `<div class="note warn">${icon('info', 18)}<span>כבר יש לך 3 אתגרים בימים האלה (${cap.conflictingWords.map(w => esc(w.title)).join(', ')}).</span></div>${cap.nextFree ? `<button class="btn soft" onclick="App.wizSet('startDate','${cap.nextFree}'); App.refresh()">להתחיל ב-${Mila.fmtDate(cap.nextFree)}</button>` : ''}` : ''}
-      <div class="btn-row mt"><button class="btn soft" onclick="App.wizPrev()">חזרה</button><button class="btn primary" ${cap.ok ? '' : 'disabled'} onclick="App.wizCommit()">מתחילה</button></div>`;
+      <button class="btn primary mt" ${cap.ok ? '' : 'disabled'} onclick="App.wizCommit()">מתחילה</button>`;
   };
   function nextSunday() { const d = new Date(); const diff = (7 - d.getDay()) % 7 || 7; return Mila.addDays(Mila.today(), diff); }
   function wizSet(k, v) { wiz[k] = v; Mila.getState().drafts.word = { ...wiz }; Mila.save(); }
@@ -568,6 +568,7 @@ const App = (() => {
   }
   function validateStep1() { if (!wiz.title.trim()) throw { userMessage: 'איך קוראים לאתגר?' }; if (!wiz.rule.trim()) throw { userMessage: 'מה נחשב הצלחה?' }; }
   function wizPrev() { wiz.step -= 1; render(); }
+  function wizHeadBack() { if (wiz && wiz.step > 1) wizPrev(); else wizCancel(); }
   function wizCancel() { Mila.getState().drafts.word = { ...wiz }; Mila.save(); wiz = null; back(); if (Mila.getState().drafts.word && Mila.getState().drafts.word.title) toast('שמרנו טיוטה.'); }
   async function wizCommit() {
     try {
@@ -602,7 +603,7 @@ const App = (() => {
     const L = Mila.LIBRARY;
     const free = freeSlots(pick.startDate);
     const n = pick.selected.length;
-    const header = topbar({ title: 'אז במה את מתחילה?', end: `<button class="icon-btn" aria-label="סגירה" onclick="App.pickCancel()">${icon('x', 22)}</button>` });
+    const header = topbar({ title: 'אז במה את מתחילה?', start: `<button class="icon-btn" aria-label="חזרה" onclick="App.pickHeadBack()">${icon('back', 24)}</button>`, back: false, end: `<button class="icon-btn" aria-label="סגירה" onclick="App.pickCancel()">${icon('x', 22)}</button>` });
     if (pick.step === 2) return pickReview(header);
     return `${header}
       <div class="pick-head"><div class="step-sub" style="margin:0">בחרי עד 3 אתגרים ל-14 הימים הקרובים.</div><span class="chip ${n ? 'lime' : ''} lg">${n}/${Mila.RULES.DAILY_CAP}</span></div>
@@ -646,7 +647,7 @@ const App = (() => {
       </div>
       ${circle && sensitive.length ? `<div class="checkbox-row ${pick.shareSensitive ? 'on' : ''}" onclick="App.pickSet('shareSensitive', ${!pick.shareSensitive})"><span class="box">${pick.shareSensitive ? icon('check', 16) : ''}</span><span>לשתף גם ${sensitive.length === 1 ? 'את האתגר הפרטי' : 'את האתגרים הפרטיים'} (זוגיות) עם ${esc(circle.name)}. בלי זה הם נשארים רק אצלך.</span></div>` : ''}
       ${!cap.ok ? `<div class="note warn">${icon('info', 18)}<span>3 אתגרים כבר רצים בימים האלה.${cap.nextFree ? ` פנוי מ-${Mila.fmtDate(cap.nextFree)}.` : ''}</span></div>` : ''}
-      <div class="btn-row mt-lg"><button class="btn soft" onclick="App.pickBack()">חזרה</button><button class="btn primary" ${cap.ok && pick.selected.length ? '' : 'disabled'} ${busy ? 'disabled' : ''} onclick="App.pickCommit()">${busy ? 'רגע…' : 'מתחילה'}</button></div>`;
+      <button class="btn primary mt-lg" ${cap.ok && pick.selected.length ? '' : 'disabled'} ${busy ? 'disabled' : ''} onclick="App.pickCommit()">${busy ? 'רגע…' : 'מתחילה'}</button>`;
   }
   function pickRewardOpen(id) { pick.rewardOpen = { ...(pick.rewardOpen || {}), [id]: true }; render(); const el = document.getElementById('rw-' + id); if (el) el.focus(); }
   function pickRewardDone(id) { if (pick && pick.rewardOpen) delete pick.rewardOpen[id]; } // בלי לרנדר מחדש באמצע לחיצה; בשינוי הבא יוצג כטקסט
@@ -677,6 +678,7 @@ const App = (() => {
   }
   function pickNext() { if (!pick.selected.length) return toast('בחרי אתגר אחד לפחות.'); pick.step = 2; render(); window.scrollTo({ top: 0 }); }
   function pickBack() { pick.step = 1; render(); }
+  function pickHeadBack() { if (pick && pick.step === 2) pickBack(); else pickCancel(); }
   function pickCancel() { pick = null; back(); }
   function pickCustom() { const circleId = pick ? pick.circleId : null; pick = null; openWordWizard(circleId ? { circleId } : {}); }
   async function pickCommit() {
@@ -1016,7 +1018,7 @@ const App = (() => {
     if (!inv) { inviteFlow(); return ''; }
     const circles = Mila.myCircles();
     const dots = `<div class="steps">${[1, 2, 3].map(i => `<i class="${i <= inv.step ? 'on' : ''}"></i>`).join('')}</div>`;
-    const head = topbar({ title: 'הזמנת חברה', end: `<button class="icon-btn" aria-label="סגירה" onclick="App.inviteClose()">${icon('x', 22)}</button>` });
+    const head = topbar({ title: 'הזמנת חברה', start: `<button class="icon-btn" aria-label="חזרה" onclick="App.invHeadBack()">${icon('back', 24)}</button>`, back: false, end: `<button class="icon-btn" aria-label="סגירה" onclick="App.inviteClose()">${icon('x', 22)}</button>` });
     const circleName = inv.circleId ? (Mila.getState().circles[inv.circleId] || {}).name : inv.newCircle;
     if (inv.step === 1) {
       const words = myActiveWords();
@@ -1045,8 +1047,7 @@ const App = (() => {
           <ol class="inv-steps"><li>נכנסת עם Google. לוקח 10 שניות.</li><li>מצטרפת לקבוצה <b>${esc(circleName)}</b>.</li><li>${v.step3}${inv.kind === 'same' ? `: <b>${esc(inv.wordTitle)}</b>` : ''}.</li></ol>
         </div>
         <button class="btn primary mt" ${inv.busy ? 'disabled' : ''} onclick="App.inviteSend('whatsapp')">${inv.busy ? 'רגע…' : '💬 שליחה בוואטסאפ'}</button>
-        <div class="btn-row mt"><button class="btn soft" ${inv.busy ? 'disabled' : ''} onclick="App.inviteSend('share')">${icon('share', 18)} שיתוף אחר</button><button class="btn soft" ${inv.busy ? 'disabled' : ''} onclick="App.inviteSend('copy')">${icon('copy', 18)} העתקה</button></div>
-        <button class="btn text mt" onclick="App.invBack()">חזרה</button>`;
+        <div class="btn-row mt"><button class="btn soft" ${inv.busy ? 'disabled' : ''} onclick="App.inviteSend('share')">${icon('share', 18)} שיתוף אחר</button><button class="btn soft" ${inv.busy ? 'disabled' : ''} onclick="App.inviteSend('copy')">${icon('copy', 18)} העתקה</button></div>`;
     }
     const url = Mila.inviteUrl(inv.token);
     return `${head}${dots}
@@ -1064,6 +1065,7 @@ const App = (() => {
   function invNewCircle(v) { inv.newCircle = v; const b = $('#inv-next'); if (b) b.disabled = !(inv.kind && !(inv.kind === 'same' && !inv.wordTitle) && v.trim()); }
   function invNext() { inv.step = 2; render(); window.scrollTo({ top: 0 }); }
   function invBack() { inv.step = 1; render(); }
+  function invHeadBack() { if (inv && inv.step === 2) invBack(); else inviteClose(); }
   function inviteClose() { const cid = inv && inv.circleId; inv = null; back(cid ? 'circles' : 'today'); }
   function inviteDone() { const cid = inv.circleId; inv = null; stack = [{ name: 'circles', params: {} }]; go('circle', { id: cid }); }
   function inviteRotate() { const msgs = inviteMessages(inv.kind, inv.wordTitle, inv.libraryId); inv.idx = (inv.idx + 1) % msgs.length; inv.message = msgs[inv.idx]; const t = $('#inv-msg'); if (t) t.value = inv.message; }
@@ -1134,7 +1136,7 @@ const App = (() => {
      ============================================================ */
   SCREENS.invite = ({ token }) => {
     const p = Store().cachedPreview(token) || { ok: false, reason: 'not_found' };
-    if (!p.ok) return `${topbar({ title: 'הזמנה' })}<div class="card empty"><span class="tile lg gray">${icon('hourglass', 28)}</span><div class="t">${p.reason === 'expired' ? 'הקוד פג' : p.reason === 'revoked' ? 'הקוד בוטל' : 'הקוד לא נמצא'}</div><div class="m">בקשי מהחברה קוד חדש.</div><button class="btn soft" onclick="App.back('circles')">חזרה</button></div>`;
+    if (!p.ok) return `${topbar({ title: 'הזמנה' })}<div class="card empty"><span class="tile lg gray">${icon('hourglass', 28)}</span><div class="t">${p.reason === 'expired' ? 'הקוד פג' : p.reason === 'revoked' ? 'הקוד בוטל' : 'הקוד לא נמצא'}</div><div class="m">בקשי מהחברה קוד חדש.</div></div>`;
     const kind = INVITE_KINDS[p.kind] ? p.kind : 'follow';
     const v = INVITE_KINDS[kind];
     const msg = p.message || inviteMessages(kind, p.wordTitle || (p.challenge && p.challenge.title) || '', p.libraryId)[0];
@@ -1768,7 +1770,7 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
-    obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
+    invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();
