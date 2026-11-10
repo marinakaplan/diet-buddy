@@ -391,6 +391,8 @@ export async function acceptInvite(env, user, b) {
       S(env, `insert into circle_memberships(id, circle_id, user_id, role) select ?, ?, ?, 'member' where (select count(*) from circle_memberships where circle_id = ? and left_at is null) < ?`, uid(), cid, user.id, cid, p.maxMembers),
       S(env, `update circle_invites set uses = uses + 1 where token_hash = ?`, hash),
       eventStmt(env, cid, user.id, 'member_joined', {}), ...grantStmts(env, user.id, 'first_circle', cid),
+      // ההזמנה עבדה: עדכון למי ששלחה אותה
+      notifyStmt(env, p.inviter.id, 'invite', `${user.display_name} הצטרפה ל${p.circle.name} 🎉`, 'ההזמנה שלך עבדה.', { circleId: cid }, localDate(user.timezone)),
     ]);
   } catch (e) { if (e.code !== 'CONFLICT') throw e; }
   if (!(await isMember(env, cid, user.id))) throw err('CIRCLE_FULL', 'הקבוצה התמלא בדיוק עכשיו.', 409);

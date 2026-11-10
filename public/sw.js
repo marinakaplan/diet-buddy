@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mila-v10';
+const CACHE_NAME = 'mila-v11';
 const ASSETS = ['/', '/index.html', '/styles.css', '/js/library.js', '/js/engine.js', '/js/icons.js', '/js/demo.js', '/js/app.js', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
