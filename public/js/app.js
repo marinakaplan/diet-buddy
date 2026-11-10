@@ -162,45 +162,21 @@ const App = (() => {
     'יאללה, מהיום אני לא צועקת על הילדים.',
   ];
   SCREENS.welcome = () => {
-    const ppl = { noa: { name: 'נועה', color: 'lavender' }, me: { name: 'את', color: 'lime' }, dana: { name: 'דנה', color: 'mint' } };
-    const burst = [[-70, -46], [-34, -70], [12, -64], [52, -40], [-62, 14], [60, 10], [-20, 40], [30, 44]];
     const cta = Api.enabled ? `<button class="btn dark hero-btn" onclick="App.googleSignIn()">${googleMark()} יאללה, אני בפנים</button>` : `<button class="btn dark hero-btn" onclick="App.go('signup')">יאללה, אני בפנים</button>`;
+    /* מסך פתיחה מצומצם: לוגו חי, משפט אחד, הבטחה מתחלפת, כפתור. */
     return `
-    <div class="hero">
+    <div class="hero w2">
       <div class="hero-blobs" aria-hidden="true"><i></i><i></i><i></i></div>
-      <div class="hero-top">${liveLogo(26)}<span class="brand">מילה.</span><span class="beta">בטא</span></div>
-      ${pendingInviteToken ? `<div class="invited-banner">💌 הוזמנת לקבוצה של חברה. נכנסים עם Google, ואז מצטרפים.</div>` : ''}
-
-      <div class="hero-stage">
-        <div class="eyebrow">מכירה את זה?</div>
-        <span class="excuse" style="--d:.15s">ממחר ספורט.</span>
-        <span class="excuse" style="--d:.35s">ממחר בלי מתוקים.</span>
-        <span class="excuse" style="--d:.55s">ממחר לישון מוקדם.</span>
-        <div class="caption">ואז מגיע מחר. וכלום. 😂</div>
-        <div class="stamp2">אז די.</div>
-        <div class="burst" aria-hidden="true">${burst.map(([x, y], i) => `<i style="--x:${x}px;--y:${y}px;--c:var(--${['lime-deep', 'pink-ink', 'lav-ink', 'peach-ink'][i % 4]})"></i>`).join('')}</div>
+      <div class="w2-main">
+        <div class="w2-logo">${liveLogo(76)}</div>
+        <div class="w2-brand">מילה.</div>
+        <h1 class="w2-h"><span>כולנו מבטיחות.</span><span>בואי נראה מי <mark>מקיימת</mark>.</span></h1>
+        <div class="w2-rot" aria-hidden="true">${PROMISES.map((t, i) => `<span style="--i:${i}">${t}</span>`).join('')}</div>
       </div>
-
-      <h1 class="hero-h"><span>כולנו מבטיחות.</span><span>בואי נראה מי <mark>מקיימת</mark>.</span></h1>
-
-      <div class="race">
-        <div class="race-head"><div class="promise-rot" aria-live="off">${PROMISES.map((t, i) => `<span style="--i:${i}">${t}</span>`).join('')}</div><div class="race-chips"><span style="--d:2.5s">3 אתגרים</span><span style="--d:2.6s">14 ימים</span><span style="--d:2.7s">חברות</span></div></div>
-        <div class="race-title"><b>🏁 מי מובילה?</b><span class="live"><i></i>עכשיו</span></div>
-        <div class="race-body">
-          <div class="race-places"><span class="first">1</span><span>2</span><span>3</span></div>
-          <div class="race-rows">
-            ${[['noa', 'נועה', 86], ['me', 'את', 91], ['dana', 'דנה', 71]].map(([k, nm, p]) => `<div class="ln ${k}" style="--to:${p / 100}">
-              <div class="track"><div class="trail"></div><span class="nm">${nm}</span><span class="flag">🏁</span><span class="runner">${k === 'me' ? '<span class="crown">👑</span>' : ''}${avatar(ppl[k], 30)}</span></div>
-              <span class="pc">${k === 'me' ? '<span class="a">83%</span><span class="b">91%</span>' : `${p}%`}</span>
-            </div>`).join('')}
-            <div class="ovt">עקפת את נועה 😏</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="hero-cta">${cta}
-        <button class="btn text" onclick="App.startDemo()">${icon('sparkle', 18)} להציץ בדוגמה</button>
-        <div class="disclaimer">כניסה עם Google · מגיל 18 · חינם</div>
+      ${pendingInviteToken ? `<div class="invited-banner w2-inv">💌 הוזמנת לקבוצה של חברה. נכנסת עם Google, ומצטרפת.</div>` : ''}
+      <div class="hero-cta w2-cta">${cta}
+        <button class="btn text" onclick="App.startDemo()">להציץ בדוגמה</button>
+        <div class="disclaimer">כניסה עם Google · מגיל 18 · חינם · בטא</div>
       </div>
     </div>`;
   };
