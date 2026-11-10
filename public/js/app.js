@@ -156,7 +156,7 @@ const App = (() => {
   const PROMISES = [
     'יאללה, מהיום אני לא נוגעת בטלפון כשאני עם הילדים.',
     'יאללה, מהיום אני לא מזמינה משלוחים.',
-    'יאללה, מהיום אני במיטה עד 23:00.',
+    'יאללה, מהיום אני הולכת לישון ב-22:00.',
     'יאללה, מהיום 8,000 צעדים ביום.',
     'יאללה, מהיום בלי מתוק אחרי ארוחת ערב.',
     'יאללה, מהיום אני לא צועקת על הילדים.',
@@ -278,7 +278,7 @@ const App = (() => {
      אונבורדינג: 3 שלבים קצרים — שם · הבטחה ראשונה · לבד או עם חברה
      ============================================================ */
   let ob = null;
-  const OB_PICKS = [['fam_no_yelling', '🧸'], ['food_no_sweets_evening', '🍫'], ['move_walk_30', '🚶‍♀️'], ['food_8_water', '💧'], ['move_sleep_by_23', '😴'], ['food_no_delivery', '🛵']];
+  const OB_PICKS = ['fam_no_yelling', 'food_no_sweets_evening', 'move_walk_30', 'food_8_water', 'move_sleep_by_23', 'food_no_delivery'];
   SCREENS.onboard = () => {
     if (!ob) ob = { step: 2, picks: [], friend: null };
     const L = Mila.LIBRARY; const first = (Mila.me().name || '').split(' ')[0];
@@ -286,9 +286,9 @@ const App = (() => {
       const n = ob.picks.length;
       return `<div class="ob ob-in">
         ${obDots(2)}
-        <h1 class="ob-title">היי ${esc(first)} 👋<br>מה ההבטחה הראשונה שלך?</h1>
+        <h1 class="ob-title">היי ${esc(first)},<br>מה ההבטחה הראשונה שלך?</h1>
         <p class="ob-sub">בוחרת אחת, או עד 3. כל ערב רק מסמנת אם עמדת בזה.</p>
-        <div class="ob-grid">${OB_PICKS.map(([id, emo], i) => { const ch = L.get(id); const on = ob.picks.includes(id); return `<button class="ob-pick ${on ? 'on' : ''}" style="--i:${i}" onclick="App.obToggle('${id}')"><span class="emo">${emo}</span><span class="t">${esc(ch.title)}</span>${on ? `<span class="ok">${icon('check', 14)}</span>` : ''}</button>`; }).join('')}</div>
+        <div class="ob-grid">${OB_PICKS.map((id, i) => { const ch = L.get(id); const on = ob.picks.includes(id); return `<button class="ob-pick ${on ? 'on' : ''}" style="--i:${i}" onclick="App.obToggle('${id}')"><span class="ic">${icon(ch.icon || 'leaf', 22)}</span><span class="t">${esc(ch.title)}</span></button>`; }).join('')}</div>
         <button class="btn text ob-more" onclick="App.obMore()">עוד 44 רעיונות, או אתגר משלך ›</button>
         <div class="ob-foot"><button class="btn primary" ${n ? '' : 'disabled'} onclick="App.obNext()">${n ? `ממשיכה עם ${n === 1 ? 'אתגר אחד' : `${n} אתגרים`}` : 'בוחרת לפחות אחד'}</button>
         <div class="ob-links"><button class="btn text" onclick="App.joinByCodeSheet()">יש לי קוד מחברה</button><button class="btn text" onclick="App.obSkip()">קודם להציץ</button></div></div>
@@ -297,10 +297,10 @@ const App = (() => {
     return `<div class="ob ob-in">
       ${obDots(3)}
       <h1 class="ob-title">לבד, או עם חברה?</h1>
-      <p class="ob-sub">עם חברה זה הרבה יותר קל לעמוד במילה. וגם יותר כיף 😉</p>
-      <button class="ob-choice ${ob.friend === true ? 'on' : ''}" onclick="App.obFriend(true)"><span class="emo">👯‍♀️</span><span><b>עם חברה</b><small>פותחת קבוצה ושולחת לה הזמנה בוואטסאפ</small></span></button>
-      <button class="ob-choice ${ob.friend === false ? 'on' : ''}" onclick="App.obFriend(false)"><span class="emo">🙋‍♀️</span><span><b>בינתיים לבד</b><small>אפשר להזמין חברות מתי שרוצים</small></span></button>
-      <div class="ob-foot"><button class="btn primary ob-go" ${ob.friend === null || busy ? 'disabled' : ''} onclick="App.obCommit()">${busy ? 'רגע…' : 'נותנת מילה ✋'}</button>
+      <p class="ob-sub">עם חברה הרבה יותר קל לעמוד במילה. וגם יותר כיף.</p>
+      <button class="ob-choice ${ob.friend === true ? 'on' : ''}" onclick="App.obFriend(true)"><span class="ic">${icon('users', 24)}</span><span><b>עם חברה</b><small>פותחת קבוצה ושולחת לה הזמנה בוואטסאפ</small></span></button>
+      <button class="ob-choice ${ob.friend === false ? 'on' : ''}" onclick="App.obFriend(false)"><span class="ic">${icon('user', 24)}</span><span><b>בינתיים לבד</b><small>אפשר להזמין חברות מתי שרוצים</small></span></button>
+      <div class="ob-foot"><button class="btn primary ob-go" ${ob.friend === null || busy ? 'disabled' : ''} onclick="App.obCommit()">${busy ? 'רגע…' : 'נותנת מילה'}</button>
       <button class="btn text" onclick="App.obBack()">חזרה</button></div>
     </div>`;
   };
