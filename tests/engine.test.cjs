@@ -249,20 +249,16 @@ test('ולידציה: ניסוח מסוכן נחסם; כלל הצלחה חובה
   assert.throws(() => Mila.createPersonalWord({ title: 'משהו', rule: '', startDate: today }), /הצלחה/);
 });
 
-test('דמו: הזריעה עוברת את כל האינווריאנטים ומייצרת 3 מילים על הכף היום', () => {
+test('דמו: מצומצם (קבוצה אחת, 2 אתגרים) ועובר את כל האינווריאנטים', () => {
   Mila.setClock(null);
   Mila.reset();
   const u = MilaDemo.seed('דניאלה');
   const S = Mila.getState();
   assert.strictEqual(S.me, u.id);
-  assert.strictEqual(Mila.todayCards().length, 3);
-  assert.strictEqual(Mila.myCircles().length, 3);
-  assert.ok(Mila.bankSummary().earnedTotal > 20, 'יש היסטוריה בבנק');
-  assert.ok(Mila.previewInvite(S.pendingInvite.token).ok, 'הזמנה ממתינה תקפה');
-  // התקרה חוסמת אימוץ של ״בלי משלוחים״
-  const delivery = Object.values(S.wordDefs).find(d => d.title === 'בלי משלוחים');
-  let err = null; try { Mila.adoptGroupWord(delivery.id); } catch (e) { err = e; }
-  assert.ok(err && err.code === 'CAP', 'מסע D: אין חריגה סמויה מהתקרה');
+  assert.strictEqual(Mila.todayCards().length, 2);
+  assert.strictEqual(Mila.myCircles().length, 1);
+  assert.ok(Mila.bankSummary().earnedTotal > 5, 'יש נקודות');
+  assert.strictEqual(Mila.pendingSummaries().length, 0, 'אין סיכומי סבב שמחכים');
   const lb = Mila.leaderboard(Mila.myCircles()[0].id);
   assert.ok(lb.rows.some(r => r.ranked));
   checkInvariants();

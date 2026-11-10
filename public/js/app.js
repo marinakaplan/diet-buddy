@@ -185,7 +185,6 @@ const App = (() => {
     Mila.reset();
     MilaDemo.seed('דניאלה');
     go('today', {}, { reset: true });
-    toast('זו דוגמה עם חברות מומצאות. כדי להתחיל באמת: הגדרות ← איפוס הדוגמה.', 'lime');
   }
 
   /* ============================================================
@@ -308,7 +307,7 @@ const App = (() => {
         <div class="title-wrap"></div>
         <div class="topbar-side end"><button class="icon-btn" aria-label="הפרופיל שלי" onclick="App.tab('me')">${avatar(u, 40)}</button></div>
       </div>
-      ${Mila.getState().meta.demo ? `<div class="demo-banner">דוגמה. הקבוצות והחברות מומצאות. <a href="#" onclick="event.preventDefault(); App.resetDemo()">להתחיל באמת</a></div>` : ''}
+      ${Mila.getState().meta.demo ? `<div class="demo-banner">זו דוגמה עם חברות מומצאות. <a href="#" onclick="event.preventDefault(); App.resetDemo()">להתחיל באמת</a></div>` : ''}
       <div class="greeting"><div><div class="hello">${greet}, ${esc(u.name)} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${fresh ? 'בואי נתחיל.' : todaySubtitle(cards)}</div></div></div>
 
       ${main ? `<div class="card ring-card">
@@ -317,9 +316,9 @@ const App = (() => {
           <div class="ring-meta"><span>הצלחות <b>${bank.earnedCurrentRound}</b></span><span>רצף <b>${bestStreak}</b></span>${rankCircle && rankCircle.ri.place ? `<span>מקום <b>${rankCircle.ri.place}</b> מתוך ${rankCircle.ri.total}</span>` : `<span>היום <b>${done}/${cards.length}</b></span>`}</div>
         </div>` : ''}
 
-      ${rankAll.slice(0, 3).map(({ c, ri }) => `<div class="card tight clickable pastel-lav rank-card" onclick="App.go('circle',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px">${ri.place ? `<span class="rank-place ${ri.place === 1 ? 'first' : ''}">${ri.place}</span>` : `<span class="tile lav">${icon('trophy')}</span>`}<div style="flex:1;min-width:0"><div class="bold">${esc(ri.text)}</div><div class="small muted">${esc(c.name)} · יום ${Mila.circleRound(c.id).dayIndex} מתוך ${Mila.RULES.ROUND_DAYS}</div></div>${icon('chev', 20)}</div></div>`).join('')}
+      ${(rankCircle ? [rankCircle] : []).map(({ c, ri }) => `<div class="card tight clickable pastel-lav rank-card" onclick="App.go('circle',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px">${ri.place ? `<span class="rank-place ${ri.place === 1 ? 'first' : ''}">${ri.place}</span>` : `<span class="tile lav">${icon('trophy')}</span>`}<div style="flex:1;min-width:0"><div class="bold">${esc(ri.text)}</div><div class="small muted">${esc(c.name)} · יום ${Mila.circleRound(c.id).dayIndex} מתוך ${Mila.RULES.ROUND_DAYS}</div></div>${icon('chev', 20)}</div></div>`).join('')}
 
-      ${pendingSum.length ? pendingSum.map(c => `<div class="card pastel-lav clickable tight" onclick="App.go('summary',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">הסבב נגמר: ${esc(Mila.wordDef(c.defId).title)}</div><div class="small muted">איך הלך?</div></div>${icon('chev', 20)}</div></div>`).join('') : ''}
+      ${pendingSum.length ? pendingSum.slice(0, 1).map(c => `<div class="card pastel-lav clickable tight" onclick="App.go('summary',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">הסבב נגמר: ${esc(Mila.wordDef(c.defId).title)}</div><div class="small muted">איך הלך?</div></div>${icon('chev', 20)}</div></div>`).join('') : ''}
 
       ${installCard()}
       ${fresh ? `<div class="card start-card">
