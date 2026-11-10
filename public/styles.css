@@ -78,7 +78,7 @@ img, svg { display: block; }
 #screen { padding: 8px 20px calc(var(--nav-h) + 32px); min-height: 100vh; min-height: 100dvh; animation: fade .18s ease; }
 #screen.no-nav { padding-bottom: 32px; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { *:not(.w2 *), *:not(.w2 *)::before, *:not(.w2 *)::after { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { *:not(.w2 *):not(.ob *):not(.ob), *:not(.w2 *):not(.ob *)::before, *:not(.w2 *):not(.ob *)::after { animation: none !important; transition: none !important; } }
 
 .ic { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; line-height: 0; }
 
@@ -882,3 +882,43 @@ body.wide #screen { padding-inline: 24px; }
 .rk-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk-status { font-size: .88rem; color: var(--ink-2); white-space: nowrap; }
 .rk-row svg { color: var(--ink-3); flex: none; }
+
+/* ---------- אונבורדינג: 3 שלבים ---------- */
+.ob { min-height: calc(100dvh - 40px); display: flex; flex-direction: column; padding: 18px 0 10px; }
+.ob-in { animation: obin .45s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes obin { from { opacity: 0; transform: translateX(-24px); } }
+.ob-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 26px; }
+.ob-dots i { width: 26px; height: 5px; border-radius: 99px; background: var(--line-2); transition: background .3s; }
+.ob-dots i.on { background: var(--ink); }
+.ob-hero { display: flex; justify-content: center; margin: 4px 0 18px; animation: w2pop .7s cubic-bezier(.2, 1.6, .4, 1) both; }
+.ob-title { margin: 0; font-size: 1.85rem; font-weight: 900; line-height: 1.15; letter-spacing: -.02em; animation: w2up .5s ease .1s both; }
+.ob-sub { margin: 10px 0 20px; color: var(--ink-2); font-size: .98rem; line-height: 1.45; animation: w2up .5s ease .2s both; }
+.ob-input { font-size: 1.15rem; padding: 14px 16px; animation: w2up .5s ease .3s both; }
+.ob-agree { margin-top: 16px; font-size: .92rem; animation: w2up .5s ease .4s both; }
+.ob-foot { margin-top: auto; padding-top: 22px; display: flex; flex-direction: column; gap: 4px; }
+.ob-links { display: flex; justify-content: center; gap: 4px; }
+.ob-links .btn { flex: 1; }
+.ob-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ob-pick { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 104px; padding: 14px; text-align: start; font: inherit; color: var(--ink); background: var(--card); border: 1.5px solid var(--line-2); cursor: pointer; animation: hpop .45s cubic-bezier(.2, 1.5, .4, 1) calc(.15s + var(--i) * .06s) both; transition: transform .12s, border-color .15s, background .15s; }
+.ob-pick:active { transform: scale(.97); }
+.ob-pick .emo { font-size: 1.7rem; line-height: 1; }
+.ob-pick .t { font-weight: 700; font-size: .95rem; line-height: 1.3; }
+.ob-pick.on { background: var(--lime); border-color: var(--ink); animation: obpop .3s cubic-bezier(.2, 1.6, .4, 1); }
+.ob-pick .ok { position: absolute; top: 10px; inset-inline-end: 10px; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; }
+@keyframes obpop { 50% { transform: scale(1.05); } }
+.ob-more { margin-top: 8px; font-size: .9rem; color: var(--ink-2); }
+.ob-choice { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px; margin-bottom: 10px; text-align: start; font: inherit; color: var(--ink); background: var(--card); border: 1.5px solid var(--line-2); cursor: pointer; animation: hpop .45s cubic-bezier(.2, 1.5, .4, 1) .15s both; transition: border-color .15s, background .15s; }
+.ob-choice + .ob-choice { animation-delay: .25s; }
+.ob-choice .emo { font-size: 2rem; line-height: 1; }
+.ob-choice b { display: block; font-size: 1.05rem; }
+.ob-choice small { display: block; color: var(--ink-2); font-size: .84rem; margin-top: 2px; }
+.ob-choice.on { background: var(--lime); border-color: var(--ink); }
+.ob-choice.on small { color: var(--ink); }
+.ob-go { font-size: 1.05rem; padding-block: 15px; }
+@media (prefers-reduced-motion: reduce) { .ob-in, .ob-hero, .ob-title, .ob-sub, .ob-input, .ob-agree, .ob-pick, .ob-choice { animation-name: w2fade !important; } }
+/* לוגו חי ידידותי (אונבורדינג וכותרת): בלי שלב העצבים, מחייך מההתחלה, ממצמץ ומציץ */
+.ob-hero .live-logo, .th-brand .live-logo { animation: lljoy .55s cubic-bezier(.2, 1.7, .4, 1) .35s, llidle 9s ease-in-out 4s infinite; }
+.ob-hero .ll-brows, .th-brand .ll-brows { opacity: 0; animation: llside-b 9s ease 4s infinite; }
+.ob-hero .ll-frown, .th-brand .ll-frown { opacity: 0; animation: none; }
+.ob-hero .ll-smile, .th-brand .ll-smile { opacity: 1; animation: llsmirk 9s ease 4s infinite; }
+.ob-hero .ll-eyes-narrow, .th-brand .ll-eyes-narrow { animation: llside-n 9s ease 4s infinite; }

@@ -206,8 +206,8 @@ const App = (() => {
     const u = Mila.createUser({ name: signupForm.name, ageConfirmed: true });
     Mila.getState().me = u.id; Mila.save();
     const token = pendingInviteToken; pendingInviteToken = null;
-    go('start', {}, { reset: true });
-    if (token) openInvite(token);
+    if (token) { go('today', {}, { reset: true }); openInvite(token); }
+    else { ob = { step: 2, picks: [], friend: null }; go('onboard', {}, { reset: true }); }
   }
   let pendingInviteToken = null;
 
@@ -226,20 +226,26 @@ const App = (() => {
     Api.startAutoSync();
     const token = pendingInviteToken; pendingInviteToken = null;
     const first = !Mila.activeCommitments().length && !Mila.myCircles().length;
-    go(first ? 'start' : 'today', {}, { reset: true });
+    if (first && !token) { ob = { step: 2, picks: [], friend: null }; go('onboard', {}, { reset: true }); return; }
+    go('today', {}, { reset: true });
     if (token) openInvite(token);
   }
   /* השלמת פרופיל אחרי הכניסה הראשונה: שם, 18+, תנאים */
-  SCREENS.profile = () => `
-    <div class="welcome" style="justify-content:flex-start;padding-top:40px">
-      <div class="logo-row" style="justify-content:flex-start;gap:8px">${logoMark(36)}<span class="brand" style="font-size:1.6rem">מילה.</span></div>
-      <div class="step-title mt-lg">איך קוראים לך?</div><div class="step-sub">ככה החברות יראו אותך.</div>
-      <div class="field"><input class="input" id="pf-name" placeholder="שם תצוגה" maxlength="30" value="${esc(authForm.name || (Api.me && Api.me.name) || '')}" oninput="App.authSet('name', this.value)"></div>
-      <div class="checkbox-row ${authForm.age ? 'on' : ''}" onclick="App.authToggle('age')"><span class="box">${authForm.age ? icon('check', 16) : ''}</span><span>אני בת 18 ומעלה</span></div>
-      <div class="checkbox-row ${authForm.terms ? 'on' : ''}" onclick="App.authToggle('terms')"><span class="box">${authForm.terms ? icon('check', 16) : ''}</span><span>קראתי את <a href="#" onclick="event.preventDefault(); App.termsSheet()">תנאי השימוש</a>. נקודות משחק, בלי כסף אמיתי.</span></div>
-      <div class="mt-lg"><button class="btn primary" id="pf-go" ${busy ? 'disabled' : ''} onclick="App.completeProfile()">${busy ? 'רגע…' : 'ממשיכה'}</button></div>
-      <button class="btn text mt" onclick="App.signOut()">יציאה</button>
+  const obDots = (n) => `<div class="ob-dots" aria-label="שלב ${n} מתוך 3">${[1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
+  SCREENS.profile = () => {
+    const agreed = authForm.age && authForm.terms;
+    return `<div class="ob">
+      ${obDots(1)}
+      <div class="ob-hero">${liveLogo(72)}</div>
+      <h1 class="ob-title">נעים להכיר!<br>איך קוראים לך?</h1>
+      <p class="ob-sub">ככה החברות יראו אותך.</p>
+      <input class="input ob-input" id="pf-name" placeholder="השם שלך" maxlength="30" value="${esc(authForm.name || (Api.me && Api.me.name) || '')}" oninput="App.authSet('name', this.value)">
+      <div class="checkbox-row ob-agree ${agreed ? 'on' : ''}" onclick="App.authAgree()"><span class="box">${agreed ? icon('check', 16) : ''}</span><span>אני בת 18 ומעלה ומסכימה ל<a href="#" onclick="event.preventDefault(); event.stopPropagation(); App.termsSheet()">תנאי השימוש</a></span></div>
+      <div class="ob-foot"><button class="btn primary" id="pf-go" ${busy ? 'disabled' : ''} onclick="App.completeProfile()">${busy ? 'רגע…' : 'ממשיכה'}</button>
+      <button class="btn text" onclick="App.signOut()">יציאה</button></div>
     </div>`;
+  };
+  function authAgree() { const v = !(authForm.age && authForm.terms); authForm.age = v; authForm.terms = v; render(); }
   function authSet(k, v) { authForm[k] = v; }
   function authToggle(k) { authForm[k] = !authForm[k]; render(); }
   function termsSheet() {
@@ -258,8 +264,7 @@ const App = (() => {
     if (busy) return;
     const name = (authForm.name || (Api.me && Api.me.name) || '').trim();
     if (!name) return toast('צריך שם תצוגה');
-    if (!authForm.age) return toast('בגרסת הבטא המשחק פתוח לבנות 18 ומעלה');
-    if (!authForm.terms) return toast('צריך לאשר את תנאי השימוש');
+    if (!authForm.age || !authForm.terms) return toast('צריך לסמן שאת בת 18 ומעלה ומסכימה לתנאים');
     busy = true; render();
     try { await Api.completeProfile({ name, ageConfirmed: true, termsAccepted: true, inviteToken: pendingInviteToken }); afterAuth(); }
     catch (e) { busy = false; fail(e); render(); }
@@ -269,6 +274,62 @@ const App = (() => {
   /* ============================================================
      S03 — התחלת משחק
      ============================================================ */
+  /* ============================================================
+     אונבורדינג: 3 שלבים קצרים — שם · הבטחה ראשונה · לבד או עם חברה
+     ============================================================ */
+  let ob = null;
+  const OB_PICKS = [['fam_no_yelling', '🧸'], ['food_no_sweets_evening', '🍫'], ['move_walk_30', '🚶‍♀️'], ['food_8_water', '💧'], ['move_sleep_by_23', '😴'], ['food_no_delivery', '🛵']];
+  SCREENS.onboard = () => {
+    if (!ob) ob = { step: 2, picks: [], friend: null };
+    const L = Mila.LIBRARY; const first = (Mila.me().name || '').split(' ')[0];
+    if (ob.step === 2) {
+      const n = ob.picks.length;
+      return `<div class="ob ob-in">
+        ${obDots(2)}
+        <h1 class="ob-title">היי ${esc(first)} 👋<br>מה ההבטחה הראשונה שלך?</h1>
+        <p class="ob-sub">בוחרת אחת, או עד 3. כל ערב רק מסמנת אם עמדת בזה.</p>
+        <div class="ob-grid">${OB_PICKS.map(([id, emo], i) => { const ch = L.get(id); const on = ob.picks.includes(id); return `<button class="ob-pick ${on ? 'on' : ''}" style="--i:${i}" onclick="App.obToggle('${id}')"><span class="emo">${emo}</span><span class="t">${esc(ch.title)}</span>${on ? `<span class="ok">${icon('check', 14)}</span>` : ''}</button>`; }).join('')}</div>
+        <button class="btn text ob-more" onclick="App.obMore()">עוד 44 רעיונות, או אתגר משלך ›</button>
+        <div class="ob-foot"><button class="btn primary" ${n ? '' : 'disabled'} onclick="App.obNext()">${n ? `ממשיכה עם ${n === 1 ? 'אתגר אחד' : `${n} אתגרים`}` : 'בוחרת לפחות אחד'}</button>
+        <div class="ob-links"><button class="btn text" onclick="App.joinByCodeSheet()">יש לי קוד מחברה</button><button class="btn text" onclick="App.obSkip()">קודם להציץ</button></div></div>
+      </div>`;
+    }
+    return `<div class="ob ob-in">
+      ${obDots(3)}
+      <h1 class="ob-title">לבד, או עם חברה?</h1>
+      <p class="ob-sub">עם חברה זה הרבה יותר קל לעמוד במילה. וגם יותר כיף 😉</p>
+      <button class="ob-choice ${ob.friend === true ? 'on' : ''}" onclick="App.obFriend(true)"><span class="emo">👯‍♀️</span><span><b>עם חברה</b><small>פותחת קבוצה ושולחת לה הזמנה בוואטסאפ</small></span></button>
+      <button class="ob-choice ${ob.friend === false ? 'on' : ''}" onclick="App.obFriend(false)"><span class="emo">🙋‍♀️</span><span><b>בינתיים לבד</b><small>אפשר להזמין חברות מתי שרוצים</small></span></button>
+      <div class="ob-foot"><button class="btn primary ob-go" ${ob.friend === null || busy ? 'disabled' : ''} onclick="App.obCommit()">${busy ? 'רגע…' : 'נותנת מילה ✋'}</button>
+      <button class="btn text" onclick="App.obBack()">חזרה</button></div>
+    </div>`;
+  };
+  function obToggle(id) {
+    const i = ob.picks.indexOf(id);
+    if (i >= 0) ob.picks.splice(i, 1); else { if (ob.picks.length >= Mila.RULES.DAILY_CAP) return toast('עד 3 אתגרים. אפשר להוריד אחד ולבחור אחר.'); ob.picks.push(id); }
+    render();
+  }
+  function obNext() { if (!ob.picks.length) return; ob.step = 3; render(); window.scrollTo({ top: 0 }); }
+  function obBack() { ob.step = 2; render(); }
+  function obFriend(v) { ob.friend = v; render(); }
+  function obSkip() { ob = null; go('today', {}, { reset: true }); }
+  function obMore() { const picks = ob.picks.slice(); ob = null; openPick(picks); }
+  async function obCommit() {
+    if (busy || !ob || ob.friend === null) return;
+    busy = true; render();
+    try {
+      let circleId = null;
+      if (ob.friend) { const { circle } = await Store().createCircle({ name: `הקבוצה של ${(Mila.me().name || '').split(' ')[0]}`, description: '', whoCanPropose: 'all', maxMembers: 8, color: 'pink' }); circleId = circle.id; }
+      for (const id of ob.picks) await Store().createPersonalWord({ libraryId: id, startDate: Mila.today(), circleId, visibility: 'status', reward: '', shareSensitive: false });
+      const n = ob.picks.length; const friend = ob.friend; ob = null; busy = false;
+      stack = [{ name: 'today', params: {} }]; render();
+      stamp(n === 1 ? 'נתתי מילה.' : `${n} אתגרים. נתתי מילה.`);
+      // ישר להודעה המוכנה לחברה (בלי שלב הבחירות): ״תראי אם אני עומדת במילה שלי״
+      if (friend && circleId) setTimeout(() => { inviteFlow({ circleId, kind: 'follow' }); inv.step = 2; render(); }, 1700);
+      else afterFirstCommit();
+    } catch (e) { busy = false; render(); fail(e); }
+  }
+
   SCREENS.start = () => `
     <div class="welcome" style="justify-content:flex-start;padding-top:40px">
       <div class="logo-row" style="justify-content:flex-start;gap:8px">${logoMark(36)}<span class="brand" style="font-size:1.6rem">מילה.</span></div>
@@ -925,10 +986,11 @@ const App = (() => {
     food_no_sweets_evening: ['בלי מתוק אחרי ארוחת ערב. 14 יום. תראי אם אני מחזיקה.', 'הקינוח נדחה ב-14 יום. את מוזמנת לפקח.'],
   };
   function inviteMessages(kind, w, libraryId) {
+    const n = Math.min(Math.max(Mila.me() ? Mila.activeCommitments().length : 3, 1), 3); const nA = n === 1 ? 'אתגר אחד' : `${n} אתגרים`;
     const special = libraryId && INVITE_BY_LIBRARY[libraryId];
-    if (kind === 'compete') return ['אני בחרתי 3 אתגרים ל-14 יום. בואי תבחרי גם. נראה מי מתמידה יותר.', '14 ימים, 3 אתגרים, אחת מאיתנו מנצחת. באה?', 'אני בטוחה שאני מתמידה יותר ממך. תוכיחי שלא.'];
+    if (kind === 'compete') return [`אני בחרתי ${nA} ל-14 יום. בואי תבחרי גם. נראה מי מתמידה יותר.`, '14 ימים, 3 אתגרים, אחת מאיתנו מנצחת. באה?', 'אני בטוחה שאני מתמידה יותר ממך. תוכיחי שלא.'];
     if (kind === 'same') return [...(special || []), ...(w ? [`14 ימים של ${w}. אני בפנים. את באה?`, `${w}. שתינו יודעות שאנחנו צריכות את זה.`, `${w} ל-14 יום. בואי נראה מי מחזיקה יותר.`] : ['אותו אתגר, 14 יום, שתינו. באה?'])];
-    return [...(special || []), ...(w ? [`החלטתי: ${w}, 14 יום. נראה לך שאצליח?`, `שוב נשבעתי: ${w}. תראי אם הפעם זה מחזיק.`, `14 ימים של ${w}. את מוזמנת לפקח על הנס.`] : ['החלטתי על 3 אתגרים ל-14 יום. נראה לך שאצליח?', '14 ימים. 3 אתגרים. את מוזמנת לפקח על הנס.', 'הפעם אני רצינית. כנראה. בואי תראי.'])];
+    return [...(special || []), ...(w ? [`החלטתי: ${w}, 14 יום. נראה לך שאצליח?`, `שוב נשבעתי: ${w}. תראי אם הפעם זה מחזיק.`, `14 ימים של ${w}. את מוזמנת לפקח על הנס.`] : [`החלטתי על ${nA} ל-14 יום. נראה לך שאצליח?`, `14 ימים. ${nA}. את מוזמנת לפקח על הנס.`, 'הפעם אני רצינית. כנראה. בואי תראי.'])];
   }
   /* ============================================================
      הזמנת חברה — 3 צעדים: מה היא תעשה → ההודעה → נשלח (קישור וקוד תמיד גלויים)
@@ -1706,7 +1768,7 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
-    pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
+    obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();

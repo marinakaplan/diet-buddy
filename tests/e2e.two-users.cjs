@@ -34,8 +34,7 @@ async function signUpViaUi(p, u, url = BASE + '/') {
   await p.page.goto(url); await ready(p);
   await p.page.waitForSelector('#pf-name', { timeout: 20000 });
   await p.page.fill('#pf-name', u.name);
-  await p.page.click('text=אני בת 18 ומעלה');
-  await p.page.click('text=קראתי את');
+  await p.page.click('.ob-agree');
   await p.page.click('#pf-go');
   await p.page.waitForFunction(() => Api.isCloud() && Mila.me() && Mila.me().name, null, { timeout: 30000 });
 }
