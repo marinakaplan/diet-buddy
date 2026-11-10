@@ -49,9 +49,37 @@ const App = (() => {
     if (stack.length > 1) stack.pop(); else stack = [{ name: fallback, params: {} }];
     render();
   }
-  function tab(name) { stack = [{ name, params: {} }]; render(); window.scrollTo({ top: 0 }); }
+  function tab(name) { stack = [{ name, params: {} }]; render(); window.scrollTo({ top: 0 }); FX.pop(document.querySelector('#nav button.on .ic'), 'fx-bounce'); }
   function current() { return stack[stack.length - 1]; }
   function sheetOpen() { return $('#sheet').classList.contains('open'); }
+
+  /* ---------- מיקרו־אינטראקציות: קונפטי, קפיצה, רעד, ספירה, רטט קל ---------- */
+  const FX = {
+    reduced: () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches),
+    buzz: (ms = 12) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { } },
+    center: (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; },
+    confetti(x, y, { n = 18, power = 1, items = null } = {}) {
+      if (FX.reduced()) return;
+      const box = document.createElement('div'); box.className = 'fx-confetti'; box.style.left = x + 'px'; box.style.top = y + 'px';
+      const cols = ['#DCF36E', '#FFD3E4', '#E3DAFB', '#FFD9C7', '#D5F1E3', '#1C1A1F'];
+      box.innerHTML = Array.from({ length: n }, (_, i) => {
+        const a = (Math.PI * 2 * i) / n + Math.random() * .5; const d = (60 + Math.random() * 70) * power;
+        const dx = Math.cos(a) * d; const dy = Math.sin(a) * d - 40 * power;
+        const st = `--dx:${dx.toFixed(0)}px;--dy:${dy.toFixed(0)}px;--r:${Math.round(Math.random() * 540 - 270)}deg;--c:${cols[i % cols.length]};--t:${(.7 + Math.random() * .4).toFixed(2)}s`;
+        return items ? `<i class="em" style="${st}">${items[i % items.length]}</i>` : `<i class="${i % 3 ? 'sq' : 'ln'}" style="${st}"></i>`;
+      }).join('');
+      document.body.appendChild(box); setTimeout(() => box.remove(), 1300);
+    },
+    confettiAt(el, opts) { if (el) { const [x, y] = FX.center(el); FX.confetti(x, y, opts); } },
+    pop(el, cls = 'fx-pop') { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); },
+    countUp(el, ms = 650) {
+      const to = Number(el.textContent) || 0; if (!to || FX.reduced()) return;
+      const t0 = performance.now(); el.textContent = '0';
+      const step = (t) => { const k = Math.min(1, (t - t0) / ms); el.textContent = String(Math.round(to * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    },
+  };
+  let lastScreen = null, countUpNext = true;
   function render({ keepSheet = false } = {}) {
     if (!keepSheet) closeSheet(true);
     Mila.refreshStatuses();
@@ -66,6 +94,8 @@ const App = (() => {
     document.body.classList.toggle('wide', cur.name === 'admin');
     $('#nav').classList.toggle('hidden', !isTop);
     document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === cur.name));
+    if (lastScreen !== cur.name) { FX.pop(root, 'scr-in'); if (cur.name === 'today') countUpNext = true; }
+    lastScreen = cur.name;
     if (POST[cur.name]) POST[cur.name](cur.params);
   }
   function refresh() { render(); }
@@ -92,6 +122,7 @@ const App = (() => {
   function stamp(text, sub = '') {
     const el = document.createElement('div'); el.className = sub ? 'stamp with-sub' : 'stamp'; el.innerHTML = `<span>${esc(text)}</span>${sub ? `<p class="stamp-sub">${esc(sub)}</p>` : ''}`;
     document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => { FX.confetti(innerWidth / 2, innerHeight / 2, { n: 34, power: 1.6 }); FX.buzz(20); }, 260);
     setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, sub ? 2600 : 1600);
   }
   function fail(e) { toast(e.userMessage || e.message || 'משהו השתבש'); if (!e.userMessage) console.error(e); }
@@ -305,8 +336,10 @@ const App = (() => {
   };
   function obToggle(id) {
     const i = ob.picks.indexOf(id);
-    if (i >= 0) ob.picks.splice(i, 1); else { if (ob.picks.length >= Mila.RULES.DAILY_CAP) return toast('עד 3 אתגרים. אפשר להוריד אחד ולבחור אחר.'); ob.picks.push(id); }
+    const adding = i < 0;
+    if (i >= 0) ob.picks.splice(i, 1); else { if (ob.picks.length >= Mila.RULES.DAILY_CAP) { FX.pop(document.querySelector('.ob-grid'), 'fx-shake'); return toast('עד 3 אתגרים. אפשר להוריד אחד ולבחור אחר.'); } ob.picks.push(id); }
     render();
+    if (adding) { FX.buzz(8); FX.confettiAt(document.querySelector(`.ob-pick[onclick*="${id}"] .ic`), { n: 8, power: .55 }); }
   }
   function obNext() { if (!ob.picks.length) return; ob.step = 3; render(); window.scrollTo({ top: 0 }); }
   function obBack() { ob.step = 2; render(); }
@@ -341,6 +374,7 @@ const App = (() => {
   /* ============================================================
      S04 — היום שלי
      ============================================================ */
+  POST.today = () => { if (countUpNext) { countUpNext = false; document.querySelectorAll('.stat-strip b').forEach(b => FX.countUp(b)); } };
   SCREENS.today = () => {
     const u = Mila.me();
     if (!u) return SCREENS.welcome();
@@ -421,7 +455,7 @@ const App = (() => {
     const meta = x.outcome === 'success' ? '' : x.outcome === 'miss' ? `<span class="chip pink">פספוס</span>` : x.outcome === 'excused' ? '<span class="chip lav">יום חריג</span>' : x.late ? `<span class="chip peach">${icon('clock', 13)} מאתמול · לדווח עד 10:00</span>` : '';
     const streak = x.stats.current >= 2 ? `<span class="chip">${icon('flame', 13)} ${x.stats.current} ימים ברצף</span>` : '';
     // בלי עיגול נפרד: האייקון של האתגר הוא כפתור הדיווח ומראה את מצב היום
-    return `<div class="word-row tap ${st}" onclick="App.reportSheet('${x.id}')">
+    return `<div class="word-row tap ${st}" data-ob="${x.id}" onclick="App.reportSheet('${x.id}')">
       <span class="wt-state ${st}">${wordTile(x.def)}</span>
       <div class="body"><div class="name">${esc(x.def.title)}</div><div class="meta">${meta}${streak}${x.circle ? `<span class="chip outline">${esc(x.circle.name)}</span>` : ''}</div></div>
     </div>`;
@@ -473,11 +507,18 @@ const App = (() => {
         }
       }
       closeSheet(true);
-      if (duplicate) toast('כבר נשמר');
-      else if (outcome === 'success') toast('אמרת ועשית. +1 נקודה', 'lime');
-      else if (outcome === 'miss') toast('לא היום. מחר שוב.');
-      else toast('יום חריג. הרצף נשאר.');
       render();
+      const row = document.querySelector(`.word-row[data-ob="${id}"] .wt-state`);
+      const cards = Mila.todayCards(); const allDone = cards.length > 0 && cards.every(c => c.outcome);
+      if (duplicate) toast('כבר נשמר');
+      else if (outcome === 'success') {
+        FX.buzz(14); FX.pop(row, 'fx-win'); FX.confettiAt(row, { n: 16 });
+        FX.pop(document.querySelector('.stat-strip > div:nth-child(2) b'), 'fx-bump');
+        if (allDone) { setTimeout(() => { FX.confetti(innerWidth / 2, innerHeight * .3, { n: 42, power: 1.8 }); FX.buzz(30); }, 380); toast('כל האתגרים להיום. מושלם.', 'lime'); }
+        else toast('אמרת ועשית. +1 נקודה', 'lime');
+      }
+      else if (outcome === 'miss') { FX.pop(row, 'fx-shake'); toast('לא היום. מחר שוב.'); }
+      else toast('יום חריג. הרצף נשאר.');
     } catch (e) { fail(e); }
   }
 
@@ -959,7 +1000,7 @@ const App = (() => {
       <div class="react-picker">${Mila.REACTIONS.map(r => `<button title="${REACTION_LABEL[r]}" onclick="App.sendEncouragement('${circleId}','${toUserId}','${r}')">${icon(REACTION_ICON[r], 24)}</button>`).join('')}</div>`);
   }
   async function react(eventId, reaction) { try { await Store().encourage(eventId, reaction); render(); } catch (e) { fail(e); } }
-  async function sendEncouragement(circleId, toUserId, reaction) { try { await Store().sendEncouragement(circleId, toUserId, reaction); closeSheet(true); toast('נשלח.'); render(); } catch (e) { fail(e); } }
+  async function sendEncouragement(circleId, toUserId, reaction) { try { await Store().sendEncouragement(circleId, toUserId, reaction); closeSheet(true); toast('נשלח.'); render(); FX.confetti(innerWidth / 2, innerHeight * .55, { n: 10, power: .9, items: ['💛', '💗', '✨'] }); } catch (e) { fail(e); } }
   function circleMenu(id) {
     const admin = Mila.isAdmin(id);
     const c = Mila.getState().circles[id];
@@ -1078,6 +1119,7 @@ const App = (() => {
       inv.token = r.token;
       const text = `${(inv.message || '').trim()}\n${Mila.inviteUrl(r.token)}`;
       inv.busy = false; inv.step = 3; render(); window.scrollTo({ top: 0 });
+      setTimeout(() => FX.confetti(innerWidth / 2, innerHeight * .25, { n: 30, power: 1.4 }), 120);
       if (how === 'whatsapp') { window.location.href = `https://wa.me/?text=${encodeURIComponent(text)}`; return; }
       if (how === 'share' && navigator.share) { try { await navigator.share({ text }); } catch (e) { /* בוטל */ } return; }
       await copyText(text);

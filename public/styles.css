@@ -227,7 +227,7 @@ img, svg { display: block; }
 
 /* ---------- כפתורים ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 13px 18px; font-weight: 600; font-size: .92rem; transition: background .15s, opacity .15s; border: 1px solid transparent; }
-.btn:active { opacity: .85; }
+.btn:active { opacity: .9; transform: scale(.97); }
 .btn.primary { background: var(--lime); color: var(--ink); }
 .btn.primary:hover { background: var(--lime-deep); }
 .btn.dark { background: var(--ink); color: #fff; }
@@ -357,7 +357,7 @@ textarea.input { min-height: 84px; resize: vertical; }
 /* ---------- Sheet ---------- */
 #sheet-backdrop { position: fixed; inset: 0; background: rgba(28, 20, 28, .32); z-index: 40; display: none; animation: fade .2s; }
 #sheet-backdrop.open { display: block; }
-#sheet { position: fixed; bottom: 0; left: 50%; transform: translate(-50%, 100%); width: 100%; max-width: 480px; background: var(--card); border-top: 1px solid var(--line); padding: 10px 20px calc(22px + env(safe-area-inset-bottom)); z-index: 41; transition: transform .26s cubic-bezier(.2,.8,.2,1); max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+#sheet { position: fixed; bottom: 0; left: 50%; transform: translate(-50%, 100%); width: 100%; max-width: 480px; background: var(--card); border-top: 1px solid var(--line); padding: 10px 20px calc(22px + env(safe-area-inset-bottom)); z-index: 41; transition: transform .38s cubic-bezier(.22,1.25,.36,1); max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
 #sheet.open { transform: translate(-50%, 0); }
 .sheet-handle { width: 36px; height: 3px; background: var(--line-2); margin: 0 auto 16px; }
 .sheet-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; }
@@ -929,3 +929,32 @@ body.wide #screen { padding-inline: 24px; }
 .stamp.with-sub { flex-direction: column; gap: 22px; background: rgba(252,250,249,.97); }
 .stamp-sub { margin: 0; padding: 0 32px; text-align: center; font-size: 1.05rem; font-weight: 600; color: var(--ink); opacity: 0; transform: translateY(8px); transition: opacity .35s .35s, transform .35s .35s; }
 .stamp.show .stamp-sub { opacity: 1; transform: none; }
+
+/* ---------- מיקרו־אינטראקציות ---------- */
+.btn { transition: transform .12s ease, opacity .12s, background .15s; }
+.word-row.tap, .rk-row, .card.clickable, .row-card, .ob-pick, .ob-choice, .tier, .choice { transition: transform .12s ease; }
+.word-row.tap:active, .rk-row:active, .card.clickable:active, .row-card:active, .choice:active { transform: scale(.985); }
+/* כניסת מסך */
+#screen.scr-in { animation: scrin .28s cubic-bezier(.2, .8, .2, 1); }
+@keyframes scrin { from { opacity: 0; transform: translateY(8px); } }
+/* טאב בניווט */
+#nav .ic.fx-bounce { animation: navb .45s cubic-bezier(.2, 1.8, .4, 1); display: inline-block; }
+@keyframes navb { 40% { transform: translateY(-5px) scale(1.15); } }
+/* הצלחה: האייקון קופץ ומסתובב קצת */
+.wt-state.fx-win { animation: fxwin .55s cubic-bezier(.2, 1.7, .4, 1); }
+@keyframes fxwin { 0% { transform: scale(.7); } 45% { transform: scale(1.22) rotate(-8deg); } 100% { transform: scale(1); } }
+.fx-shake { animation: fxshake .42s ease; }
+@keyframes fxshake { 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.fx-bump { display: inline-block; animation: fxbump .5s cubic-bezier(.2, 1.8, .4, 1); }
+@keyframes fxbump { 40% { transform: scale(1.35); color: var(--lime-ink); } }
+.fx-pop { animation: fxpop .35s cubic-bezier(.2, 1.7, .4, 1); }
+@keyframes fxpop { 50% { transform: scale(1.08); } }
+/* קונפטי */
+.fx-confetti { position: fixed; width: 0; height: 0; z-index: 90; pointer-events: none; }
+.fx-confetti i { position: absolute; left: 0; top: 0; display: block; opacity: 0; animation: fxfly var(--t) cubic-bezier(.15, .7, .3, 1) forwards; }
+.fx-confetti i.sq { width: 8px; height: 8px; background: var(--c); }
+.fx-confetti i.ln { width: 4px; height: 12px; background: var(--c); border-radius: 2px; }
+.fx-confetti i.em { font-style: normal; font-size: 1.15rem; }
+@keyframes fxfly { 0% { opacity: 1; transform: translate(-50%, -50%) scale(.6) rotate(0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 40px)) scale(1) rotate(var(--r)); } }
+/* מתג: הכפתור קופץ קצת */
+.switch::after { transition: transform .25s cubic-bezier(.2, 1.6, .4, 1), background .2s; }
