@@ -56,7 +56,13 @@ const Api = (() => {
   /* מבקרת אנונימית (לספירת פתיחות קישור הזמנה ייחודיות) */
   function visitorId() { try { let v = localStorage.getItem('mila.visitor'); if (!v) { v = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).toLowerCase(); localStorage.setItem('mila.visitor', v); } return v; } catch (e) { return 'anon-' + Math.random().toString(36).slice(2, 12); } }
   function trackInviteOpen(token) { if (!enabled || !token) return; call('invite/open', { method: 'POST', body: { token, visitor: visitorId() } }).catch(() => {}); }
-  const adminStats = () => call('admin/stats');
+  const adminStats = (days = 30) => call(`admin/stats?days=${days}`);
+  /* מעקב זול: כל אירוע נשלח לכל היותר פעם ביום מכל מכשיר */
+  function track(name) {
+    if (!enabled) return;
+    try { const k = `mila.t.${name}`; const day = new Date().toISOString().slice(0, 10); if (localStorage.getItem(k) === day) return; localStorage.setItem(k, day); } catch (e) { /* בלי אחסון: שולחות בכל זאת */ }
+    call('track', { method: 'POST', body: { name, visitor: visitorId() } }).catch(() => {});
+  }
 
   /* ---------- סנכרון ---------- */
   async function sync() {
@@ -127,5 +133,5 @@ const Api = (() => {
     exportData: () => action('exportData'),
   };
 
-  return { enabled, init, isCloud, hasSession, userId, googleUrl, completeProfile, signOut, sync, trackInviteOpen, adminStats, loadCache, onSync, startAutoSync, stopAutoSync, cloud, call, get me() { return me; }, get config() { return config; } };
+  return { enabled, init, isCloud, hasSession, userId, googleUrl, completeProfile, signOut, sync, trackInviteOpen, adminStats, track, loadCache, onSync, startAutoSync, stopAutoSync, cloud, call, get me() { return me; }, get config() { return config; } };
 })();

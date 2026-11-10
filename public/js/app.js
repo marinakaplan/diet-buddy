@@ -63,6 +63,7 @@ const App = (() => {
     root.innerHTML = html;
     const isTop = TOP.includes(cur.name) && Mila.me();
     root.classList.toggle('no-nav', !isTop);
+    document.body.classList.toggle('wide', cur.name === 'admin');
     $('#nav').classList.toggle('hidden', !isTop);
     document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === cur.name));
     if (POST[cur.name]) POST[cur.name](cur.params);
@@ -240,6 +241,7 @@ const App = (() => {
      ============================================================ */
   function googleMark() { return `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.2-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C41.4 35 44 30 44 24c0-1.2-.1-2.4-.4-3.5z"/></svg>`; }
   function googleSignIn() {
+    Api.track('signin_click');
     if (!Api.config.google) return toast('התחברות עם גוגל עוד לא הוגדרה בסביבה הזו');
     const next = pendingInviteToken ? `/?invite=${encodeURIComponent(pendingInviteToken)}` : '/';
     location.href = Api.googleUrl(next);
@@ -1212,7 +1214,7 @@ const App = (() => {
     const blocked = Mila.blockedUsers();
     const tog = (k, t, m) => `<div class="toggle-row"><div><div class="t">${t}</div><div class="m">${m}</div></div><button class="switch ${s[k] ? 'on' : ''}" role="switch" aria-checked="${!!s[k]}" onclick="App.setSetting('${k}', ${!s[k]})"></button></div>`;
     return `${topbar({ title: 'הגדרות' })}
-      ${isCloud() && Api.me && Api.me.isAdmin ? `<div class="card tight clickable admin-entry" onclick="App.go('admin')"><div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('chart', 22)}</span><div style="flex:1"><div class="bold">פאנל ניהול</div><div class="small muted">משתמשות, קבוצות, הזמנות, מי הביאה את מי</div></div>${icon('chev', 20)}</div></div>` : ''}
+      ${isCloud() && Api.me && Api.me.isAdmin ? `<div class="card tight clickable admin-entry" onclick="App.go('admin')"><div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('chart', 22)}</span><div style="flex:1"><div class="bold">אנליטיקה</div><div class="small muted">צמיחה, הזמנות, שימור, אתגרים וקבוצות</div></div>${icon('chev', 20)}</div></div>` : ''}
       <div class="card tight clickable treat-entry" onclick="App.go('treat')"><div style="display:flex;align-items:center;gap:12px">${treatArt('espresso', 46)}<div style="flex:1"><div class="bold">להזמין את מרינה לקפה ☕</div><div class="small muted">האפליקציה נבנתה באהבה. פרגון קטן?</div></div>${icon('chev', 20)}</div></div>
       <div class="card tight"><div class="field" style="margin:6px 0 10px"><label>שם תצוגה</label><input class="input" value="${esc(u.name)}" maxlength="30" onchange="App.rename(this.value)"></div>
         <div class="kv"><span class="k">${icon('clock', 18)} אזור זמן</span><span class="v">${esc(u.timezone)}</span></div>
@@ -1234,45 +1236,215 @@ const App = (() => {
   function deleteAccount() { confirmSheet({ title: 'למחוק את החשבון?', sub: 'סופי. האתגרים, הדיווחים וההישגים נמחקים. בקבוצות נשאר רישום אנונימי.', okText: 'למחוק', okClass: 'danger', onOk: async () => { await Store().deleteAccount(); closeSheet(true); go('welcome', {}, { reset: true }); toast('נמחק.'); } }); }
 
   /* ============================================================
-     פאנל ניהול (מנהלת המערכת בלבד; השרת בודק הרשאה)
+     אנליטיקה (מנהלת המערכת בלבד; השרת בודק הרשאה)
+     טווח 7/30/90 יום עם השוואה לתקופה הקודמת. כל גרף עם קריאה במעבר עכבר/נגיעה וטבלה.
      ============================================================ */
-  let adminData = null, adminErr = null, adminLoading = false;
-  async function loadAdmin() { adminLoading = true; adminErr = null; render(); try { adminData = await Api.adminStats(); } catch (e) { adminErr = e.userMessage || 'לא נטען'; } adminLoading = false; render(); }
+  let adminData = null, adminErr = null, adminLoading = false, adminDays = 30, adminTab = 'overview';
+  const AD_TABS = [['overview', 'סקירה'], ['growth', 'צמיחה והזמנות'], ['engage', 'מעורבות'], ['retain', 'שימור'], ['challenges', 'אתגרים'], ['groups', 'קבוצות וחברתי'], ['more', 'פרגון ובטיחות']];
+  const AD_C = { blue: '#2a78d6', orange: '#eb6834', teal: '#1baf7a' };
+  const adCharts = {};
+  /* רוחב אמיתי בפיקסלים (בלי מתיחה של טקסט): שני גרפים בשורה במחשב, אחד בטלפון */
+  function adW(full) { const cw = document.documentElement.clientWidth; const box = Math.min(cw, 1120) - (cw >= 600 ? 48 : 40) - 26; return Math.max(260, Math.floor(!full && cw >= 900 ? (box - 10) / 2 : box)); }
+  let adResizeT = null;
+  window.addEventListener('resize', () => { clearTimeout(adResizeT); adResizeT = setTimeout(() => { if (stack.length && current().name === 'admin' && adminData) render(); }, 200); });
+  async function loadAdmin(days) {
+    if (days) adminDays = days;
+    adminLoading = true; adminErr = null; render();
+    try { adminData = await Api.adminStats(adminDays); } catch (e) { adminErr = e.userMessage || 'לא נטען'; }
+    adminLoading = false; render();
+  }
+  function adminSetTab(t) { adminTab = t; render(); window.scrollTo({ top: 0 }); }
+  const adN = (x) => { const v = Number(x || 0); return Math.abs(v) >= 10000 ? new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : v.toLocaleString('he-IL'); };
+  const adP = (x) => (x == null ? '–' : `${x}%`);
+  /* שינוי מול התקופה הקודמת. upGood: האם עלייה טובה. kind 'pp' = נקודות אחוז */
+  function adDelta(cur, prev, { upGood = true, kind = 'rel' } = {}) {
+    if (cur == null || prev == null) return '';
+    if (kind === 'pp') { const d = Math.round((cur - prev) * 10) / 10; if (!d) return `<span class="ad-d flat">כמו בתקופה הקודמת</span>`; return `<span class="ad-d ${(d > 0) === upGood ? 'good' : 'bad'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d)} נק׳ אחוז</span> <span class="vs">מהתקופה הקודמת</span>`; }
+    if (!prev) return cur ? `<span class="ad-d good">חדש</span> <span class="vs">בתקופה הקודמת היה 0</span>` : `<span class="ad-d flat">כמו בתקופה הקודמת</span>`;
+    const d = Math.round(((cur - prev) / prev) * 100); if (!d) return `<span class="ad-d flat">כמו בתקופה הקודמת</span>`;
+    return `<span class="ad-d ${(d > 0) === upGood ? 'good' : 'bad'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d)}%</span> <span class="vs">מהתקופה הקודמת</span>`;
+  }
+  const adTile = (label, value, { delta = '', sub = '', help = '' } = {}) => `<div class="ad-tile"><div class="l">${label}</div><div class="v">${value}</div>${delta ? `<div class="dl">${delta}</div>` : ''}${sub ? `<div class="s">${sub}</div>` : ''}${help ? `<div class="h">${help}</div>` : ''}</div>`;
+  const adSec = (title, intro) => `<div class="ad-sec"><h3>${title}</h3>${intro ? `<p>${intro}</p>` : ''}</div>`;
+  const adTable = (id, cols, rows) => `<details class="ad-details"><summary>טבלה</summary><div class="ad-tbl-wrap"><table class="ad-tbl"><thead><tr>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${esc(typeof c[0] === 'function' ? c[0](r) : r[c[0]])}</td>`).join('')}</tr>`).join('')}</tbody></table></div><button class="btn text xs" onclick="App.adCsv('${id}')">${icon('download', 14)} הורדת CSV</button></details>`;
+  const adCsvData = {};
+  function adCsv(id) {
+    const t = adCsvData[id]; if (!t) return;
+    const q = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const csv = '﻿' + [t.cols.map(c => q(c[1])).join(','), ...t.rows.map(r => t.cols.map(c => q(typeof c[0] === 'function' ? c[0](r) : r[c[0]])).join(','))].join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = `mila-${id}-${adminDays}d.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  const adWithTable = (id, cols, rows) => { adCsvData[id] = { cols, rows }; return adTable(id, cols, rows); };
+
+  /* קו לאורך זמן (סדרה אחת או יותר). ציר אחד, קווי רשת דקים, קריאה בנגיעה. */
+  function adLine(id, title, days, series, { area = series.length === 1, full = false } = {}) {
+    const W = adW(full), H = 190, L = 34, R = 10, T = 12, B = 24;
+    const vals = series.map(s => days.map(d => Number(s.data[d] || 0)));
+    const max = Math.max(1, ...vals.flat()); const nice = (() => { const p = Math.pow(10, Math.floor(Math.log10(max))); return Math.ceil(max / p) * p; })();
+    const n = days.length; const step = n > 1 ? (W - L - R) / (n - 1) : 0; const X = (i) => L + i * step; const Y = (v) => T + (H - T - B) * (1 - v / nice);
+    adCharts[id] = { kind: 'line', W, x0: L, step, n, days, series: series.map((s, k) => ({ name: s.name, color: s.color, vals: vals[k] })), Y };
+    const grid = [0, .25, .5, .75, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${Y(nice * f)}" y2="${Y(nice * f)}" class="g"/><text x="${L - 6}" y="${Y(nice * f) + 4}" class="ax" text-anchor="end">${adN(Math.round(nice * f))}</text>`).join('');
+    const xl = [0, Math.floor((n - 1) / 2), n - 1].filter((v, i, a) => a.indexOf(v) === i).map(i => `<text x="${X(i)}" y="${H - 6}" class="ax" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${Mila.fmtDate(days[i])}</text>`).join('');
+    const paths = series.map((s, k) => { const pts = vals[k].map((v, i) => `${X(i)},${Y(v)}`); return `${area ? `<path d="M${X(0)},${Y(0)} L${pts.join(' L')} L${X(n - 1)},${Y(0)} Z" fill="${s.color}" opacity=".1"/>` : ''}<polyline points="${pts.join(' ')}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${X(n - 1)}" cy="${Y(vals[k][n - 1])}" r="4" fill="${s.color}" stroke="#fff" stroke-width="2"/>`; }).join('');
+    const legend = series.length > 1 ? `<div class="ad-legend">${series.map(s => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')}</div>` : '';
+    const totals = series.map((s, k) => `${series.length > 1 ? s.name + ': ' : ''}<b>${adN(vals[k].reduce((a, b) => a + b, 0))}</b>`).join(' · ');
+    return `<div class="ad-chart"><div class="ad-ct"><span class="t">${title}</span><span class="tot">${totals}</span></div>${legend}
+      <div class="ad-plot"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="ad-svg" onpointermove="App.adHover(event,'${id}')" onpointerleave="App.adLeave('${id}')" onpointerdown="App.adHover(event,'${id}')">${grid}${xl}${paths}<line class="ad-cross" x1="0" x2="0" y1="${T}" y2="${H - B}" style="display:none"/></svg><div class="ad-tip" id="tip-${id}"></div></div>
+      ${adWithTable(id, [[r => Mila.fmtDate(r.d), 'יום'], ...series.map((s, k) => [r => r.v[k], s.name])], days.map((d, i) => ({ d, v: vals.map(v => v[i]) })).reverse())}</div>`;
+  }
+  /* עמודות לקטגוריות/שעות (סדרה אחת). עמודה עד 24px, פינה עגולה בקצה הנתון. */
+  function adCols(id, title, labels, values, { color = AD_C.blue, unit = '', note = '', full = false } = {}) {
+    const W = adW(full), H = 170, L = 34, R = 10, T = 12, B = 26;
+    const max = Math.max(1, ...values); const n = labels.length; const slot = (W - L - R) / n; const bw = Math.min(24, slot - 4);
+    const Y = (v) => T + (H - T - B) * (1 - v / max);
+    adCharts[id] = { kind: 'cols', W, x0: L + slot / 2, step: slot, n, labels, series: [{ name: title, color, vals: values }], unit };
+    const bars = values.map((v, i) => { const x = L + i * slot + (slot - bw) / 2, y = Y(v), h = Math.max(0, H - B - y); return h ? `<path d="M${x},${H - B} V${y + Math.min(4, h)} Q${x},${y} ${x + Math.min(4, bw / 2)},${y} H${x + bw - Math.min(4, bw / 2)} Q${x + bw},${y} ${x + bw},${y + Math.min(4, h)} V${H - B} Z" fill="${color}"/>` : ''; }).join('');
+    const every = n > 12 ? Math.ceil(n / 8) : 1;
+    const xl = labels.map((lb, i) => (i % every === 0 ? `<text x="${L + i * slot + slot / 2}" y="${H - 8}" class="ax" text-anchor="middle">${esc(lb)}</text>` : '')).join('');
+    const grid = [0, .5, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${Y(max * f)}" y2="${Y(max * f)}" class="g"/><text x="${L - 6}" y="${Y(max * f) + 4}" class="ax" text-anchor="end">${adN(Math.round(max * f))}</text>`).join('');
+    return `<div class="ad-chart"><div class="ad-ct"><span class="t">${title}</span>${note ? `<span class="tot">${note}</span>` : ''}</div>
+      <div class="ad-plot"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="ad-svg" onpointermove="App.adHover(event,'${id}')" onpointerleave="App.adLeave('${id}')" onpointerdown="App.adHover(event,'${id}')">${grid}${bars}${xl}<rect class="ad-hl" x="0" y="${T}" width="${slot}" height="${H - T - B}" style="display:none"/></svg><div class="ad-tip" id="tip-${id}"></div></div>
+      ${adWithTable(id, [['l', 'קטגוריה'], ['v', title]], labels.map((l, i) => ({ l, v: values[i] })))}</div>`;
+  }
+  function adHover(ev, id) {
+    const c = adCharts[id]; if (!c) return; const svg = ev.currentTarget; const r = svg.getBoundingClientRect();
+    const x = ((ev.clientX - r.left) / r.width) * c.W;
+    const i = Math.max(0, Math.min(c.n - 1, Math.round((x - c.x0) / (c.step || 1))));
+    const cx = c.x0 + i * c.step;
+    if (c.kind === 'line') { const ln = svg.querySelector('.ad-cross'); ln.setAttribute('x1', cx); ln.setAttribute('x2', cx); ln.style.display = ''; }
+    else { const hl = svg.querySelector('.ad-hl'); hl.setAttribute('x', cx - c.step / 2); hl.style.display = ''; }
+    const tip = document.getElementById(`tip-${id}`); tip.textContent = '';
+    const head = document.createElement('div'); head.className = 'k'; head.textContent = c.kind === 'line' ? Mila.fmtDateLong(c.days[i]) : c.labels[i]; tip.appendChild(head);
+    for (const s of c.series) { const row = document.createElement('div'); const b = document.createElement('b'); b.textContent = adN(s.vals[i]) + (c.unit || ''); const key = document.createElement('i'); key.style.background = s.color; const nm = document.createElement('span'); nm.textContent = s.name; row.append(key, b, nm); tip.appendChild(row); }
+    const px = (cx / c.W) * r.width; tip.style.display = 'block'; tip.style.left = `${Math.min(Math.max(px - tip.offsetWidth / 2, 0), r.width - tip.offsetWidth)}px`;
+  }
+  function adLeave(id) { const t = document.getElementById(`tip-${id}`); if (t) t.style.display = 'none'; const svg = t && t.parentElement.querySelector('svg'); if (svg) svg.querySelectorAll('.ad-cross,.ad-hl').forEach(e => { e.style.display = 'none'; }); }
+  /* פסים אופקיים (משפך / דירוג): שם, ערך, ואחוז */
+  const adHBars = (id, rows, { color = AD_C.blue, pctOf = null, fmt = adN, sub = null } = {}) => {
+    const max = Math.max(1, ...rows.map(r => r.n));
+    adCsvData[id] = { cols: [['label', 'שם'], ['n', 'ערך']], rows };
+    return `<div class="ad-hbars">${rows.map((r, i) => `<div class="ad-hb"><div class="lab"><span>${esc(r.label)}</span><b>${fmt(r.n)}</b></div><div class="ad-track"><i style="width:${Math.max(r.n ? 2 : 0, (100 * r.n) / max)}%;background:${color}"></i></div>${sub ? `<div class="sub">${sub(r, i)}</div>` : ''}</div>`).join('')}</div><button class="btn text xs" onclick="App.adCsv('${id}')">${icon('download', 14)} הורדת CSV</button>`;
+  };
+  const adHeat = (p) => { if (p == null) return ''; const steps = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95']; const i = Math.min(steps.length - 1, Math.floor(p / 100 * steps.length)); return `background:${steps[i]};color:${i >= 3 ? '#fff' : 'var(--ink)'}`; };
+
   SCREENS.admin = () => {
-    if (!adminData && !adminLoading && !adminErr) setTimeout(loadAdmin, 0);
-    const head = topbar({ title: 'פאנל ניהול', end: `<button class="icon-btn" aria-label="רענון" onclick="App.loadAdmin()">${icon('repeat', 20)}</button>` });
-    if (adminErr) return `${head}<div class="card empty"><div class="t">${esc(adminErr)}</div></div>`;
-    if (!adminData) return `${head}<div class="empty"><div class="muted small">טוענות…</div></div>`;
-    const d = adminData; const n = (x) => (x == null ? 0 : Number(x)).toLocaleString('he-IL');
-    const tile = (label, val, sub = '', tone = '') => `<div class="ad-tile ${tone}"><div class="v">${val}</div><div class="l">${label}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
-    const bars = (title, key, tone) => { const vals = d.series.days.map(x => Number(d.series[key][x] || 0)); const max = Math.max(1, ...vals); return `<div class="ad-chart"><div class="ad-ct"><span>${title}</span><b>${n(vals.reduce((a, b) => a + b, 0))}</b></div><div class="ad-bars">${vals.map((v, i) => `<i class="${tone}" style="height:${Math.max(3, Math.round((v / max) * 100))}%" title="${d.series.days[i]}: ${v}"></i>`).join('')}</div><div class="ad-axis"><span>${Mila.fmtDate(d.series.days[0])}</span><span>היום</span></div></div>`; };
-    const conv = (a, b) => (b && a <= b ? `${Math.round((100 * a) / b)}%` : '–');
-    const inv = d.invites;
-    return `${head}
-      <div class="tiny muted mb">נתונים אמיתיים, מצטברים · עודכן ${Mila.fmtTime(d.generatedAt)}</div>
-      <div class="section-title" style="margin-top:4px">משתמשות</div>
-      <div class="ad-grid">${tile('רשומות', n(d.users.active), `+${n(d.users.new7)} השבוע`, 'lime')}${tile('פעילות היום', n(d.activity.dau), `${n(d.activity.wau)} השבוע · ${n(d.activity.mau)} בחודש`)}${tile('חדשות היום', n(d.users.new1), `${n(d.users.new30)} בחודש`)}${tile('חזרו אחרי שבוע', d.retention.cohort ? conv(d.retention.back || 0, d.retention.cohort) : '–', `מתוך ${n(d.retention.cohort)} שנרשמו לפני 7–14 יום`)}</div>
-      ${bars('הרשמות ביום', 'signups', 'lime')}${bars('פעילות ביום', 'active', 'lav')}
-      <div class="section-title">הזמנות: מי הביאה את מי</div>
-      <div class="ad-funnel"><div><b>${n(inv.created)}</b><span>הזמנות נשלחו</span></div><i>›</i><div><b>${n(inv.opens)}</b><span>בנות פתחו קישור</span></div><i>›</i><div><b>${n(inv.signups)}</b><span>נרשמו</span></div><i>›</i><div><b>${n(inv.joins)}</b><span>הצטרפו לקבוצה</span></div></div>
-      <div class="tiny muted mb">מפתיחה להרשמה: ${conv(inv.signups, inv.opens)} · ${n(d.users.viaInvite)} מכל הרשומות הגיעו מהזמנה (${conv(d.users.viaInvite, d.users.active)})</div>
-      ${bars('פתיחות קישור ביום', 'opens', 'pink')}
-      <div class="card tight"><div class="card-title">המזמינות המובילות</div>
-        ${d.referrers.length ? `<div class="ad-table"><div class="ad-row h"><span>מזמינה</span><span>נחשפו</span><span>נרשמו</span><span>הצטרפו</span></div>${d.referrers.map((r, i) => `<div class="ad-row"><span>${i < 3 ? ['🥇', '🥈', '🥉'][i] + ' ' : ''}${esc(r.name || 'ללא שם')}</span><span>${n(r.opens)}</span><span>${n(r.signups)}</span><span>${n(r.joins)}</span></div>`).join('')}</div><div class="tiny muted mt">נחשפו = מבקרות ייחודיות שפתחו קישור שהיא שלחה. ${n(d.invitersTotal)} שלחו הזמנה בסך הכול.</div>` : '<div class="small muted">עוד אף אחת לא פתחה הזמנה.</div>'}
-        ${d.inviteKinds.length ? `<div class="chips mt">${d.inviteKinds.map(k => `<span class="chip">${{ follow: '👀 לעקוב', compete: '🏁 להתחרות', same: '🤝 אותו אתגר' }[k.kind] || k.kind}: ${n(k.n)}</span>`).join('')}</div>` : ''}
-      </div>
-      <div class="section-title">קבוצות</div>
-      <div class="ad-grid">${tile('פעילות', n(d.groups.active), `+${n(d.groups.new7)} השבוע`, 'lav')}${tile('גודל ממוצע', d.groups.avgSize || 0, 'חברות בקבוצה')}${tile('נסגרו', n(d.groups.closed))}${tile('חברויות', n(d.groups.memberships))}</div>
-      ${bars('קבוצות חדשות ביום', 'groups', 'lav')}
-      ${d.groupSizes.length ? `<div class="card tight"><div class="card-title">כמה חברות בקבוצה</div><div class="chips">${d.groupSizes.map(x => `<span class="chip">${x.size} חברות: ${n(x.groups)}</span>`).join('')}</div></div>` : ''}
-      ${d.topGroups.length ? `<div class="card tight"><div class="card-title">הקבוצות הגדולות</div><div class="ad-table"><div class="ad-row h"><span>קבוצה</span><span>חברות</span><span>אתגרים</span><span>נפתחה</span></div>${d.topGroups.map(g => `<div class="ad-row"><span>${esc(g.name)}</span><span>${n(g.members)}</span><span>${n(g.challenges)}</span><span>${Mila.fmtDate(g.created)}</span></div>`).join('')}</div></div>` : ''}
-      <div class="section-title">אתגרים ודיווחים</div>
-      <div class="ad-grid">${tile('אתגרים פעילים', n(d.challenges.active), `+${n(d.challenges.new7)} השבוע`, 'lime')}${tile('דיווחים היום', n(d.reports.r1), `${n(d.reports.r7)} השבוע`)}${tile('הצלחה השבוע', d.successRate7 == null ? '–' : d.successRate7 + '%', 'מכל הימים שדווחו')}${tile('סבבים שהושלמו', n(d.challenges.completed))}</div>
-      ${bars('דיווחים ביום', 'reports', 'lime')}
-      ${d.topChallenges.length ? `<div class="card tight"><div class="card-title">האתגרים הפופולריים</div><div class="ad-table"><div class="ad-row h"><span>אתגר</span><span>בחרו</span><span>פעילים</span><span></span></div>${d.topChallenges.map(c => `<div class="ad-row"><span>${esc(c.title)}</span><span>${n(c.n)}</span><span>${n(c.active)}</span><span></span></div>`).join('')}</div></div>` : ''}
-      ${d.categories.length ? `<div class="card tight"><div class="card-title">לפי קטגוריה</div><div class="chips">${d.categories.map(c => `<span class="chip">${esc(c.name)}: ${n(c.n)}</span>`).join('')}</div></div>` : ''}
-      <div class="section-title">בטיחות</div>
-      <div class="ad-grid">${tile('דיווחים על משתמשות', n(d.abuseReports7), 'ב-7 הימים האחרונים', d.abuseReports7 ? 'pink' : '')}${tile('נרשמו ולא השלימו', n(d.users.pending), 'בלי שם/אישורים')}</div>`;
+    if (!adminData && !adminLoading && !adminErr) setTimeout(() => loadAdmin(), 0);
+    const head = topbar({ title: 'אנליטיקה', end: `<button class="icon-btn" aria-label="רענון" onclick="App.loadAdmin()">${icon('repeat', 20)}</button>` });
+    const ctrl = `<div class="ad-ctrl"><div class="seg">${[7, 30, 90].map(d => `<button class="${adminDays === d ? 'on' : ''}" onclick="App.loadAdmin(${d})">${d} ימים</button>`).join('')}</div>${adminData ? `<span class="tiny muted">${Mila.fmtDate(adminData.range.start)}–${Mila.fmtDate(adminData.range.end)} · מול ${Mila.fmtDate(adminData.range.prevStart)}–${Mila.fmtDate(adminData.range.prevEnd)} · עודכן ${Mila.fmtTime(adminData.generatedAt)}</span>` : ''}</div>
+      <div class="ad-tabs">${AD_TABS.map(([k, l]) => `<button class="${adminTab === k ? 'on' : ''}" onclick="App.adminSetTab('${k}')">${l}</button>`).join('')}</div>`;
+    if (adminErr) return `${head}${ctrl}<div class="card empty"><div class="t">${esc(adminErr)}</div><button class="btn soft" onclick="App.loadAdmin()">לנסות שוב</button></div>`;
+    if (!adminData) return `${head}${ctrl}<div class="empty"><div class="muted small">טוענות נתונים…</div></div>`;
+    const d = adminData, k = d.kpi, sd = d.series.days, per = `${d.range.days} הימים`;
+    let body = '';
+    if (adminTab === 'overview') {
+      body = `<div class="ad-hero"><div class="v">${adN(k.dau)}</div><div class="l">משתמשות פעילות היום</div><div class="s">${adN(k.wau)} השבוע · ${adN(k.mau)} ב-30 יום · ${adN(k.users)} רשומות</div></div>
+        ${adSec(`מה קרה ב${per}`, 'כל מספר מושווה לתקופה הקודמת באותו אורך.')}
+        <div class="ad-grid">
+          ${adTile('נרשמו', adN(k.signups.cur), { delta: adDelta(k.signups.cur, k.signups.prev) })}
+          ${adTile('פעילות ביום (ממוצע)', adN(k.activeAvg.cur), { delta: adDelta(k.activeAvg.cur, k.activeAvg.prev), help: 'משתמשות שפתחו את האפליקציה באותו יום' })}
+          ${adTile('דיווחים', adN(k.reports.cur), { delta: adDelta(k.reports.cur, k.reports.prev) })}
+          ${adTile('אחוז הצלחה', adP(k.success.cur), { delta: adDelta(k.success.cur, k.success.prev, { kind: 'pp' }), help: 'מתוך הימים שדווחו: עמדו / (עמדו + פספסו)' })}
+          ${adTile('הגיעו מהזמנה', adN(k.viaInvite.cur), { delta: adDelta(k.viaInvite.cur, k.viaInvite.prev) })}
+          ${adTile('קבוצות חדשות', adN(k.groups.cur), { delta: adDelta(k.groups.cur, k.groups.prev) })}
+        </div>
+        <div class="ad-charts">${adLine('ov-active', 'משתמשות פעילות ביום', sd, [{ name: 'פעילות', color: AD_C.blue, data: d.series.active }])}
+        ${adLine('ov-signups', 'הרשמות ביום', sd, [{ name: 'כל ההרשמות', color: AD_C.blue, data: d.series.signups }, { name: 'כניסות לאתר', color: AD_C.orange, data: d.series.visits }])}</div>
+        <div class="ad-grid">
+          ${adTile('דביקות', adP(k.stickiness), { help: 'פעילות היום מתוך פעילות החודש. 20%+ זה טוב.' })}
+          ${adTile('אתגרים פעילים', adN(k.challengesActive))}
+          ${adTile('קבוצות פעילות', adN(k.groupsActive))}
+          ${adTile('נרשמו ולא השלימו', adN(k.pending), { help: 'נכנסו עם Google ולא אישרו פרטים' })}
+        </div>`;
+    } else if (adminTab === 'growth') {
+      const f = d.funnel, top = f[0].n || f.find(x => x.n).n || 1;
+      const v = d.viral, kinds = { follow: '👀 לעקוב', compete: '🏁 להתחרות', same: '🤝 אותו אתגר' };
+      const src = d.sources, srcTot = src.invite + src.direct;
+      body = `${adSec('משפך הרשמה', `בנות שנכנסו ב${per}, ומה הן עשו. האחוז בכל שלב: מתוך השלב הקודם, ובסוגריים מתוך הכניסה לאתר.`)}
+        <div class="card">${adHBars('funnel', f, { sub: (r, i) => i === 0 ? 'מבקרות ייחודיות (לפי מכשיר)' : `${adP(f[i - 1].n ? Math.round((1000 * r.n) / f[i - 1].n) / 10 : null)} מהשלב הקודם (${adP(top ? Math.round((1000 * r.n) / top) / 10 : null)} מהכניסה)` })}</div>
+        ${adSec('מאיפה הגיעו', 'בנות שנרשמו בתקופה: דרך הזמנה של חברה, או ישירות.')}
+        <div class="card">${srcTot ? `<div class="ad-seg"><i style="width:${(100 * src.invite) / srcTot}%;background:${AD_C.blue}"><span>${Math.round((100 * src.invite) / srcTot)}%</span></i><i style="width:${(100 * src.direct) / srcTot}%;background:${AD_C.orange}"><span>${Math.round((100 * src.direct) / srcTot)}%</span></i></div><div class="ad-legend"><span><i style="background:${AD_C.blue}"></i>מהזמנה · ${adN(src.invite)}</span><span><i style="background:${AD_C.orange}"></i>ישירות · ${adN(src.direct)}</span></div>` : '<div class="small muted">עוד אין הרשמות בתקופה.</div>'}</div>
+        ${adSec('ויראליות', 'כמה כל משתמשת פעילה מביאה. מקדם מעל 1 = כל אחת מביאה יותר מחברה אחת, והאפליקציה גדלה לבד.')}
+        <div class="ad-grid">
+          ${adTile('מקדם ויראלי', String(v.k), { help: `בנות חדשות מהזמנה ÷ פעילות בתקופה (${adN(v.signups)} ÷ ${adN(v.activeUsers)})` })}
+          ${adTile('הזמנות לכל פעילה', String(v.invitesPerUser), { sub: `${adN(v.invitesSent)} הזמנות נשלחו` })}
+          ${adTile('נפתחו', adP(v.openRate), { sub: `${adN(v.opens)} פתיחות קישור`, help: 'פתיחות ייחודיות ÷ הזמנות שנשלחו' })}
+          ${adTile('נרשמו מתוך שפתחו', adP(v.signupRate), { help: 'יכול לעבור 100% כשחברה מצטרפת עם קוד בלי לפתוח קישור' })}
+        </div>
+        ${adLine('gr-inv', 'הזמנות ופתיחות ביום', sd, [{ name: 'הזמנות שנשלחו', color: AD_C.blue, data: d.series.invites }, { name: 'קישורים שנפתחו', color: AD_C.orange, data: d.series.opens }], { area: false, full: true })}
+        ${adSec('לפי סוג הזמנה', 'הזמנות שנשלחו בתקופה, ומה קרה איתן.')}
+        <div class="card tight"><div class="ad-table c5"><div class="ad-row h"><span>סוג</span><span>נשלחו</span><span>נפתחו</span><span>נרשמו</span><span>הצטרפו</span></div>${d.inviteKinds.map(x => `<div class="ad-row"><span>${kinds[x.kind] || x.kind}</span><span>${adN(x.sent)}</span><span>${adN(x.opens)}</span><span>${adN(x.signups)}</span><span>${adN(x.joins)}</span></div>`).join('')}</div>
+          ${adWithTable('kinds', [[r => kinds[r.kind] || r.kind, 'סוג'], ['sent', 'נשלחו'], ['opens', 'נפתחו'], ['signups', 'נרשמו'], ['joins', 'הצטרפו']], d.inviteKinds)}</div>
+        ${adSec('מי הביאה את מי', `המזמינות המובילות ב${per}. נחשפו = מבקרות ייחודיות שפתחו קישור שהיא שלחה.`)}
+        <div class="card tight">${d.referrers.length ? `<div class="ad-table c6"><div class="ad-row h"><span>מזמינה</span><span>הזמנות</span><span>נחשפו</span><span>נרשמו</span><span>הצטרפו</span><span>סה״כ הביאה</span></div>${d.referrers.map((r, i) => `<div class="ad-row"><span>${i < 3 ? ['🥇', '🥈', '🥉'][i] + ' ' : ''}${esc(r.name || 'ללא שם')}</span><span>${adN(r.invites)}</span><span>${adN(r.opens)}</span><span>${adN(r.signups)}</span><span>${adN(r.joins)}</span><span>${adN(r.signupsAll)}</span></div>`).join('')}</div>
+          ${adWithTable('referrers', [['name', 'מזמינה'], ['invites', 'הזמנות'], ['opens', 'נחשפו'], ['signups', 'נרשמו'], ['joins', 'הצטרפו'], ['signupsAll', 'סה״כ הביאה']], d.referrers)}<div class="tiny muted mt">${adN(d.invitersTotal)} שלחו הזמנה אי פעם.</div>` : '<div class="small muted">עוד אין הזמנות בתקופה.</div>'}</div>`;
+    } else if (adminTab === 'engage') {
+      const e = d.engagement; const wd = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+      body = `${adSec('כמה הן משתמשות', 'פעילה = פתחה את האפליקציה באותו יום.')}
+        <div class="ad-grid">
+          ${adTile('היום', adN(k.dau))}${adTile('7 ימים', adN(k.wau))}${adTile('30 יום', adN(k.mau))}
+          ${adTile('דביקות', adP(k.stickiness), { help: 'היום ÷ 30 יום' })}
+          ${adTile('דיווחים לכל פעילה', String(e.reportsPerActive), { help: `ב${per}` })}
+        </div>
+        <div class="ad-charts">${adLine('en-rep', 'דיווחים ביום', sd, [{ name: 'דיווחים', color: AD_C.blue, data: d.series.reports }])}
+        ${adCols('en-per', 'כמה אתגרים פעילים יש לכל אחת', e.perUser.map(x => (x.n === 3 ? '3' : String(x.n))), e.perUser.map(x => x.users), { note: 'משתמשות רשומות' })}
+        ${adCols('en-hour', 'מתי מדווחות (שעה ביום)', Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}`), e.hours, { color: AD_C.teal, note: 'שעון ישראל' })}
+        ${adCols('en-wd', 'דיווחים לפי יום בשבוע', [...wd].reverse(), [...e.weekdays].reverse(), { color: AD_C.teal })}</div>`;
+    } else if (adminTab === 'retain') {
+      const r = d.retention;
+      body = `${adSec('חוזרות?', 'מתוך מי שנרשמה מספיק זמן כדי למדוד.')}
+        <div class="ad-grid">
+          ${adTile('חזרו למחרת', adP(r.d1.pct), { sub: `${adN(r.d1.n)} מתוך ${adN(r.d1.of)}` })}
+          ${adTile('פעילות ביום 7', adP(r.d7.pct), { sub: `${adN(r.d7.n)} מתוך ${adN(r.d7.of)}` })}
+          ${adTile('פעילות ביום 14', adP(r.d14.pct), { sub: `${adN(r.d14.n)} מתוך ${adN(r.d14.of)}` })}
+          ${adTile('סבבים שהושלמו', adP(r.rounds.rate), { sub: `${adN(r.rounds.completed)} הושלמו · ${adN(r.rounds.ended)} נעצרו באמצע`, help: 'אתגרים שהסתיימו בתקופה' })}
+        </div>
+        ${adSec('לפי שבוע הרשמה', 'כל שורה: בנות שנרשמו באותו שבוע. כל תא: כמה אחוז מהן פתחו את האפליקציה בשבוע 1, 2, 3, 4 אחרי ההרשמה. כהה יותר = יותר חוזרות.')}
+        <div class="card tight ad-cohort"><table><thead><tr><th>שבוע הרשמה</th><th>נרשמו</th><th>שבוע 1</th><th>שבוע 2</th><th>שבוע 3</th><th>שבוע 4</th></tr></thead><tbody>
+          ${r.cohorts.map(c => `<tr><td>${Mila.fmtDate(c.start)}–${Mila.fmtDate(c.end)}</td><td>${adN(c.size)}</td>${c.cells.map(x => (x ? `<td style="${adHeat(x.pct)}" title="${x.n} מתוך ${x.of}">${adP(x.pct)}</td>` : '<td class="na">·</td>')).join('')}</tr>`).join('')}
+        </tbody></table><div class="tiny muted mt">· = עוד לא עבר מספיק זמן. ריחוף על תא מראה כמה בנות.</div>
+        ${adWithTable('cohorts', [[c => `${c.start}–${c.end}`, 'שבוע הרשמה'], ['size', 'נרשמו'], ...[0, 1, 2, 3].map(i => [c => (c.cells[i] ? c.cells[i].pct + '%' : ''), `שבוע ${i + 1}`])], r.cohorts)}</div>`;
+    } else if (adminTab === 'challenges') {
+      const cats = d.categories;
+      body = `${adSec('קטגוריות', `כמה אתגרים נבחרו ב${per}, ואחוז ההצלחה בהם.`)}
+        <div class="card">${adHBars('cats', cats.map(c => ({ label: c.name, n: c.chosen })), { sub: (r, i) => `${adN(cats[i].active)} פעילים עכשיו · הצלחה ${adP(cats[i].success)}` })}</div>
+        ${adSec('כל האתגרים', 'נבחרו בתקופה, פעילים עכשיו, אחוז הצלחה בימים שדווחו, ואחוז הסבבים שהושלמו (מתוך אלה שהסתיימו בתקופה).')}
+        <div class="card tight"><div class="ad-table c6 wide1"><div class="ad-row h"><span>אתגר</span><span>נבחרו</span><span>פעילים</span><span>הצלחה</span><span>הושלמו</span><span>נעצרו</span></div>
+          ${d.challenges.slice(0, 50).map(c => `<div class="ad-row"><span>${esc(c.title)}</span><span>${adN(c.chosen)}</span><span>${adN(c.active)}</span><span>${adP(c.success)}</span><span>${adP(c.completionRate)}</span><span>${adN(c.ended)}</span></div>`).join('')}</div>
+          ${adWithTable('challenges', [['title', 'אתגר'], [c => (cats.find(x => x.cat === c.cat) || {}).name || '', 'קטגוריה'], ['chosen', 'נבחרו'], ['active', 'פעילים'], [c => adP(c.success), 'הצלחה'], ['reports', 'דיווחים'], [c => adP(c.completionRate), 'הושלמו'], ['ended', 'נעצרו']], d.challenges)}</div>`;
+    } else if (adminTab === 'groups') {
+      const g = d.groups, s = d.social;
+      body = `${adSec('קבוצות', 'כמה קבוצות יש, כמה גדולות, וכמה מהבנות משחקות עם חברות.')}
+        <div class="ad-grid">
+          ${adTile('קבוצות פעילות', adN(g.active), { delta: adDelta(k.groups.cur, k.groups.prev), sub: `${adN(g.created)} נפתחו בתקופה` })}
+          ${adTile('גודל ממוצע', String(g.avgSize), { help: 'חברות בקבוצה' })}
+          ${adTile('משחקות עם חברות', adP(g.inGroupPct), { sub: `${adN(g.inGroup)} מתוך ${adN(k.users)}` })}
+          ${adTile('קבוצות שנסגרו', adN(g.closed))}
+        </div>
+        ${g.sizes.length ? adCols('gr-size', 'כמה חברות בקבוצה', g.sizes.map(x => String(x.size)), g.sizes.map(x => x.groups), { note: 'מספר קבוצות', full: true }) : ''}
+        ${adSec('חברתי', `מה קרה בתוך הקבוצות ב${per}.`)}
+        <div class="ad-grid">
+          ${adTile('מילים טובות', adN(s.encouragements + s.reactions), { sub: `${adN(s.encouragements)} עידודים · ${adN(s.reactions)} תגובות` })}
+          ${adTile('עקיפות בדירוג', adN(s.overtakes))}
+          ${adTile('אתגרים משותפים', adN(s.shared), { sub: `${adN(s.sharedJoins)} הצטרפויות` })}
+          ${adTile('הצטרפו לקבוצות', adN(s.joins))}
+        </div>
+        ${adSec('הקבוצות הכי פעילות', `לפי מספר הדיווחים ב${per}.`)}
+        <div class="card tight">${g.top.length ? `<div class="ad-table c5 wide1"><div class="ad-row h"><span>קבוצה</span><span>חברות</span><span>אתגרים</span><span>דיווחים</span><span>הצלחה</span></div>${g.top.map(x => `<div class="ad-row"><span>${esc(x.name)}</span><span>${adN(x.members)}</span><span>${adN(x.challenges)}</span><span>${adN(x.reports)}</span><span>${adP(x.success)}</span></div>`).join('')}</div>
+          ${adWithTable('groups', [['name', 'קבוצה'], ['members', 'חברות'], ['challenges', 'אתגרים פעילים'], ['reports', 'דיווחים'], [x => adP(x.success), 'הצלחה'], ['created', 'נפתחה']], g.top)}` : '<div class="small muted">עוד אין קבוצות.</div>'}</div>`;
+    } else {
+      const t = d.treats, names = { cookie: '🍪 עוגייה · 4 ₪', espresso: '☕ אספרסו · 10 ₪', latte: '🥛 קפה הפוך · 15 ₪' };
+      const sf = d.safety;
+      body = `${adSec('פרגון', `כמה לחצו על כל פינוק ב${per} (לחיצה אחת ליום לכל מכשיר). את התשלום עצמו רואים רק בביט.`)}
+        <div class="card">${adHBars('treats', t.map(x => ({ label: names[x.kind], n: x.clicks })), { color: AD_C.orange })}</div>
+        ${adSec('בטיחות', `דיווחים וחסימות ב${per}.`)}
+        <div class="ad-grid">
+          ${adTile('דיווחים על משתמשות', adN(sf.reports.reduce((a, b) => a + b.n, 0)))}
+          ${adTile('חסימות', adN(sf.blocks))}
+          ${adTile('חשבונות שנמחקו', adN(sf.deleted), { help: 'מתחילת הדרך' })}
+        </div>
+        ${sf.reports.length ? `<div class="card tight"><div class="card-title">סיבות הדיווח</div>${adHBars('abuse', sf.reports.map(x => ({ label: x.reason, n: x.n })), { color: AD_C.orange })}</div>` : ''}`;
+    }
+    return `${head}${ctrl}${adminLoading ? '<div class="tiny muted mb">מעדכנות…</div>' : ''}${body}<div class="tiny muted center mt-lg">נתונים מצטברים, בלי אימיילים. ימים לפי שעון ישראל.</div>`;
   };
 
   /* ============================================================
@@ -1330,6 +1502,7 @@ const App = (() => {
     <div class="tiny muted center mt">הפרגון מגיע ישירות למרינה דרך ביט. הוא לא משפיע על המשחק, על הנקודות או על הדירוג.</div>`;
   function treatPick(kind, el) {
     const t = TREATS[kind];
+    Api.track(`treat:${kind}`);
     if (el) {
       el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
       const burst = document.createElement('span'); burst.className = 'tc-burst'; burst.setAttribute('aria-hidden', 'true');
@@ -1363,7 +1536,8 @@ const App = (() => {
     $('#nav-ic-today').innerHTML = ICONS.home(22); $('#nav-ic-circles').innerHTML = ICONS.users(22); $('#nav-ic-me').innerHTML = ICONS.user(22);
     const params = new URLSearchParams(location.search);
     const token = params.get('invite');
-    if (token) { history.replaceState(null, '', location.pathname); Api.trackInviteOpen(token); }
+    Api.track('visit');
+    if (token) { history.replaceState(null, '', location.pathname); Api.trackInviteOpen(token); Api.track('visit_invite'); }
     const authError = params.get('auth_error');
     if (authError) { history.replaceState(null, '', location.pathname); setTimeout(() => toast('הכניסה לא הושלמה. נסי שוב.'), 300); }
     if (Api.enabled) {
@@ -1403,6 +1577,6 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
-    bankFilter: setBankFilter, treatPick, loadAdmin, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
+    bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();

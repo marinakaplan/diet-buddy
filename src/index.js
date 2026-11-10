@@ -5,7 +5,7 @@ import * as auth from './auth.js';
 import * as game from './game.js';
 import { myState } from './state.js';
 import { serveStatic } from './static.js';
-import { adminStats } from './admin.js';
+import { adminStats, track } from './admin.js';
 
 const ACTIONS = {
   createPersonalWord: game.createPersonalWord, proposeGroupWord: game.proposeGroupWord, adoptGroupWord: game.adoptGroupWord, cancelProposal: game.cancelProposal,
@@ -54,7 +54,7 @@ export default {
       const msg = String(e && e.message || e);
       console.error('API error', url.pathname, msg);
       if (/limit|quota|exceeded|too many/i.test(msg)) return json({ error: 'QUOTA', hint: 'הגענו למכסת השימוש היומית של השרת החינמי. נסי שוב מאוחר יותר.' }, 503);
-      return json({ error: 'INTERNAL', hint: 'משהו השתבש בשרת. נסי שוב בעוד רגע.' }, 500);
+      return json({ error: 'INTERNAL', hint: 'משהו השתבש בשרת. נסי שוב בעוד רגע.', ...(env.APP_ENV === 'staging' ? { detail: msg.slice(0, 300) } : {}) }, 500);
     }
   },
 };
@@ -71,6 +71,7 @@ async function handleApi(req, env, ctx, url) {
   if (path === 'auth/google/callback' && req.method === 'GET') return auth.googleCallback(req, env);
   if (path === 'auth/logout' && req.method === 'POST') return auth.logout(req, env);
   if (path === 'auth/test-login' && req.method === 'POST') return auth.testLogin(req, env);
+  if (path === 'track' && req.method === 'POST') return json(await track(env, await body(req)));
   if (path === 'invite/open' && req.method === 'POST') return json(await game.trackInviteOpen(env, await body(req)));
   if (path === 'auth/config') return json({ google: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET), testLogin: env.ALLOW_TEST_LOGIN === 'true', env: env.APP_ENV });
 
@@ -85,7 +86,7 @@ async function handleApi(req, env, ctx, url) {
   if (path === 'ping' && req.method === 'GET') return json({ v: await pingStamp(env, user) });
   if (path === 'admin/stats' && req.method === 'GET') {
     if (!user.is_admin) return json({ error: 'FORBIDDEN', hint: 'רק מנהלת המערכת' }, 403);
-    return json(await adminStats(env));
+    return json(await adminStats(env, url.searchParams.get('days')));
   }
   if (path === 'state' && req.method === 'GET') {
     const state = await myState(env, user);
