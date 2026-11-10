@@ -302,13 +302,15 @@ const App = (() => {
     const rankCircle = rankAll.find(x => x.ri.place) || rankAll[0];
 
     return `
-      <div class="topbar" style="padding-bottom:4px">
-        <div class="topbar-side"><button class="icon-btn" aria-label="התראות" onclick="App.go('notifications')">${icon('bell', 24)}${unread ? '<span class="badge-dot"></span>' : ''}</button></div>
-        <div class="title-wrap"></div>
-        <div class="topbar-side end"><button class="icon-btn" aria-label="הפרופיל שלי" onclick="App.tab('me')">${avatar(u, 40)}</button></div>
+      <div class="today-head">
+        <div class="th-brand">${liveLogo(30)}<span>מילה.</span></div>
+        <div class="th-actions">
+          <button class="icon-btn" aria-label="עדכונים" onclick="App.go('notifications')">${icon('bell', 24)}${unread ? '<span class="badge-dot"></span>' : ''}</button>
+          <button class="th-me" aria-label="הפרופיל שלי" onclick="App.tab('me')">${esc(((u.name || '').trim()[0]) || '?')}</button>
+        </div>
       </div>
+      <div class="greeting"><div><div class="hello">${greet}, ${esc((u.name || '').split(' ')[0])} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${fresh ? 'בואי נתחיל.' : todaySubtitle(cards)}</div></div></div>
       ${Mila.getState().meta.demo ? `<div class="demo-banner">זו דוגמה עם חברות מומצאות. <a href="#" onclick="event.preventDefault(); App.resetDemo()">להתחיל באמת</a></div>` : ''}
-      <div class="greeting"><div><div class="hello">${greet}, ${esc(u.name)} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${fresh ? 'בואי נתחיל.' : todaySubtitle(cards)}</div></div></div>
 
       ${main ? `<div class="card tight stat-strip">
           <div><b>${main.st.dayIndex}</b><span>יום</span></div>

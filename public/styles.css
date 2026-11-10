@@ -853,3 +853,11 @@ body.wide #screen { padding-inline: 24px; }
 .stat-strip > div + div { border-inline-start: 1px solid var(--line); }
 .stat-strip b { font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
 .stat-strip span { font-size: .78rem; color: var(--ink-2); }
+/* היום: כותרת ברורה — מותג מימין, עדכונים ופרופיל משמאל */
+.today-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 14px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.th-brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.15rem; letter-spacing: -.01em; }
+.th-actions { display: flex; align-items: center; gap: 4px; }
+.th-me { width: 36px; height: 36px; padding: 0; border: 1.5px solid var(--ink); background: var(--card); color: var(--ink); font: inherit; font-weight: 800; font-size: 1rem; cursor: pointer; border-radius: 50%; display: grid; place-items: center; margin-inline-start: 2px; }
+.today-head + .greeting { margin-top: 16px; }
+.greeting .hello { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
+.greeting + .demo-banner { margin-top: -6px; }
