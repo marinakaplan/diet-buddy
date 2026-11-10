@@ -195,6 +195,15 @@ export async function adminStats(env, daysParam) {
   // ---------- פרגון ובטיחות ----------
   const treatsRows = await many(`select name, count(*) as clicks from track_events where name like 'treat:%' and day between ? and ? group by name`, start, today);
   const treats = ['cookie', 'espresso', 'latte'].map(k => ({ kind: k, clicks: Number((treatsRows.find(r => r.name === `treat:${k}`) || {}).clicks || 0) }));
+  // ---------- אפליקציה על המסך והתראות ----------
+  const appRows = await many(`select name, count(*) as n, count(distinct visitor_id) as v from track_events where name in ('app_open','install_sheet','install_prompt','installed','push_on','push_denied') and day between ? and ? group by name`, start, today);
+  const appN = (k) => Number((appRows.find(r => r.name === k) || {}).v || 0);
+  let pushSubs = { n: 0, users: 0 }, pushPlat = [];
+  try {
+    pushSubs = await one(`select count(*) as n, count(distinct user_id) as users from push_subscriptions`);
+    pushPlat = await many(`select coalesce(nullif(platform,''),'אחר') as platform, count(*) as n from push_subscriptions group by 1 order by n desc`);
+  } catch (e) { /* לפני מיגרציה 0006 */ }
+  const app = { opens: appN('app_open'), sheet: appN('install_sheet'), prompt: appN('install_prompt'), installed: appN('installed'), pushOn: appN('push_on'), pushDenied: appN('push_denied'), subscriptions: pushSubs.n || 0, pushUsers: pushSubs.users || 0, platforms: pushPlat };
   const [abuse, blocks] = await Promise.all([
     many(`select reason, count(*) as n from abuse_reports where ${inRange('created_at')} group by reason order by n desc`, start, today),
     one(`select count(*) as n from user_blocks where ${inRange('created_at')}`, start, today),
@@ -202,13 +211,13 @@ export async function adminStats(env, daysParam) {
 
   return {
     generatedAt: new Date().toISOString(), range, series, kpi, funnel, sources, viral, inviteKinds, referrers, invitersTotal: refsAll.length,
-    engagement, retention, challenges, categories, groups, social: socialOut, treats,
+    engagement, retention, challenges, categories, groups, social: socialOut, treats, app,
     safety: { reports: abuse, blocks: blocks.n || 0, pending: kpi.pending, deleted: kpi.deleted },
   };
 }
 
 /* מעקב אירועים זול: מבקרת ייחודית ליום לכל שם. שמות מותרים בלבד. */
-const TRACK = new Set(['visit', 'visit_invite', 'signin_click', 'treat:cookie', 'treat:espresso', 'treat:latte']);
+const TRACK = new Set(['visit', 'visit_invite', 'signin_click', 'treat:cookie', 'treat:espresso', 'treat:latte', 'app_open', 'install_sheet', 'install_prompt', 'installed', 'push_on', 'push_denied']);
 export async function track(env, b) {
   const name = String(b.name || ''); const vis = String(b.visitor || '');
   if (!TRACK.has(name) || !/^[a-z0-9-]{8,40}$/.test(vis)) return { ok: false };

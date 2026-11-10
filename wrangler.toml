@@ -15,8 +15,13 @@ keep_vars = true
 [observability]
 enabled = true
 
+# תזכורות התראה: בדיקה כל 5 דקות (בחינמי: עד 5 Cron לחשבון, 288 הרצות ביום)
+[triggers]
+crons = ["*/5 * * * *"]
+
 [vars]
 APP_ENV = "staging"
+PUBLIC_URL = "https://mila-staging.mila-app.workers.dev"
 ADMIN_EMAIL_SHA256 = "c328ef66ffdd31f35e915b99b7de137312489f49be34cd6d2dbf4e9947f18fbb"  # מנהלת המערכת: SHA-256 של האימייל (לא האימייל עצמו). רואה את פאנל הניהול.
 ALLOW_TEST_LOGIN = "true"          # כניסת בדיקה (ללא גוגל) — רק בסביבת הבדיקות
 GOOGLE_CLIENT_ID = "254071228810-r6ap3ke8gkt6l4tkkkp4ghk27gd08v9f.apps.googleusercontent.com"              # מזהה הלקוח של Google OAuth (ציבורי). הסוד נשמר כ-secret: wrangler secret put GOOGLE_CLIENT_SECRET
@@ -36,8 +41,12 @@ workers_dev = true
 [env.production.observability]
 enabled = true
 
+[env.production.triggers]
+crons = ["*/5 * * * *"]
+
 [env.production.vars]
 APP_ENV = "production"
+PUBLIC_URL = "https://mila.mila-app.workers.dev"
 ADMIN_EMAIL_SHA256 = "c328ef66ffdd31f35e915b99b7de137312489f49be34cd6d2dbf4e9947f18fbb"  # מנהלת המערכת: SHA-256 של האימייל (לא האימייל עצמו). רואה את פאנל הניהול.
 ALLOW_TEST_LOGIN = "false"
 GOOGLE_CLIENT_ID = "254071228810-r6ap3ke8gkt6l4tkkkp4ghk27gd08v9f.apps.googleusercontent.com"

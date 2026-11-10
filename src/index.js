@@ -6,6 +6,7 @@ import * as game from './game.js';
 import { myState } from './state.js';
 import { serveStatic } from './static.js';
 import { adminStats, track } from './admin.js';
+import * as push from './push.js';
 
 const ACTIONS = {
   createPersonalWord: game.createPersonalWord, proposeGroupWord: game.proposeGroupWord, adoptGroupWord: game.adoptGroupWord, cancelProposal: game.cancelProposal,
@@ -46,6 +47,10 @@ export default {
     const h = new Headers(res.headers); h.set('x-d1-read', String(c.read)); h.set('x-d1-write', String(c.write));
     return new Response(res.body, { status: res.status, headers: h });
   },
+  /* Cron (כל 5 דקות): תזכורות דיווח למי שעוד לא דיווחה */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(push.runReminders(env).then(r => { if (r.due) console.log('reminders', JSON.stringify(r)); }).catch(e => console.error('reminders', e.message)));
+  },
   async api(req, env, ctx, url) {
     try {
       return await handleApi(req, env, ctx, url);
@@ -73,6 +78,7 @@ async function handleApi(req, env, ctx, url) {
   if (path === 'auth/test-login' && req.method === 'POST') return auth.testLogin(req, env);
   if (path === 'track' && req.method === 'POST') return json(await track(env, await body(req)));
   if (path === 'invite/open' && req.method === 'POST') return json(await game.trackInviteOpen(env, await body(req)));
+  if (path === 'push/key' && req.method === 'GET') return json(await push.publicKey(env));
   if (path === 'auth/config') return json({ google: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET), testLogin: env.ALLOW_TEST_LOGIN === 'true', env: env.APP_ENV });
 
   const user = await auth.currentUser(req, env);
@@ -88,6 +94,10 @@ async function handleApi(req, env, ctx, url) {
     if (!user.is_admin) return json({ error: 'FORBIDDEN', hint: 'רק מנהלת המערכת' }, 403);
     return json(await adminStats(env, url.searchParams.get('days')));
   }
+  if (path === 'push/subscribe' && req.method === 'POST') return json(await push.subscribe(env, user, await body(req)));
+  if (path === 'push/unsubscribe' && req.method === 'POST') return json(await push.unsubscribe(env, user, await body(req)));
+  if (path === 'push/status' && req.method === 'POST') return json(await push.status(env, user, (await body(req)).endpoint));
+  if (path === 'push/test' && req.method === 'POST') return json(await push.test(env, user, await body(req)));
   if (path === 'state' && req.method === 'GET') {
     const state = await myState(env, user);
     ctx.waitUntil(touch(env, user));
@@ -98,6 +108,9 @@ async function handleApi(req, env, ctx, url) {
     const fn = ACTIONS[name];
     if (!fn) return json({ error: 'NOT_FOUND', hint: 'פעולה לא מוכרת' }, 404);
     const result = await fn(env, user, await body(req));
+    // התראות לטלפון: לחברות שקיבלו עדכון בפעולה הזו; ושינוי שעת תזכורת מעדכן את התזמון
+    if (env.__notified && env.__notified.size) ctx.waitUntil(push.social(env, [...env.__notified].filter(id => id !== user.id)).catch(e => console.warn('social push', e.message)));
+    if (name === 'updateSettings') ctx.waitUntil(push.reschedule(env, user.id).catch(() => {}));
     return json(result === undefined ? { ok: true } : result);
   }
   return json({ error: 'NOT_FOUND' }, 404);

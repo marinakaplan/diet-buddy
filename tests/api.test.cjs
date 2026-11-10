@@ -248,6 +248,24 @@ const invariants = async (c) => {
     assert.ok(sD.notifications.some(n => n.type === 'circle_closed'), 'מ קיבלה הודעה שהקבוצה נסגרה');
     assert.strictEqual((await D.ok('previewInvite', { token: tokCompete })).ok, false, 'ההזמנות בוטלו');
   });
+  await test('אפליקציה והתראות: אייקונים, תמונת שיתוף, מפתח ציבורי, מינוי למכשיר (רק משירותי התראות מוכרים)', async () => {
+    const png = await fetch(BASE + '/icons/icon-192.png'); assert.strictEqual(png.status, 200); assert.strictEqual(png.headers.get('content-type'), 'image/png');
+    const bytes = new Uint8Array(await png.arrayBuffer()); assert.deepStrictEqual([...bytes.slice(1, 4)], [80, 78, 71], 'קובץ PNG אמיתי');
+    const man = await (await fetch(BASE + '/manifest.json')).json(); assert.ok(man.icons.some(i => i.purpose === 'maskable'), 'אייקון maskable');
+    const html = await (await fetch(BASE + '/')).text(); assert.ok(html.includes(`content="${BASE}/icons/og.png"`), 'og:image עם כתובת מלאה');
+    const k = await A.req('/api/push/key'); assert.strictEqual(k.status, 200); assert.ok(/^[A-Za-z0-9_-]{86,88}$/.test(k.data.key), 'מפתח VAPID ציבורי');
+    const ecdh = require('crypto').createECDH('prime256v1'); ecdh.generateKeys();
+    const keys = { p256dh: ecdh.getPublicKey().toString('base64url'), auth: require('crypto').randomBytes(16).toString('base64url') };
+    const bad = await A.req('/api/push/subscribe', { method: 'POST', body: { subscription: { endpoint: 'https://evil.example.com/x', keys } } }); assert.strictEqual(bad.status, 400);
+    const endpoint = `https://fcm.googleapis.com/fcm/send/test-${stamp}`;
+    const ok = await A.req('/api/push/subscribe', { method: 'POST', body: { subscription: { endpoint, keys }, platform: 'android-chrome' } }); assert.strictEqual(ok.status, 200, JSON.stringify(ok.data));
+    assert.strictEqual((await A.req('/api/push/status', { method: 'POST', body: { endpoint } })).data.subscribed, true);
+    assert.strictEqual((await B.req('/api/push/status', { method: 'POST', body: { endpoint } })).data.subscribed, false, 'מינוי של אחרת לא נחשף');
+    await A.ok('updateSettings', { patch: { reminderTime: '21:15' } });
+    assert.strictEqual((await A.req('/api/push/unsubscribe', { method: 'POST', body: { endpoint } })).status, 200);
+    assert.strictEqual((await A.req('/api/push/status', { method: 'POST', body: { endpoint } })).data.subscribed, false);
+    assert.strictEqual((await A.req('/api/push/test', { method: 'POST', body: { endpoint } })).status, 400, 'בדיקה בלי מינוי נכשלת יפה');
+  });
   await test('ייצוא ומחיקת חשבון', async () => {
     const ex = await Z.ok('exportData'); assert.ok(ex.user && Array.isArray(ex.ledger));
     await Z.ok('deleteAccount'); const r = await Z.req('/api/state'); assert.strictEqual(r.status, 401);

@@ -744,3 +744,42 @@ body.wide #screen { padding-inline: 24px; }
 .ad-cohort td.na { color: var(--ink-4); background: none; }
 .ad-charts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 10px; }
 @media (min-width: 900px) { body.wide .ad-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- מילה על המסך הראשי + התראות ---------- */
+.inst { position: relative; }
+.inst-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; text-align: start; }
+.inst-head .sheet-title, .inst-head .sheet-sub { text-align: start; margin: 0; }
+.inst-head .sheet-sub { margin-top: 4px; }
+.inst-icon { width: 60px; height: 60px; border-radius: 16px; box-shadow: 0 8px 20px rgba(28,26,31,.14); flex: none; animation: inst-pop .5s cubic-bezier(.3,1.5,.5,1) both; }
+.inst-icon.sm { width: 44px; height: 44px; border-radius: 12px; animation: none; }
+.inst-icon.xs { width: 34px; height: 34px; border-radius: 10px; animation: none; box-shadow: 0 3px 8px rgba(28,26,31,.12); }
+@keyframes inst-pop { from { transform: scale(.6) rotate(-8deg); opacity: 0; } }
+.inst-dev { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); margin: 4px 0 12px; }
+.inst-seg { display: inline-flex; background: var(--line); border-radius: var(--r-sm); padding: 3px; }
+.inst-seg button { border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--ink-2); padding: 6px 12px; border-radius: var(--r-sm); cursor: pointer; }
+.inst-seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px rgba(28,26,31,.12); }
+.inst-go { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.inst-or { text-align: center; font-size: 12px; color: var(--ink-3); margin: 10px 0 2px; }
+.inst-steps { list-style: none; margin: 6px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.inst-steps li { display: flex; align-items: center; gap: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; animation: inst-in .4s ease both; animation-delay: calc(var(--i, 0) * 90ms); }
+.inst-steps li .n { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 12px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.inst-steps li .g { width: 40px; height: 40px; border-radius: var(--r-sm); background: var(--card); border: 1px solid var(--line-2); display: grid; place-items: center; color: #0A84FF; flex: none; }
+.inst-steps li .t { font-weight: 700; font-size: 15px; line-height: 1.3; }
+.inst-steps li .m { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+.inst-steps.sm li { padding: 8px 10px; }
+.inst-steps.sm li .g { width: 34px; height: 34px; }
+@keyframes inst-in { from { opacity: 0; transform: translateY(8px); } }
+.inst-push { margin-top: 14px; padding: 14px; border-radius: var(--r-lg); background: var(--lime-soft); border: 1px solid #E6F2B5; }
+.inst-push-h { display: flex; gap: 12px; align-items: flex-start; }
+.inst-push-h .t { font-weight: 800; font-size: 15px; }
+.inst-push-h .m { font-size: 13px; color: var(--ink-2); margin-top: 2px; line-height: 1.45; }
+.inst-push .btn { margin-top: 12px; }
+.inst-push .btn-row .btn { margin-top: 12px; }
+.inst-push .inst-steps { margin-bottom: 0; margin-top: 10px; }
+.inst-arrow { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; color: #0A84FF; font-size: 12px; font-weight: 700; }
+.inst-arrow i { font-style: normal; font-size: 26px; line-height: 1; animation: inst-bounce 1.1s ease-in-out infinite; }
+@keyframes inst-bounce { 50% { transform: translateY(7px); } }
+.inst-card { position: relative; }
+.inst-card .inst-x { position: absolute; top: -8px; inset-inline-end: -6px; width: 26px; height: 26px; min-width: 0; padding: 0; border-radius: var(--r-sm); background: var(--card); border: 1px solid var(--line-2); box-shadow: 0 2px 6px rgba(28,26,31,.1); color: var(--ink-2); z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .inst-icon, .inst-steps li, .inst-arrow i { animation: none; } }
+.inst a.btn { text-decoration: none; display: flex; align-items: center; justify-content: center; }

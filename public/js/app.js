@@ -289,7 +289,7 @@ const App = (() => {
     try { await Api.completeProfile({ name, ageConfirmed: true, termsAccepted: true, inviteToken: pendingInviteToken }); afterAuth(); }
     catch (e) { busy = false; fail(e); render(); }
   }
-  async function signOut() { try { await Api.signOut(); } catch (e) { /* ignore */ } stack = []; pendingInviteToken = null; go('welcome', {}, { reset: true }); }
+  async function signOut() { try { if (window.MilaInstall) await MilaInstall.onSignOut(); await Api.signOut(); } catch (e) { /* ignore */ } stack = []; pendingInviteToken = null; go('welcome', {}, { reset: true }); }
 
   /* ============================================================
      S03 — התחלת משחק
@@ -344,6 +344,7 @@ const App = (() => {
 
       ${pendingSum.length ? pendingSum.map(c => `<div class="card pastel-lav clickable tight" onclick="App.go('summary',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">הסבב נגמר: ${esc(Mila.wordDef(c.defId).title)}</div><div class="small muted">איך הלך?</div></div>${icon('chev', 20)}</div></div>`).join('') : ''}
 
+      ${installCard()}
       <div class="section-title">האתגרים שלי להיום ${cards.length ? `<small>${done}/${cards.length}</small>` : ''}</div>
       ${cards.length ? cards.map(todayRow).join('') : `<div class="card empty"><span class="tile lg lime">${icon('pencil', 28)}</span><div class="t">אז במה את מתחילה?</div><div class="m">עד 3 אתגרים ל-14 יום.</div><button class="btn primary" onclick="App.openPick()">בוחרת אתגרים</button></div>`}
       ${cards.length && active.length < Mila.RULES.DAILY_CAP ? `<button class="btn ghost mt" onclick="App.openPick()">${icon('plus', 20)} עוד אתגר</button>` : ''}
@@ -617,6 +618,7 @@ const App = (() => {
       stack = [{ name: 'today', params: {} }];
       render();
       stamp(created.length === 1 ? 'מילה שלי.' : `${created.length} אתגרים. מילה שלי.`);
+      afterFirstCommit();
     } catch (e) {
       busy = false; render(); fail(e);
       if (created.length) toast(`${created.length} נשמרו. ${pick.selected.length} לא.`);
@@ -1207,6 +1209,102 @@ const App = (() => {
   };
 
   /* ============================================================
+     מילה על המסך הראשי + התראות (install.js מזהה את המכשיר)
+     ============================================================ */
+  let instOs = null;
+  const I = () => window.MilaInstall;
+  function installSheet({ os = null, intro = '' } = {}) {
+    if (!I()) return;
+    instOs = os; const d = I().detect(); const g = I().guide(d, os);
+    if (!os) Api.track('install_sheet');
+    const seg = g.kind === 'installed' ? '' : `<div class="inst-dev"><span>${os && os !== d.os ? 'הוראות ל:' : `זיהינו: ${esc(I().platformName(d))}${d.inapp ? ` · בתוך ${esc(d.inapp)}` : d.os !== 'desktop' || d.browser !== 'other' ? ` · ${esc(I().browserName[d.browser] || '')}` : ''}`}</span>
+      <div class="inst-seg" role="tablist">${[['ios', 'אייפון'], ['android', 'אנדרואיד'], ['desktop', 'מחשב']].map(([k, l]) => `<button role="tab" class="${(os || d.os) === k ? 'on' : ''}" onclick="App.installSheet({os:'${k}'})">${l}</button>`).join('')}</div></div>`;
+    const steps = (g.steps || []).length ? `<ol class="inst-steps">${g.steps.map((x, i) => `<li style="--i:${i}"><span class="n">${i + 1}</span><span class="g">${x.glyph}</span><div><div class="t">${x.title}</div>${x.sub ? `<div class="m">${x.sub}</div>` : ''}</div></li>`).join('')}</ol>` : '';
+    const link = location.origin + '/';
+    const extra = g.kind === 'inapp'
+      ? `<div class="btn-row">${g.openIn === 'safari' ? `<a class="btn dark" href="x-safari-${link}">פתיחה ב-Safari</a>` : `<a class="btn dark" href="intent://${location.host}/#Intent;scheme=https;package=com.android.chrome;end">פתיחה ב-Chrome</a>`}<button class="btn soft" onclick="App.copyText('${link}')">העתקת קישור</button></div><div class="tiny muted center">לא נפתח? מעתיקות את הקישור ומדביקות בדפדפן.</div>`
+      : g.safariLink ? `<button class="btn soft" onclick="App.copyText('${link}')">העתקת הקישור (להדביק ב-Safari)</button>`
+      : g.copyOnly ? `<button class="btn dark" onclick="App.shareLink()">שליחת הקישור לטלפון</button>` : '';
+    const head = g.kind === 'installed'
+      ? `<div class="inst-head"><img class="inst-icon" src="/icons/icon-192.png" alt=""><div><div class="sheet-title">מילה כבר על המסך הראשי 🎉</div><div class="sheet-sub">נפתחת כמו אפליקציה. עכשיו רק לוודא שהיא מזכירה לך.</div></div></div>`
+      : `<div class="inst-head"><img class="inst-icon" src="/icons/icon-192.png" alt=""><div><div class="sheet-title">${intro || esc(g.title)}</div><div class="sheet-sub">${esc(g.sub || '')}</div></div></div>`;
+    sheet(`<div class="inst">${head}${seg}
+      ${g.prompt ? `<button class="btn primary inst-go" onclick="App.installNow()">${I().G.install} התקנה בלחיצה</button><div class="inst-or">או ידנית</div>` : ''}
+      ${steps}${extra}
+      ${pushBlock(d)}
+      <button class="btn text mt" onclick="App.closeSheet()">${g.kind === 'installed' ? 'סגירה' : 'אחר כך'}</button>
+      ${g.arrow ? '<div class="inst-arrow" aria-hidden="true"><span>כפתור השיתוף בשורה התחתונה</span><i>↓</i></div>' : ''}</div>`);
+  }
+  function pushBlock(d) {
+    const box = (tile, t, m, body = '') => `<div class="inst-push"><div class="inst-push-h"><span class="tile sm ${tile}">${icon('bell', 18)}</span><div><div class="t">${t}</div><div class="m">${m}</div></div></div>${body}</div>`;
+    if (!isCloud()) return box('gray', 'התראות', 'זמינות אחרי כניסה עם חשבון.');
+    if (d.iosTooOld) return box('peach', 'התראות צריכות iOS 16.4 ומעלה', '״הגדרות״ ← ״כללי״ ← ״עדכון תוכנה״.');
+    if (d.pushNeedsInstall) return box('lav', 'באייפון, התראות מגיעות רק מהמסך הראשי', 'אפל מאפשרת התראות רק לאפליקציה ששמרת. שומרות לפי השלבים, פותחות משם, ומדליקות.');
+    if (!d.pushApi) return box('gray', 'התראות', 'הדפדפן הזה לא תומך בהתראות. ב-Chrome או ב-Safari זה עובד.');
+    const perm = I().permission();
+    if (perm === 'denied') return box('pink', 'ההתראות חסומות במכשיר הזה', 'ככה פותחות אותן:', `<ol class="inst-steps sm">${I().unblockSteps(d).map((x, i) => `<li><span class="n">${i + 1}</span><span class="g">${x.glyph}</span><div><div class="t">${x.title}</div></div></li>`).join('')}</ol>`);
+    const rt = (Mila.me() && Mila.me().settings.reminderTime) || '20:00';
+    if (I().pushOn) return box('lime', 'התראות פעילות ✓', `תזכורת ב-${esc(rt)} אם עוד לא דיווחת. ועדכון כשמישהי עוקפת אותך.`, `<div class="btn-row"><button class="btn soft sm" onclick="App.pushTest()">שליחת התראת בדיקה</button><button class="btn text sm" onclick="App.pushOff()">כיבוי</button></div>`);
+    return box('lime', 'שמילה תזכיר לך?', `ב-${esc(rt)}, רק אם עוד לא דיווחת. ותגיד כשמישהי עוקפת אותך.`, `<button class="btn dark" onclick="App.pushEnable()">${icon('bell', 18)} להפעיל התראות</button>`);
+  }
+  async function installNow() { const r = await I().prompt(); if (r === 'accepted') { closeSheet(); toast('מילה על המסך הראשי 🎉', 'lime'); } else if (r === 'none') installSheet({ os: instOs }); }
+  async function pushEnable() {
+    try { await I().enablePush(); toast('התראות פעילות ✓', 'lime'); }
+    catch (e) { if (e.code !== 'DENIED') fail(e); else toast(e.userMessage); }
+    if (sheetOpen()) installSheet({ os: instOs }); else render();
+  }
+  async function pushOff() { await I().disablePush(); toast('ההתראות כבויות במכשיר הזה'); if (sheetOpen()) installSheet({ os: instOs }); else render(); }
+  async function pushTest() { try { await I().testPush(); toast('נשלחה. תוך כמה שניות.', 'lime'); } catch (e) { fail(e); } }
+  async function shareLink() { const url = location.origin + '/'; try { if (navigator.share) { await navigator.share({ title: 'מילה', text: 'כולנו מבטיחות. בואי נראה מי מקיימת.', url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; } copyText(url); }
+  /* תמונת סטורי לשיתוף (וואטסאפ/אינסטגרם) עם הקישור */
+  async function shareStory() {
+    const url = location.origin + '/';
+    try {
+      const blob = await (await fetch('/icons/share-story.png')).blob();
+      const file = new File([blob], 'mila-story.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: `כולנו מבטיחות. בואי נראה מי מקיימת. ${url}` }); return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mila-story.png'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('התמונה ירדה. אפשר להעלות לסטורי.');
+    } catch (e) { if (!(e && e.name === 'AbortError')) toast('לא הצלחנו לשתף. נסי שוב.'); }
+  }
+  function installCard() {
+    if (!isCloud() || !I() || !Mila.activeCommitments().length) return '';
+    const d = I().detect(); const st = I().get();
+    if (st.cardHidden && Date.now() - st.cardHidden < 5 * 864e5) return '';
+    const x = `<button class="icon-btn inst-x" aria-label="לא עכשיו" onclick="event.stopPropagation(); App.installHide()">${icon('x', 16)}</button>`;
+    if (!d.standalone && d.os !== 'desktop') return `<div class="card tight clickable inst-card" onclick="App.installSheet()">${x}<div style="display:flex;align-items:center;gap:12px"><img class="inst-icon sm" src="/icons/icon-192.png" alt=""><div style="flex:1"><div class="bold">מילה על המסך הראשי</div><div class="small muted">נפתחת כמו אפליקציה ומזכירה לך לדווח. 30 שניות.</div></div>${icon('chev', 20)}</div></div>`;
+    if (d.pushApi && I().pushChecked && !I().pushOn && I().permission() !== 'denied') { const rt = Mila.me().settings.reminderTime || '20:00'; return `<div class="card tight inst-card">${x}<div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('bell', 22)}</span><div style="flex:1"><div class="bold">שמילה תזכיר לך ב-${esc(rt)}?</div><div class="small muted">רק אם עוד לא דיווחת.</div></div><button class="btn dark sm" onclick="App.pushEnable()">להפעיל</button></div></div>`; }
+    return '';
+  }
+  function installHide() { I().mark('cardHidden'); render(); }
+  function phoneCard() {
+    if (!I()) return '';
+    const d = I().detect(); const perm = I().permission();
+    const pushTxt = !isCloud() ? 'אחרי כניסה עם חשבון' : d.pushNeedsInstall ? 'קודם שומרות למסך הבית' : !d.pushApi ? 'לא נתמך בדפדפן הזה' : perm === 'denied' ? 'חסומות. איך פותחים?' : I().pushOn ? 'פעילות ✓' : 'כבויות. להפעיל?';
+    return `<div class="card tight"><div class="card-title">מילה בטלפון</div>
+      <div class="list-row clickable" onclick="App.installSheet()"><img class="inst-icon xs" src="/icons/icon-192.png" alt=""><div class="body"><div class="t">על המסך הראשי</div><div class="m">${d.standalone ? 'מותקנת ✓' : `הוראות ל${esc(I().platformName(d))}`}</div></div>${icon('chev', 18)}</div>
+      <div class="list-row clickable" onclick="App.installSheet()"><span class="tile sm lime">${icon('bell', 18)}</span><div class="body"><div class="t">התראות במכשיר הזה</div><div class="m">${pushTxt}</div></div>${icon('chev', 18)}</div>
+      <div class="list-row clickable" onclick="App.shareStory()"><span class="tile sm peach">${icon('share', 18)}</span><div class="body"><div class="t">תמונה לסטורי</div><div class="m">לשתף את מילה בוואטסאפ או באינסטגרם</div></div>${icon('chev', 18)}</div></div>`;
+  }
+  /* אחרי האתגר הראשון: הזמן הכי טוב להציע (פעם אחת) */
+  function afterFirstCommit() {
+    if (!isCloud() || !I()) return; const d = I().detect(); const st = I().get();
+    if (st.askedAfterFirst) return;
+    const needInstall = !d.standalone && d.os !== 'desktop'; const needPush = d.pushApi && !I().pushOn && I().permission() === 'default';
+    if (!needInstall && !needPush) return;
+    I().mark('askedAfterFirst');
+    setTimeout(() => { if (!sheetOpen()) installSheet({ intro: needInstall ? 'שמילה תזכיר לך לדווח?' : '' }); }, 1900);
+  }
+  /* פתיחה מהתראה / קיצור דרך: ?go=today | circle&id= | invite */
+  function routeFromUrl(href) {
+    let u; try { u = new URL(href, location.origin); } catch (e) { return false; }
+    const g = u.searchParams.get('go'); if (!g || !Mila.me()) return false;
+    if (g === 'circle' && u.searchParams.get('id') && Mila.getState().circles[u.searchParams.get('id')]) { stack = [{ name: 'circles', params: {} }]; go('circle', { id: u.searchParams.get('id') }); }
+    else if (g === 'invite') { tab('today'); inviteFlow({}); }
+    else tab('today');
+    return true;
+  }
+
+  /* ============================================================
      S18 — הגדרות
      ============================================================ */
   SCREENS.settings = () => {
@@ -1216,10 +1314,11 @@ const App = (() => {
     return `${topbar({ title: 'הגדרות' })}
       ${isCloud() && Api.me && Api.me.isAdmin ? `<div class="card tight clickable admin-entry" onclick="App.go('admin')"><div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('chart', 22)}</span><div style="flex:1"><div class="bold">אנליטיקה</div><div class="small muted">צמיחה, הזמנות, שימור, אתגרים וקבוצות</div></div>${icon('chev', 20)}</div></div>` : ''}
       <div class="card tight clickable treat-entry" onclick="App.go('treat')"><div style="display:flex;align-items:center;gap:12px">${treatArt('espresso', 46)}<div style="flex:1"><div class="bold">להזמין את מרינה לקפה ☕</div><div class="small muted">האפליקציה נבנתה באהבה. פרגון קטן?</div></div>${icon('chev', 20)}</div></div>
+      ${phoneCard()}
       <div class="card tight"><div class="field" style="margin:6px 0 10px"><label>שם תצוגה</label><input class="input" value="${esc(u.name)}" maxlength="30" onchange="App.rename(this.value)"></div>
         <div class="kv"><span class="k">${icon('clock', 18)} אזור זמן</span><span class="v">${esc(u.timezone)}</span></div>
         <div class="kv"><span class="k">${icon('bell', 18)} שעת תזכורת</span><input class="input ltr" type="time" value="${s.reminderTime}" style="width:auto;padding:8px 12px" onchange="App.setSetting('reminderTime', this.value)"></div></div>
-      <div class="card tight">${tog('pushReminders', 'תזכורת יומית', 'פעם ביום')}${tog('socialDigest', 'מה אצל החברות', 'סיכום יומי')}${tog('hideFromLeaderboard', 'בלי אותי בדירוג', 'משחקת, לא מתחרה')}${tog('lockScreenPrivacy', 'מסך נעילה דיסקרטי', 'בלי שמות של מילים')}</div>
+      <div class="card tight">${tog('pushReminders', 'תזכורת לדווח', `ב-${esc(s.reminderTime || '20:00')} אם עוד לא דיווחת, וב-9:00 אם אתמול נשאר פתוח`)}${tog('socialDigest', 'עדכונים מהחברות', 'מי עקפה אותך, מי הצטרפה, מילה טובה')}${tog('hideFromLeaderboard', 'בלי אותי בדירוג', 'משחקת, לא מתחרה')}${tog('lockScreenPrivacy', 'מסך נעילה דיסקרטי', 'בלי שמות של אתגרים בהתראות')}</div>
       <div class="card tight"><div class="card-title">בטיחות</div>${blocked.length ? blocked.map(b => `<div class="list-row">${avatar(b, 32)}<div class="body"><div class="t">${esc(b.name)}</div><div class="m">חסומה</div></div><button class="btn xs soft" onclick="App.unblock('${b.id}')">ביטול חסימה</button></div>`).join('') : '<div class="small muted">אף אחת לא חסומה.</div>'}</div>
       <div class="card tight"><div class="card-title">איך זה עובד</div><div class="small muted">עד 3 אתגרים ל-14 יום. כל יום מדווחות: עמדתי או לא.<br>עמדת? נקודה. פספסת? הרצף של האתגר מתאפס, הנקודות נשארות.<br>הדירוג בקבוצה לפי אחוז ההתמדה, מ-${Mila.RULES.MIN_RANKED_EVENTS} דיווחים. בסוף 14 יום יש מנצחת.</div></div>
       <div class="card tight"><div class="list-row clickable" onclick="App.exportData()"><span class="tile sm sky">${icon('download', 18)}</span><div class="body"><div class="t">ייצוא הנתונים שלי</div><div class="m">קובץ עם המילים והדיווחים</div></div></div>
@@ -1240,7 +1339,7 @@ const App = (() => {
      טווח 7/30/90 יום עם השוואה לתקופה הקודמת. כל גרף עם קריאה במעבר עכבר/נגיעה וטבלה.
      ============================================================ */
   let adminData = null, adminErr = null, adminLoading = false, adminDays = 30, adminTab = 'overview';
-  const AD_TABS = [['overview', 'סקירה'], ['growth', 'צמיחה והזמנות'], ['engage', 'מעורבות'], ['retain', 'שימור'], ['challenges', 'אתגרים'], ['groups', 'קבוצות וחברתי'], ['more', 'פרגון ובטיחות']];
+  const AD_TABS = [['overview', 'סקירה'], ['growth', 'צמיחה והזמנות'], ['engage', 'מעורבות'], ['retain', 'שימור'], ['challenges', 'אתגרים'], ['groups', 'קבוצות וחברתי'], ['app', 'אפליקציה והתראות'], ['more', 'פרגון ובטיחות']];
   const AD_C = { blue: '#2a78d6', orange: '#eb6834', teal: '#1baf7a' };
   const adCharts = {};
   /* רוחב אמיתי בפיקסלים (בלי מתיחה של טקסט): שני גרפים בשורה במחשב, אחד בטלפון */
@@ -1431,6 +1530,21 @@ const App = (() => {
         ${adSec('הקבוצות הכי פעילות', `לפי מספר הדיווחים ב${per}.`)}
         <div class="card tight">${g.top.length ? `<div class="ad-table c5 wide1"><div class="ad-row h"><span>קבוצה</span><span>חברות</span><span>אתגרים</span><span>דיווחים</span><span>הצלחה</span></div>${g.top.map(x => `<div class="ad-row"><span>${esc(x.name)}</span><span>${adN(x.members)}</span><span>${adN(x.challenges)}</span><span>${adN(x.reports)}</span><span>${adP(x.success)}</span></div>`).join('')}</div>
           ${adWithTable('groups', [['name', 'קבוצה'], ['members', 'חברות'], ['challenges', 'אתגרים פעילים'], ['reports', 'דיווחים'], [x => adP(x.success), 'הצלחה'], ['created', 'נפתחה']], g.top)}` : '<div class="small muted">עוד אין קבוצות.</div>'}</div>`;
+    } else if (adminTab === 'app') {
+      const a = d.app || { platforms: [] };
+      body = `${adSec('על המסך הראשי', `מכשירים ייחודיים ב${per}. ״נפתחה מהמסך הראשי״ = פתיחה כאפליקציה מותקנת (לפחות פעם אחת).`)}
+        <div class="ad-grid">
+          ${adTile('נפתחה מהמסך הראשי', adN(a.opens), { help: 'מכשירים שפתחו את מילה כאפליקציה' })}
+          ${adTile('ראו את מדריך ההתקנה', adN(a.sheet))}
+          ${adTile('לחצו ״התקנה״', adN(a.prompt), { sub: `${adN(a.installed)} התקינו (אנדרואיד/מחשב)`, help: 'באייפון ההתקנה ידנית ולא נמדדת כאן' })}
+        </div>
+        ${adSec('התראות', 'מינויים פעילים עכשיו (כל מכשיר בנפרד), ומי אישרה או חסמה ב' + per + '.')}
+        <div class="ad-grid">
+          ${adTile('מכשירים עם התראות', adN(a.subscriptions), { sub: `${adN(a.pushUsers)} משתמשות` })}
+          ${adTile('הפעילו התראות', adN(a.pushOn))}
+          ${adTile('חסמו התראות', adN(a.pushDenied))}
+        </div>
+        ${a.platforms.length ? `<div class="card tight"><div class="card-title">לפי סוג מכשיר</div>${adHBars('pushplat', a.platforms.map(x => ({ label: x.platform, n: x.n })), { color: AD_C.teal })}</div>` : ''}`;
     } else {
       const t = d.treats, names = { cookie: '🍪 עוגייה · 4 ₪', espresso: '☕ אספרסו · 10 ₪', latte: '🥛 קפה הפוך · 15 ₪' };
       const sf = d.safety;
@@ -1536,6 +1650,18 @@ const App = (() => {
     $('#nav-ic-today').innerHTML = ICONS.home(22); $('#nav-ic-circles').innerHTML = ICONS.users(22); $('#nav-ic-me').innerHTML = ICONS.user(22);
     const params = new URLSearchParams(location.search);
     const token = params.get('invite');
+    const goUrl = params.get('go') ? location.href : null;
+    if (params.get('go') || params.get('source')) history.replaceState(null, '', location.pathname + (token ? `?invite=${encodeURIComponent(token)}` : ''));
+    if (window.MilaInstall) {
+      if (MilaInstall.detect().standalone) Api.track('app_open');
+      MilaInstall.onChange(() => { if (stack.length && !sheetOpen() && ['today', 'settings'].includes(current().name)) render({ keepSheet: true }); });
+      if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
+    }
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => {
+      const m = e.data || {};
+      if (m.type === 'mila-sync' && Api.isCloud()) Api.sync().catch(() => {});
+      if (m.type === 'mila-open') { const done = () => routeFromUrl(m.url); if (Api.isCloud()) Api.sync().then(done).catch(done); else done(); }
+    });
     Api.track('visit');
     if (token) { history.replaceState(null, '', location.pathname); Api.trackInviteOpen(token); Api.track('visit_invite'); }
     const authError = params.get('auth_error');
@@ -1549,7 +1675,9 @@ const App = (() => {
         if (Api.isCloud()) {
           await Api.sync();
           Api.startAutoSync();
-          go('today', {}, { reset: true }); if (token) openInvite(token); return;
+          go('today', {}, { reset: true }); if (token) openInvite(token); else if (goUrl) routeFromUrl(goUrl);
+          if (window.MilaInstall) MilaInstall.refreshPush();
+          return;
         }
       } catch (e) {
         console.error(e);
@@ -1563,9 +1691,9 @@ const App = (() => {
     if (!Mila.me()) { pendingInviteToken = token; go('welcome', {}, { reset: true }); }
     else { go('today', {}, { reset: true }); if (token) openInvite(token); }
     setInterval(() => { if (document.visibilityState === 'visible' && TOP.includes(current().name)) { const before = JSON.stringify(Object.values(Mila.getState().obligations).map(o => o.status)); Mila.refreshStatuses(); if (JSON.stringify(Object.values(Mila.getState().obligations).map(o => o.status)) !== before) render(); } }, 60000);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { if (Api.isCloud()) Api.sync().catch(() => {}); else render(); } });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); if (Api.isCloud()) Api.sync().catch(() => {}); else render(); } });
     window.addEventListener('online', () => { if (Api.isCloud()) Api.sync().then(() => toast('החיבור חזר. הכול מעודכן.', 'lime')).catch(() => {}); });
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
   document.addEventListener('DOMContentLoaded', init);
 
@@ -1577,6 +1705,7 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
+    installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();

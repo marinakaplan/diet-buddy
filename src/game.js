@@ -38,7 +38,8 @@ function grantStmts(env, userId, type, src, tz) {
       uid(), userId, 'הישג חדש: ' + title, body, JSON.stringify({ type }), `achievement|${type}`, id),
   ];
 }
-const notifyStmt = (env, userId, type, title, body, ref, day) => S(env, `insert or ignore into notifications(id, user_id, type, title, body, ref, dedupe_key) values (?,?,?,?,?,?,?)`, uid(), userId, type, title, body || '', JSON.stringify(ref || {}), `${type}|${title}|${day}`);
+/* כל עדכון שנוצר נרשם גם לשליחת התראה לטלפון אחרי שהפעולה הצליחה (index.js → push.social) */
+const notifyStmt = (env, userId, type, title, body, ref, day) => ((env.__notified || (env.__notified = new Set())).add(userId), S(env, `insert or ignore into notifications(id, user_id, type, title, body, ref, dedupe_key) values (?,?,?,?,?,?,?)`, uid(), userId, type, title, body || '', JSON.stringify(ref || {}), `${type}|${title}|${day}`));
 const eventStmt = (env, circleId, actorId, type, payload) => S(env, `insert into social_events(id, circle_id, actor_id, type, payload) values (?,?,?,?,?)`, uid(), circleId, actorId, type, JSON.stringify(payload || {}));
 
 /* ---------- ולידציה ---------- */
@@ -483,6 +484,7 @@ export async function deleteAccount(env, user) {
   await env.DB.batch([
     S(env, `update users set display_name = 'משתתפת שעזבה', email = null, google_sub = null, color = 'sky', status = 'deleted', settings = '{}' where id = ?`, user.id),
     S(env, `delete from sessions where user_id = ?`, user.id), S(env, `delete from notifications where user_id = ?`, user.id), S(env, `delete from user_blocks where blocker_id = ?`, user.id),
+    S(env, `delete from push_subscriptions where user_id = ?`, user.id),
   ]);
 }
 export async function exportData(env, user) {
