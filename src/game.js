@@ -6,12 +6,12 @@ const MilaLibrary = globalThis.MilaLibrary;
 import { err, uid, nowISO, localDate, addDays, diffDays, isValidDate, windowOf, ROUND_DAYS, DAILY_CAP, MAX_EXCUSES, CORRECTION_MS, sha256hex, inviteCode } from './util.js';
 
 const ACH = {
-  first_word: ['נתתי מילה', 'יצרת את ההתחייבות הראשונה שלך'],
+  first_word: ['נתתי מילה', 'בחרת את האתגר הראשון שלך'],
   first_day: ['חתום וסגור', 'הנקודה הראשונה שלך'],
-  streak_7: ['מילה אחר מילה', 'שבע הצלחות ברצף באותה מילה'],
+  streak_7: ['מילה אחר מילה', 'שבע הצלחות ברצף באותו אתגר'],
   streak_14: ['מילה בסלע', '14 הצלחות ברצף. סבב מושלם'],
   first_circle: ['קבוצה ראשונה', 'הצטרפת לקבוצה'],
-  first_group_word: ['יש לך מילה', 'הצטרפת למילה משותפת'],
+  first_group_word: ['יש לך מילה', 'הצטרפת לאתגר משותף'],
   first_encouragement: ['מילה טובה', 'עודדת חברה'],
   round_complete: ['אמרת ועשית', 'סיימת סבב שלם'],
   second_round: ['עוד סיבוב?', 'חזרת לסבב שני'],
@@ -45,11 +45,11 @@ const eventStmt = (env, circleId, actorId, type, payload) => S(env, `insert into
 /* ---------- ולידציה ---------- */
 function validateWord(title, rule) {
   title = String(title || '').trim(); rule = String(rule || '').trim();
-  if (!title) throw err('VALIDATION', 'צריך כותרת למילה');
-  if (title.length > 60) throw err('VALIDATION', 'הכותרת ארוכה מדי (עד 60 תווים)');
-  if (!rule) throw err('VALIDATION', 'מה נחשב הצלחה? בלי כלל הצלחה אי אפשר לתת מילה');
+  if (!title) throw err('VALIDATION', 'צריך שם לאתגר');
+  if (title.length > 60) throw err('VALIDATION', 'שם האתגר ארוך מדי (עד 60 תווים)');
+  if (!rule) throw err('VALIDATION', 'צריך לכתוב מה נחשב הצלחה, כדי שתדעי על מה לדווח');
   if (rule.length > 200) throw err('VALIDATION', 'הכלל ארוך מדי (עד 200 תווים)');
-  if (/(הרעב|לא לאכול כלום|צום של|להקיא|לפגוע|חיתוך|סמים|לשתות עד|להשמין)/.test(title + ' ' + rule)) throw err('VALIDATION', 'הניסוח הזה עלול להיות מסוכן. נסי מילה שמוסיפה משהו טוב ליום.');
+  if (/(הרעב|לא לאכול כלום|צום של|להקיא|לפגוע|חיתוך|סמים|לשתות עד|להשמין)/.test(title + ' ' + rule)) throw err('VALIDATION', 'הניסוח הזה עלול להיות מסוכן. נסי אתגר שמוסיף משהו טוב ליום.');
   return { title, rule };
 }
 const ICONS = new Set(['walk', 'run', 'dumbbell', 'book', 'noPhone', 'water', 'sleep', 'moon', 'noSugar', 'leaf', 'meditate', 'pencil', 'heart', 'smile', 'home', 'users', 'coffee', 'call', 'tools', 'star']);
@@ -82,7 +82,7 @@ async function runBatch(env, stmts) {
   try { return await env.DB.batch(stmts); }
   catch (e) {
     const m = String(e && e.message || e);
-    if (m.includes('DAILY_CAP_EXCEEDED')) throw err('CAP', 'יש לך כבר שלוש מילים על הכף בימים האלה', 409);
+    if (m.includes('DAILY_CAP_EXCEEDED')) throw err('CAP', 'כבר יש לך 3 אתגרים בימים האלה', 409);
     if (m.includes('LEDGER_APPEND_ONLY')) throw err('LEDGER', 'יומן התנועות אינו ניתן לשינוי', 409);
     if (m.includes('UNIQUE')) throw err('CONFLICT', 'הפעולה כבר בוצעה', 409);
     throw e;
@@ -97,7 +97,7 @@ export async function createPersonalWord(env, user, b) {
   const { title, rule } = validateWord(lib ? lib.title : b.title, lib ? lib.rule : b.rule);
   const today = localDate(user.timezone);
   const start = isValidDate(b.startDate) ? b.startDate : today;
-  if (start < today) throw err('VALIDATION', 'אי אפשר לתת מילה על ימים שעברו');
+  if (start < today) throw err('VALIDATION', 'אי אפשר להתחיל בתאריך שעבר');
   if (diffDays(today, start) > 60) throw err('VALIDATION', 'אפשר לתכנן עד 60 יום קדימה');
   let circleId = b.circleId || null;
   // אתגר רגיש: פרטי כברירת מחדל; שיתוף עם קבוצה רק בבחירה מפורשת
@@ -107,7 +107,7 @@ export async function createPersonalWord(env, user, b) {
   const reward = String(b.reward || '').trim().slice(0, 80) || null;
   const rewardShared = reward && b.rewardShared === true ? 1 : 0;
   const cap = await capInfo(env, user.id, start);
-  if (!cap.ok) throw err('CAP', 'יש לך כבר שלושה אתגרים בימים האלה', 409, { cap });
+  if (!cap.ok) throw err('CAP', 'כבר יש לך 3 אתגרים בימים האלה', 409, { cap });
   const did = uid(); const end = addDays(start, ROUND_DAYS - 1);
   const { kid, stmts } = commitmentStmts(env, did, user, start, end);
   const batch = [S(env, `insert into word_definitions(id, kind, circle_id, owner_id, title, rule, icon, visibility, start_date, end_date, status, library_id, category, library_version) values (?,?,?,?,?,?,?,?,?,?,'active',?,?,?)`, did, 'personal', circleId, user.id, title, rule, icon(lib ? lib.icon : b.icon), vis, start, end, lib ? lib.id : null, lib ? lib.cat : null, lib ? lib.version : null), ...stmts];
@@ -126,7 +126,7 @@ export async function proposeGroupWord(env, user, b) {
   const { title, rule } = validateWord(b.title, b.rule);
   const today = localDate(user.timezone);
   const start = isValidDate(b.startDate) ? b.startDate : today;
-  if (start < today) throw err('VALIDATION', 'אי אפשר להציע מילה על ימים שעברו');
+  if (start < today) throw err('VALIDATION', 'אי אפשר להתחיל בתאריך שעבר');
   const did = uid(); const vis = ['status', 'summary'].includes(b.visibility) ? b.visibility : 'status';
   const members = await all(env, `select user_id from circle_memberships where circle_id = ? and left_at is null and user_id <> ?`, c.id, user.id);
   const batch = [
@@ -140,16 +140,16 @@ export async function proposeGroupWord(env, user, b) {
 
 export async function adoptGroupWord(env, user, b) {
   const d = await first(env, `select * from word_definitions where id = ? and kind = 'group'`, b.defId);
-  if (!d) throw err('NOT_FOUND', 'מילה לא נמצאה', 404);
+  if (!d) throw err('NOT_FOUND', 'האתגר לא נמצא', 404);
   if (!(await isMember(env, d.circle_id, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
   if (d.status === 'cancelled') throw err('VALIDATION', 'ההצעה בוטלה');
   const existing = await first(env, `select id from word_commitments where definition_id = ? and user_id = ? and status <> 'cancelled'`, d.id, user.id);
   if (existing) return { commitmentId: existing.id, duplicate: true };
   const today = localDate(user.timezone);
   const start = d.start_date > today ? d.start_date : today;
-  if (start > d.end_date) throw err('VALIDATION', 'המילה הזו כבר הסתיימה. אפשר להציע אותה מחדש לסבב הבא.');
+  if (start > d.end_date) throw err('VALIDATION', 'האתגר הזה כבר הסתיים. אפשר לפתוח אותו מחדש לסבב הבא.');
   const cap = await capInfo(env, user.id, start, diffDays(start, d.end_date) + 1);
-  if (!cap.ok) throw err('CAP', 'יש לך כבר שלוש מילים על הכף בתאריכים האלה', 409, { cap });
+  if (!cap.ok) throw err('CAP', 'כבר יש לך 3 אתגרים בימים האלה', 409, { cap });
   const { kid, stmts } = commitmentStmts(env, d.id, user, start, d.end_date);
   const batch = [...stmts, S(env, `update word_definitions set status = 'active' where id = ? and status = 'proposed'`, d.id), eventStmt(env, d.circle_id, user.id, 'group_word_adopted', { defId: d.id, title: d.title }), ...grantStmts(env, user.id, 'first_word', d.id), ...grantStmts(env, user.id, 'first_group_word', d.id)];
   try { await runBatch(env, batch); }
@@ -161,7 +161,7 @@ export async function cancelProposal(env, user, b) {
   const d = await first(env, `select * from word_definitions where id = ?`, b.defId);
   if (!d) throw err('NOT_FOUND', 'לא נמצא', 404);
   if (d.owner_id !== user.id && !(await isAdmin(env, d.circle_id, user.id))) throw err('FORBIDDEN', 'אין הרשאה', 403);
-  if (await first(env, `select 1 as x from word_commitments where definition_id = ? and status <> 'cancelled'`, d.id)) throw err('VALIDATION', 'כבר הצטרפו למילה. אפשר לסיים אותה רק דרך סיום מסודר.');
+  if (await first(env, `select 1 as x from word_commitments where definition_id = ? and status <> 'cancelled'`, d.id)) throw err('VALIDATION', 'חברות כבר הצטרפו לאתגר, אז אי אפשר לבטל אותו. אפשר לעצור את האתגר שלך.');
   await S(env, `update word_definitions set status = 'cancelled' where id = ?`, d.id).run();
 }
 
@@ -180,7 +180,7 @@ export async function setVisibility(env, user, b) {
   const d = await first(env, `select visibility from word_definitions where id = ? and owner_id = ?`, b.defId, user.id);
   if (!d) throw err('FORBIDDEN', 'אין הרשאה', 403);
   const ok = (d.visibility === 'status' && ['summary', 'private'].includes(b.visibility)) || (d.visibility === 'summary' && b.visibility === 'private');
-  if (!ok) throw err('VALIDATION', 'אי אפשר להרחיב חשיפה בדיעבד');
+  if (!ok) throw err('VALIDATION', 'אי אפשר לחשוף יותר אחרי שהאתגר התחיל');
   await S(env, `update word_definitions set visibility = ? where id = ?`, b.visibility, b.defId).run();
 }
 
@@ -217,18 +217,18 @@ export async function report(env, user, b) {
   const outcome = b.outcome;
   if (!['success', 'miss', 'excused'].includes(outcome)) throw err('VALIDATION', 'תוצאה לא תקינה');
   const o = await first(env, `select * from daily_obligations where id = ?`, b.obligationId);
-  if (!o) throw err('NOT_FOUND', 'אירוע לא נמצא', 404);
-  if (o.user_id !== user.id) throw err('FORBIDDEN', 'רק בעלת המילה יכולה לדווח', 403);
-  if (o.status === 'cancelled') throw err('VALIDATION', 'האירוע בוטל');
+  if (!o) throw err('NOT_FOUND', 'היום הזה לא נמצא', 404);
+  if (o.user_id !== user.id) throw err('FORBIDDEN', 'רק מי שלקחה את האתגר יכולה לדווח עליו', 403);
+  if (o.status === 'cancelled') throw err('VALIDATION', 'היום הזה בוטל');
   if (o.outcome) return { duplicate: true, outcome: o.outcome };
   const k = await first(env, `select * from word_commitments where id = ?`, o.commitment_id);
   const d = await first(env, `select * from word_definitions where id = ?`, k.definition_id);
   const w = windowOf(o.local_date, k.timezone); const now = new Date();
   if (now < w.opens) throw err('VALIDATION', 'עוד אי אפשר לדווח על יום שלא התחיל');
-  if (now >= w.closes) throw err('VALIDATION', 'חלון הדיווח ליום הזה נסגר. אפשר לבקש תיקון.');
+  if (now >= w.closes) throw err('VALIDATION', 'עבר הזמן לדווח על היום הזה (אפשר עד 10:00 למחרת).');
   if (outcome === 'excused') {
     const used = await first(env, `select count(*) as n from daily_obligations where commitment_id = ? and outcome = 'excused'`, k.id);
-    if (used.n >= MAX_EXCUSES) throw err('VALIDATION', `כבר השתמשת ב-${MAX_EXCUSES} החרגות בסבב הזה`);
+    if (used.n >= MAX_EXCUSES) throw err('VALIDATION', `כבר השתמשת ב-${MAX_EXCUSES} ימים חריגים בסבב הזה`);
   }
   const at = nowISO();
   try { await runBatch(env, resolveStmts(env, o, d, outcome, 'self_report', user.id, at, b.note ? String(b.note).slice(0, 60) : null)); }
@@ -262,14 +262,14 @@ export async function correct(env, user, b) {
   if (!reason) throw err('VALIDATION', 'צריך סיבה קצרה לתיקון');
   const o = await first(env, `select * from daily_obligations where id = ?`, b.obligationId);
   if (!o || o.user_id !== user.id) throw err('FORBIDDEN', 'אין הרשאה', 403);
-  if (!o.outcome) throw err('VALIDATION', 'אין עדיין הכרעה לתקן');
+  if (!o.outcome) throw err('VALIDATION', 'עוד אין דיווח לתקן');
   if (Date.now() - Date.parse(o.resolved_at) >= CORRECTION_MS) throw err('VALIDATION', 'חלון התיקון (24 שעות) נסגר');
   if (o.outcome === outcome) return { changed: false };
   const k = await first(env, `select * from word_commitments where id = ?`, o.commitment_id);
   const d = await first(env, `select * from word_definitions where id = ?`, k.definition_id);
   if (outcome === 'excused') {
     const used = await first(env, `select count(*) as n from daily_obligations where commitment_id = ? and outcome = 'excused'`, k.id);
-    if (used.n >= MAX_EXCUSES) throw err('VALIDATION', `כבר השתמשת ב-${MAX_EXCUSES} החרגות בסבב הזה`);
+    if (used.n >= MAX_EXCUSES) throw err('VALIDATION', `כבר השתמשת ב-${MAX_EXCUSES} ימים חריגים בסבב הזה`);
   }
   const active = await first(env, `select l.* from virtual_ledger l where l.obligation_id = ? and l.transaction_type <> 'REVERSE' and not exists (select 1 from virtual_ledger r where r.reversal_of = l.id)`, o.id);
   const at = nowISO(); const expected = o.resolution_no;
@@ -333,7 +333,7 @@ export async function createCircle(env, user, b) {
   return { circleId: cid, inviteToken: inv.tok };
 }
 export async function updateCircle(env, user, b) {
-  if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת הקבוצה יכולה לשנות את פרטיו', 403);
+  if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת יכולה לשנות את פרטי הקבוצה', 403);
   const p = b.patch || {};
   const c = await first(env, `select * from circles where id = ?`, b.circleId);
   const name = p.name !== undefined ? String(p.name).trim() : c.name; if (!name || name.length > 50) throw err('VALIDATION', 'שם לא תקין');
@@ -367,10 +367,10 @@ export async function previewInvite(env, user, b) {
 }
 export async function acceptInvite(env, user, b) {
   const p = await previewInvite(env, user, b);
-  if (!p.ok) throw err('INVITE_INVALID', { not_found: 'הקישור לא נמצא. אולי הוקלד לא נכון?', revoked: 'הקישור בוטל על ידי הקבוצה. אפשר לבקש קישור חדש.', expired: 'תוקף הקישור פג. אפשר לבקש הזמנה חדשה.', full: 'הקישור הזה כבר נוצל במלואו.' }[p.reason]);
+  if (!p.ok) throw err('INVITE_INVALID', { not_found: 'הקישור לא נמצא. אולי הוא הועתק לא נכון?', revoked: 'הקישור בוטל על ידי הקבוצה. אפשר לבקש קישור חדש.', expired: 'תוקף הקישור פג. אפשר לבקש הזמנה חדשה.', full: 'הקישור הזה כבר נוצל במלואו.' }[p.reason]);
   const cid = p.circle.id;
   if (p.alreadyMember) return { circleId: cid };
-  if (p.memberCount >= p.maxMembers) throw err('CIRCLE_FULL', 'הקבוצה מלא. אפשר לבקש ממנהלת הקבוצה להגדיל את מספר המקומות.', 409);
+  if (p.memberCount >= p.maxMembers) throw err('CIRCLE_FULL', 'הקבוצה מלאה. אפשר לבקש ממנהלת הקבוצה להגדיל את מספר המקומות.', 409);
   const hash = await sha256hex(p.inv.token);
   try {
     await runBatch(env, [
@@ -384,7 +384,7 @@ export async function acceptInvite(env, user, b) {
       notifyStmt(env, p.inviter.id, 'invite', `${user.display_name} הצטרפה ל${p.circle.name} 🎉`, 'ההזמנה שלך עבדה.', { circleId: cid }, localDate(user.timezone)),
     ]);
   } catch (e) { if (e.code !== 'CONFLICT') throw e; }
-  if (!(await isMember(env, cid, user.id))) throw err('CIRCLE_FULL', 'הקבוצה התמלא בדיוק עכשיו.', 409);
+  if (!(await isMember(env, cid, user.id))) throw err('CIRCLE_FULL', 'הקבוצה התמלאה בדיוק עכשיו.', 409);
   return { circleId: cid };
 }
 export async function leaveCircle(env, user, b) {

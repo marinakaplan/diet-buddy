@@ -119,7 +119,7 @@ test('AT-08: החרגה לא מנפיקה שקל, לא שוברת רצף, מוג
   assert.strictEqual(Mila.streak(commitment.id).current, 3, 'החרגה לא שוברת רצף');
   assert.strictEqual(Mila.excusesUsed(commitment.id), 2);
   const todayOb = obs.find(o => o.localDate === today);
-  assert.throws(() => Mila.report(todayOb.id, 'excused'), /החרגות/);
+  assert.throws(() => Mila.report(todayOb.id, 'excused'), /ימים חריגים/);
   assert.strictEqual(Mila.activeLedger().filter(t => t.obligationId === obs[2].id).length, 0, 'החרגה בלי תנועה');
   assert.strictEqual(Mila.bankSummary().earnedTotal, 3);
   const st = Mila.commitmentStats(commitment.id);

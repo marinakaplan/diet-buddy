@@ -159,7 +159,7 @@ const Mila = (() => {
   }
 
   function updateCircle(circleId, patch) {
-    if (!isAdmin(circleId)) throw err('רק מנהלת הקבוצה יכולה לשנות את פרטיו');
+    if (!isAdmin(circleId)) throw err('רק מנהלת יכולה לשנות את פרטי הקבוצה');
     const c = state.circles[circleId];
     const allowed = ['name', 'description', 'whoCanPropose', 'maxMembers', 'color'];
     for (const k of allowed) if (k in patch) c[k] = patch[k];
@@ -218,7 +218,7 @@ const Mila = (() => {
     const p = previewInvite(token);
     if (!p.ok) throw err(inviteError(p.reason));
     if (p.alreadyMember) return state.circles[p.circle.id];
-    if (p.memberCount >= p.maxMembers) throw err('הקבוצה מלא. אפשר לבקש ממנהלת הקבוצה להגדיל את מספר המקומות.');
+    if (p.memberCount >= p.maxMembers) throw err('הקבוצה מלאה. אפשר לבקש ממנהלת הקבוצה להגדיל את מספר המקומות.');
     state.memberships.push({ id: uid('m'), circleId: p.circle.id, userId: state.me, role: 'member', joinedAt: nowISO(), leftAt: null });
     p.inv.uses += 1;
     addEvent(p.circle.id, state.me, 'member_joined', {});
@@ -227,7 +227,7 @@ const Mila = (() => {
     return state.circles[p.circle.id];
   }
   function inviteError(reason) {
-    return { not_found: 'הקישור לא נמצא. אולי הוא הוקלד לא נכון?', revoked: 'הקישור בוטל על ידי הקבוצה. אפשר לבקש קישור חדש.', expired: 'תוקף הקישור פג. אפשר לבקש הזמנה חדשה.', full: 'הקישור הזה כבר נוצל במלואו. אפשר לבקש קישור חדש.' }[reason] || 'לא ניתן להצטרף כרגע.';
+    return { not_found: 'הקישור לא נמצא. אולי הוא הועתק לא נכון?', revoked: 'הקישור בוטל על ידי הקבוצה. אפשר לבקש קישור חדש.', expired: 'תוקף הקישור פג. אפשר לבקש הזמנה חדשה.', full: 'הקישור הזה כבר נוצל במלואו. אפשר לבקש קישור חדש.' }[reason] || 'לא ניתן להצטרף כרגע.';
   }
 
   function leaveCircle(circleId, { endWords = true } = {}) {
@@ -330,11 +330,11 @@ const Mila = (() => {
   }
 
   function validateWordInput({ title, rule }) {
-    if (!title || !title.trim()) throw err('צריך כותרת למילה');
-    if (title.trim().length > 60) throw err('הכותרת ארוכה מדי (עד 60 תווים)');
-    if (!rule || !rule.trim()) throw err('מה נחשב הצלחה? בלי כלל הצלחה אי אפשר לתת מילה');
+    if (!title || !title.trim()) throw err('צריך שם לאתגר');
+    if (title.trim().length > 60) throw err('שם האתגר ארוך מדי (עד 60 תווים)');
+    if (!rule || !rule.trim()) throw err('צריך לכתוב מה נחשב הצלחה, כדי שתדעי על מה לדווח');
     const banned = /(הרעב|לא לאכול כלום|צום של|להקיא|לפגוע|חיתוך|סמים|לשתות עד|להשמין|להרזות ב\s*\d+\s*ק)/;
-    if (banned.test(title) || banned.test(rule)) throw err('הניסוח הזה עלול להיות מסוכן. נסי מילה שמוסיפה משהו טוב ליום, במקום להגביל בצורה קיצונית.');
+    if (banned.test(title) || banned.test(rule)) throw err('הניסוח הזה עלול להיות מסוכן. נסי אתגר שמוסיף משהו טוב ליום, במקום להגביל בצורה קיצונית.');
   }
 
   /* יצירת מילה אישית (ואופציונלית – חשיפה לקבוצה אחד) */
@@ -351,7 +351,7 @@ const Mila = (() => {
     if (circleId && !isMember(circleId)) throw err('את לא חברה בקבוצה הזו');
     reward = String(reward || '').trim().slice(0, 80);
     const cap = capCheck(state.me, startDate);
-    if (!cap.ok) throw Object.assign(err('יש לך כבר שלושה אתגרים בימים האלה'), { code: 'CAP', cap });
+    if (!cap.ok) throw Object.assign(err('כבר יש לך 3 אתגרים בימים האלה'), { code: 'CAP', cap });
     const def = { id: uid('w'), kind: 'personal', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility: circleId ? visibility : 'private', version: 1, startDate, status: 'active', createdAt: nowISO(), libraryId: libraryId || null, category, sensitive };
     state.wordDefs[def.id] = def;
     const c = createCommitment(def.id, state.me, startDate);
@@ -397,14 +397,14 @@ const Mila = (() => {
 
   function adoptGroupWord(defId) {
     const def = state.wordDefs[defId];
-    if (!def || def.kind !== 'group') throw err('מילה לא נמצאה');
+    if (!def || def.kind !== 'group') throw err('האתגר לא נמצא');
     if (!isMember(def.circleId)) throw err('את לא חברה בקבוצה הזו');
     if (def.status === 'cancelled') throw err('ההצעה בוטלה');
     if (myAdoption(defId)) return myAdoption(defId);
     const start = def.startDate < today() ? today() : def.startDate; // הצטרפות מאוחרת מתחילה מהיום
-    if (def.endDate && start > def.endDate) throw err('המילה הזו כבר הסתיימה. אפשר להציע אותה מחדש לסבב הבא.');
+    if (def.endDate && start > def.endDate) throw err('האתגר הזה כבר הסתיים. אפשר לפתוח אותו מחדש לסבב הבא.');
     const cap = capCheck(state.me, start);
-    if (!cap.ok) throw Object.assign(err('יש לך כבר שלוש מילים על הכף בתאריכים האלה'), { code: 'CAP', cap });
+    if (!cap.ok) throw Object.assign(err('כבר יש לך 3 אתגרים בימים האלה'), { code: 'CAP', cap });
     const c = createCommitment(def.id, state.me, start);
     // התחייבות של מילה קבוצתית מסתיימת עם המילה הקבוצתית
     if (def.endDate && c.endDate > def.endDate) { c.endDate = def.endDate; obligationsOf(c.id).filter(o => o.localDate > def.endDate).forEach(o => { o.status = 'cancelled'; }); }
@@ -418,7 +418,7 @@ const Mila = (() => {
   function cancelProposal(defId) {
     const def = state.wordDefs[defId];
     if (def.ownerId !== state.me && !isAdmin(def.circleId)) throw err('אין הרשאה');
-    if (adopters(defId).length) throw err('כבר הצטרפו למילה. אפשר לסיים אותה רק דרך סיום מסודר.');
+    if (adopters(defId).length) throw err('חברות כבר הצטרפו לאתגר, אז אי אפשר לבטל אותו. אפשר לעצור את האתגר שלך.');
     def.status = 'cancelled';
     save();
   }
@@ -483,16 +483,16 @@ const Mila = (() => {
 
   function report(obligationId, outcome, { note = '' } = {}) {
     const o = state.obligations[obligationId];
-    if (!o) throw err('אירוע לא נמצא');
-    if (o.userId !== state.me) throw err('רק בעלת המילה יכולה לדווח');
-    if (o.status === 'cancelled') throw err('האירוע בוטל');
+    if (!o) throw err('היום הזה לא נמצא');
+    if (o.userId !== state.me) throw err('רק מי שלקחה את האתגר יכולה לדווח עליו');
+    if (o.status === 'cancelled') throw err('היום הזה בוטל');
     if (o.outcome) return { obligation: o, duplicate: true };   // idempotent
     const at = now();
     const w = windowOf(o);
     if (at < w.opens) throw err('עוד אי אפשר לדווח על יום שלא התחיל');
-    if (at >= w.closes) throw err('חלון הדיווח ליום הזה נסגר. אפשר לבקש תיקון.');
+    if (at >= w.closes) throw err('עבר הזמן לדווח על היום הזה (אפשר עד 10:00 למחרת).');
     if (outcome === 'excused') {
-      if (excusesUsed(o.commitmentId) >= RULES.MAX_EXCUSES_PER_ROUND) throw err(`כבר השתמשת ב-${RULES.MAX_EXCUSES_PER_ROUND} החרגות בסבב הזה`);
+      if (excusesUsed(o.commitmentId) >= RULES.MAX_EXCUSES_PER_ROUND) throw err(`כבר השתמשת ב-${RULES.MAX_EXCUSES_PER_ROUND} ימים חריגים בסבב הזה`);
     }
     const def = state.wordDefs[state.commitments[o.commitmentId].defId];
     const before = def.circleId ? leaderboard(def.circleId).rows : null;
@@ -574,13 +574,13 @@ const Mila = (() => {
   }
   function correct(obligationId, newOutcome, reason) {
     const o = state.obligations[obligationId];
-    if (!o) throw err('אירוע לא נמצא');
+    if (!o) throw err('היום הזה לא נמצא');
     if (!canCorrect(o)) throw err('חלון התיקון (24 שעות) נסגר');
     if (!reason || !reason.trim()) throw err('צריך סיבה קצרה לתיקון');
     if (o.outcome === newOutcome) return o;
     const c = state.commitments[o.commitmentId];
     const def = state.wordDefs[c.defId];
-    if (newOutcome === 'excused' && excusesUsed(c.id) >= RULES.MAX_EXCUSES_PER_ROUND) throw err(`כבר השתמשת ב-${RULES.MAX_EXCUSES_PER_ROUND} החרגות בסבב הזה`);
+    if (newOutcome === 'excused' && excusesUsed(c.id) >= RULES.MAX_EXCUSES_PER_ROUND) throw err(`כבר השתמשת ב-${RULES.MAX_EXCUSES_PER_ROUND} ימים חריגים בסבב הזה`);
     // היפוך התנועה המקורית
     const original = activeLedger().find(t => t.obligationId === o.id);
     if (original) state.ledger.push({ id: uid('t'), obligationId: o.id, userId: o.userId, type: 'REVERSE', circleId: original.circleId, defId: def.id, amount: -1, reversalOf: original.id, createdAt: nowISO(), localDate: o.localDate, reason });
@@ -752,10 +752,10 @@ const Mila = (() => {
   const ACHIEVEMENTS = {
     first_word: { title: 'נתתי מילה', desc: 'האתגר הראשון שלך', icon: 'pencil' },
     first_day: { title: 'חתום וסגור', desc: 'הנקודה הראשונה שלך', icon: 'check' },
-    streak_7: { title: 'מילה אחר מילה', desc: 'שבע הצלחות ברצף באותה מילה', icon: 'flame' },
+    streak_7: { title: 'מילה אחר מילה', desc: 'שבע הצלחות ברצף באותו אתגר', icon: 'flame' },
     streak_14: { title: 'מילה בסלע', desc: '14 הצלחות ברצף. סבב מושלם', icon: 'trophy' },
     first_circle: { title: 'קבוצה ראשונה', desc: 'הצטרפת לקבוצה', icon: 'users' },
-    first_group_word: { title: 'יש לך מילה', desc: 'הצטרפת למילה משותפת', icon: 'link' },
+    first_group_word: { title: 'יש לך מילה', desc: 'הצטרפת לאתגר משותף', icon: 'link' },
     first_encouragement: { title: 'מילה טובה', desc: 'עודדת חברה', icon: 'clap' },
     round_complete: { title: 'אמרת ועשית', desc: 'סיימת סבב שלם', icon: 'medal' },
     second_round: { title: 'עוד סיבוב?', desc: 'חזרת לסבב שני', icon: 'repeat' },
