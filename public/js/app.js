@@ -561,21 +561,36 @@ const App = (() => {
     const sensitive = pick.selected.filter(id => L.isSensitive(id));
     const circle = pick.circleId === '__new__' ? { name: pick.newCircleName || 'הקבוצה החדשה' } : pick.circleId ? Mila.getState().circles[pick.circleId] : null;
     const opts = [[Mila.today(), 'היום'], [Mila.addDays(Mila.today(), 1), 'מחר']];
+    const ro = pick.rewardOpen || {};
+    // מי רואה: שורה אחת קומפקטית, הבחירה עצמה נפתחת בגיליון
+    const who = !pick.circleId ? { t: 'רק אני', m: 'בלי קבוצה. בלי דירוג.', tile: `<span class="tile sm gray">${icon('lock', 18)}</span>` }
+      : pick.circleId === '__new__' ? { t: circle.name, m: 'קבוצה חדשה. מיד אחר כך מזמינה חברות.', tile: `<span class="tile sm pink">${icon('users', 18)}</span>` }
+      : { t: circle.name, m: `${Mila.circleMembers(circle.id).length} חברות · נכנסת לדירוג`, tile: circleTile(circle, 'sm') };
     return `${header}
       <div class="step-title">מוכנה?</div><div class="step-sub">14 ימים. כל ערב מסמנת אם עמדת באתגר.</div>
-      ${pick.selected.map((id, i) => { const ch = L.get(id); return `<div class="card tight"><div style="display:flex;gap:12px;align-items:center">${wordTile(ch)}<div style="flex:1;min-width:0"><div class="bold">${esc(ch.title)}</div><div class="small muted">${esc(ch.rule)}</div></div><button class="icon-btn" aria-label="הסרה" onclick="App.pickToggle('${id}')">${icon('x', 18)}</button></div>
-        <div class="field" style="margin:10px 0 0"><label>אם אצליח, אני…</label><input class="input" maxlength="80" placeholder="${rewardExample(id, i)}" value="${esc(pick.rewards[id] || '')}" oninput="App.pickReward('${id}', this.value)"></div></div>`; }).join('')}
-      <div class="tiny muted mb">לא חובה. משהו קטן שיהיה שווה להתאמץ בשבילו. רק את רואה.</div>
+      <div class="card tight pr-list">${pick.selected.map((id, i) => { const ch = L.get(id); const r = (pick.rewards[id] || '').trim(); return `<div class="pr-item">
+        <div class="pr-row">${wordTile(ch, 'sm')}<div class="pr-t">${esc(ch.title)}</div><button class="icon-btn" aria-label="הסרה" onclick="App.pickToggle('${id}')">${icon('x', 16)}</button></div>
+        ${ro[id] ? `<input class="input pr-input" id="rw-${id}" maxlength="80" placeholder="${rewardExample(id, i)}" value="${esc(pick.rewards[id] || '')}" oninput="App.pickReward('${id}', this.value)" onblur="App.pickRewardDone('${id}')">`
+          : `<button class="pr-reward ${r ? 'set' : ''}" onclick="App.pickRewardOpen('${id}')">🎁 ${r ? `אם אצליח: ${esc(r)}` : 'אם אצליח, אני… <span>(לא חובה)</span>'}</button>`}
+      </div>`; }).join('')}</div>
       <div class="field"><label>מתי מתחילה?</label><div class="seg">${opts.map(([d, l]) => `<button class="${pick.startDate === d ? 'on' : ''}" onclick="${d === Mila.today() ? `App.pickSet('startDate','${d}')` : 'App.pickTomorrow()'}">${l}</button>`).join('')}</div></div>
       <div class="field"><label>מי רואה?</label>
-        <div class="choice ${!pick.circleId ? 'on' : ''}" onclick="App.pickSet('circleId', null)"><span class="radio">${!pick.circleId ? icon('check', 14) : ''}</span><div class="body"><div class="t">רק אני</div><div class="m">בלי קבוצה. בלי דירוג.</div></div><span class="tile sm gray">${icon('lock', 18)}</span></div>
-        ${circles.map(c => `<div class="choice ${pick.circleId === c.id ? 'on' : ''}" onclick="App.pickSet('circleId','${c.id}')"><span class="radio">${pick.circleId === c.id ? icon('check', 14) : ''}</span><div class="body"><div class="t">${esc(c.name)}</div><div class="m">${Mila.circleMembers(c.id).length} חברות · נכנסת לדירוג</div></div>${circleTile(c, 'sm')}</div>`).join('')}
-        <div class="choice ${pick.circleId === '__new__' ? 'on' : ''}" onclick="App.pickSet('circleId','__new__')"><span class="radio">${pick.circleId === '__new__' ? icon('check', 14) : ''}</span><div class="body"><div class="t">${circles.length ? 'קבוצה חדשה עם חברות' : 'עם חברות'}</div><div class="m">פותחת קבוצה, ומיד אחר כך מזמינה חברות</div></div><span class="tile sm pink">${icon('users', 18)}</span></div>
+        <div class="choice on clickable" onclick="App.pickWhoSheet()"><div class="body"><div class="t">${esc(who.t)}</div><div class="m">${who.m}</div></div><span class="pr-change">שינוי</span>${who.tile}</div>
         ${pick.circleId === '__new__' ? `<div class="field" style="margin:8px 0 0"><label>איך קוראים לקבוצה?</label><input class="input" maxlength="50" value="${esc(pick.newCircleName)}" oninput="App.pickNewName(this.value)"></div>` : ''}
       </div>
       ${circle && sensitive.length ? `<div class="checkbox-row ${pick.shareSensitive ? 'on' : ''}" onclick="App.pickSet('shareSensitive', ${!pick.shareSensitive})"><span class="box">${pick.shareSensitive ? icon('check', 16) : ''}</span><span>לשתף גם ${sensitive.length === 1 ? 'את האתגר הפרטי' : 'את האתגרים הפרטיים'} (זוגיות) עם ${esc(circle.name)}. בלי זה הם נשארים רק אצלך.</span></div>` : ''}
       ${!cap.ok ? `<div class="note warn">${icon('info', 18)}<span>3 אתגרים כבר רצים בימים האלה.${cap.nextFree ? ` פנוי מ-${Mila.fmtDate(cap.nextFree)}.` : ''}</span></div>` : ''}
       <div class="btn-row mt-lg"><button class="btn soft" onclick="App.pickBack()">חזרה</button><button class="btn primary" ${cap.ok && pick.selected.length ? '' : 'disabled'} ${busy ? 'disabled' : ''} onclick="App.pickCommit()">${busy ? 'רגע…' : 'מתחילה'}</button></div>`;
+  }
+  function pickRewardOpen(id) { pick.rewardOpen = { ...(pick.rewardOpen || {}), [id]: true }; render(); const el = document.getElementById('rw-' + id); if (el) el.focus(); }
+  function pickRewardDone(id) { if (pick && pick.rewardOpen) delete pick.rewardOpen[id]; } // בלי לרנדר מחדש באמצע לחיצה; בשינוי הבא יוצג כטקסט
+  function pickWhoSheet() {
+    const circles = Mila.myCircles();
+    const opt = (val, t, m, tile) => { const on = (pick.circleId || null) === val; return `<div class="choice ${on ? 'on' : ''}" onclick="App.pickSet('circleId', ${val === null ? 'null' : `'${val}'`})"><span class="radio">${on ? icon('check', 14) : ''}</span><div class="body"><div class="t">${t}</div><div class="m">${m}</div></div>${tile}</div>`; };
+    sheet(`<div class="sheet-title">מי רואה?</div><div class="sheet-sub">אפשר לשנות גם אחר כך.</div>
+      ${opt(null, 'רק אני', 'בלי קבוצה. בלי דירוג.', `<span class="tile sm gray">${icon('lock', 18)}</span>`)}
+      ${circles.map(c => opt(c.id, esc(c.name), `${Mila.circleMembers(c.id).length} חברות · נכנסת לדירוג`, circleTile(c, 'sm'))).join('')}
+      ${opt('__new__', circles.length ? 'קבוצה חדשה עם חברות' : 'עם חברות', 'פותחת קבוצה, ומיד אחר כך מזמינה חברות', `<span class="tile sm pink">${icon('users', 18)}</span>`)}`);
   }
   function pickCat(id) { pick.open = pick.open === id ? null : id; render(); }
   function pickToggle(id) {
@@ -1705,7 +1720,7 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
-    pickTomorrow, pickNewName, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
+    pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();

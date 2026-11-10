@@ -106,7 +106,7 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   await b.page.waitForSelector('text=2 מתוך 3 נבחרו', { timeout: 10000 }); await shot(b, '05c-b-pick-selected');
   await b.page.click('text=בחרתי. מה הלאה?');
   await b.page.waitForSelector('text=אם אצליח, אני…', { timeout: 10000 });
-  await b.page.fill('.card input[placeholder^="למשל:"] >> nth=0', 'ספר חדש');
+  await b.page.click('.pr-reward >> nth=0'); await b.page.fill('.pr-input', 'ספר חדש');
   await shot(b, '05d-b-pick-review');
   await b.page.click('button:has-text("מתחילה")');
   await b.page.waitForFunction(() => Mila.activeCommitments().length === 3, null, { timeout: 30000 });

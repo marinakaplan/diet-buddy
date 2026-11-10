@@ -820,3 +820,15 @@ body.wide #screen { padding-inline: 24px; }
 @media (max-height: 700px) { .w2-h { font-size: 2rem; } .w2-brand { margin-bottom: 18px; } .w2-rot { margin-top: 18px; } }
 .tomorrow-sheet .tm-logo { display: flex; justify-content: center; margin-bottom: 10px; animation: w2pop .6s cubic-bezier(.2, 1.6, .4, 1) both; }
 .tomorrow-sheet .sheet-title { font-size: 1.5rem; }
+/* בחירת אתגרים, שלב 2: רשימה קומפקטית, פרס נפתח בלחיצה */
+.pr-list { padding-block: 4px; }
+.pr-item { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.pr-item:last-child { border-bottom: 0; }
+.pr-row { display: flex; align-items: center; gap: 10px; }
+.pr-t { flex: 1; min-width: 0; font-weight: 700; }
+.pr-row .icon-btn { width: 32px; height: 32px; color: var(--ink-3); }
+.pr-reward { display: block; margin: 6px 0 0; padding: 0; border: 0; background: none; font: inherit; font-size: .85rem; font-weight: 600; color: var(--lav-ink); cursor: pointer; text-align: start; }
+.pr-reward span { color: var(--ink-3); font-weight: 400; }
+.pr-reward.set { color: var(--ink); }
+.pr-input { margin-top: 8px; }
+.pr-change { font-size: .8rem; font-weight: 700; color: var(--lav-ink); margin-inline-end: 4px; }
