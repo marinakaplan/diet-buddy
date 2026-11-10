@@ -320,8 +320,8 @@ const App = (() => {
 
       ${rankAll.length ? `<div class="card tight my-ranks"><div class="card-title">${rankAll.length === 1 ? 'הקבוצה שלך' : 'הקבוצות שלך'}</div>${rankAll.map(({ c, ri }) => {
         const hasWord = active.some(k => (Mila.wordDef(k.defId) || {}).circleId === c.id);
-        const note = !ri.place && !hasWord ? 'עוד אין לך אתגר בקבוצה' : !ri.place ? ri.text.replace(/\.$/, '') : ri.place === 1 ? 'את מובילה' : ri.above ? `${esc(ri.above.name)} לפנייך` : '';
-        return `<div class="rk-row" onclick="App.go('circle',{id:'${c.id}'})"><div class="rk-body"><div class="rk-name">${esc(c.name)}</div><div class="rk-line">${ri.place ? `<b class="rk-place ${ri.place === 1 ? 'first' : ''}">מקום ${ri.place}</b> מתוך ${ri.total}${note ? ` · ${note}` : ''}` : esc(note)}</div></div>${icon('chev', 18)}</div>`; }).join('')}</div>` : ''}
+        const status = ri.place ? `מקום ${ri.place} מתוך ${ri.total}` : !hasWord ? 'אין לך אתגר כאן' : 'עוד לא בדירוג';
+        return `<div class="rk-row" onclick="App.go('circle',{id:'${c.id}'})"><span class="rk-name">${esc(c.name)}</span><span class="rk-status">${status}</span>${icon('chev', 16)}</div>`; }).join('')}</div>` : ''}
 
       ${pendingSum.length ? pendingSum.slice(0, 1).map(c => `<div class="card pastel-lav clickable tight" onclick="App.go('summary',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">הסבב נגמר: ${esc(Mila.wordDef(c.defId).title)}</div><div class="small muted">איך הלך?</div></div>${icon('chev', 20)}</div></div>`).join('') : ''}
 
