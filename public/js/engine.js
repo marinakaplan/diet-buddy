@@ -6,7 +6,7 @@
 
    חוקים מרכזיים (לפי האפיון):
    - סבב = 14 ימים.          - לכל היותר 3 אירועים מחייבים ביום, בכל הקבוצות יחד.
-   - שקל מילה נוצר רק בהכרעה. - הצלחה -> EARN ; פספוס -> MISS_TO_CIRCLE / MISS_PERSONAL ; החרגה -> אין מטבע.
+   - נקודה (EARN) נוצרת רק בהכרעה. - הצלחה -> EARN ; פספוס -> MISS_TO_CIRCLE / MISS_PERSONAL ; החרגה -> אין מטבע.
    - יומן תנועות append-only. תיקון = REVERSE + תנועה חדשה, לא מחיקה.
    - דיווח חוזר מחזיר את ההכרעה הקיימת (idempotent).
    ============================================================ */
@@ -653,8 +653,7 @@ const Mila = (() => {
   }
 
   /* ---------- דירוג ---------- */
-  function leaderboard(circleId) {
-    const round = circleRound(circleId);
+  function leaderboard(circleId, round = circleRound(circleId)) {
     const members = circleMembers(circleId);
     const rows = members.map(u => {
       const cs = myCommitments(u.id).filter(c => (state.wordDefs[c.defId] || {}).circleId === circleId && c.status !== 'cancelled');
@@ -681,6 +680,15 @@ const Mila = (() => {
       r.place = place;
     });
     return { round, rows };
+  }
+
+  /* המנצחת של הסבב הקודם (מוצג בתחילת סבב חדש) */
+  function previousRoundWinner(circleId) {
+    const round = circleRound(circleId);
+    if (round.index < 2) return null;
+    const prev = circleRound(circleId, addDays(round.start, -1));
+    const top = leaderboard(circleId, prev).rows.find(r => r.ranked && r.place === 1);
+    return top ? { ...top, round: prev } : null;
   }
 
   /* ---------- פיד חברתי ---------- */
@@ -717,7 +725,7 @@ const Mila = (() => {
   /* ---------- הישגים ---------- */
   const ACHIEVEMENTS = {
     first_word: { title: 'נתתי מילה', desc: 'האתגר הראשון שלך', icon: 'pencil' },
-    first_day: { title: 'חתום וסגור', desc: 'השקל הראשון שהרווחת', icon: 'check' },
+    first_day: { title: 'חתום וסגור', desc: 'הנקודה הראשונה שלך', icon: 'check' },
     streak_7: { title: 'מילה אחר מילה', desc: 'שבע הצלחות ברצף באותה מילה', icon: 'flame' },
     streak_14: { title: 'מילה בסלע', desc: '14 הצלחות ברצף. סבב מושלם', icon: 'trophy' },
     first_circle: { title: 'קבוצה ראשונה', desc: 'הצטרפת לקבוצה', icon: 'users' },
@@ -800,7 +808,7 @@ const Mila = (() => {
     createPersonalWord, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment, updateWordVisibility,
     windowOf, isOpenNow, refreshStatuses, excusesUsed, report, canCorrect, correct,
     activeLedger, bankSummary, circlePool, circlePoolAllTime, streak, commitmentStats,
-    todayCards, decorate, upcomingWords, wordHistory, leaderboard, rankInsight,
+    todayCards, decorate, upcomingWords, wordHistory, leaderboard, rankInsight, previousRoundWinner,
     addEvent, feed, myFeedDigest, encourage, sendEncouragement,
     grant, achievementsFor, notify, notifications, unreadCount, markAllRead,
     isBlocked, block, unblock, blockedUsers, reportAbuse,

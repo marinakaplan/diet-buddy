@@ -111,7 +111,6 @@ const App = (() => {
   }
   function wordTile(def, size = '') { return `<span class="tile ${size} ${tileColorFor(def.title)}">${icon(def.icon || 'leaf', size === 'lg' ? 30 : size === 'sm' ? 20 : 24)}</span>`; }
   function circleTile(circle, size = '') { return `<span class="tile ${size} ${COLOR_TO_TILE[circle.color] || 'pink'}">${icon('users', size === 'lg' ? 28 : 22)}</span>`; }
-  function coinLabel(n) { return `${n} ₪ מילה`; }
   function days14(commitmentId) {
     const obs = Mila.obligationsOf(commitmentId);
     const today = Mila.today();
@@ -163,10 +162,10 @@ const App = (() => {
         <p>ואז מגיע מחר. וכלום. 😂</p>
         <p class="bold">אז די. בואי נעשה מזה משחק.</p>
       </div>
-      <div class="pitch-box"><div class="bold">3 אתגרים. 14 ימים. חברות.</div><div class="small muted">תעמדי באתגרים, תצברי שקלים ותראי מי מתמידה יותר.</div></div>
+      <div class="pitch-box"><div class="bold">3 אתגרים. 14 ימים. חברות.</div><div class="small muted">תעמדי באתגרים, תצברי נקודות ותראי מי מתמידה יותר.</div></div>
       ${Api.enabled ? `<button class="btn dark" onclick="App.googleSignIn()">${googleMark()} יאללה, אני בפנים</button>` : `<button class="btn primary" onclick="App.go('signup')">יאללה, אני בפנים</button>`}
       <button class="btn text mt" onclick="App.startDemo()">${icon('sparkle', 18)} להציץ בדוגמה</button>
-      <div class="disclaimer">כניסה עם Google · מגיל 18 · שקלים וירטואליים, בלי כסף אמיתי</div>
+      <div class="disclaimer">כניסה עם Google · מגיל 18 · בלי כסף, בלי תשלום</div>
     </div>`;
 
   function startDemo() {
@@ -186,7 +185,7 @@ const App = (() => {
     <div class="step-sub">ככה החברות יראו אותך.</div>
     <div class="field"><input class="input" id="su-name" placeholder="שם תצוגה" value="${esc(signupForm.name)}" autocomplete="given-name" maxlength="30" oninput="App.suChange('name', this.value)"></div>
     <div class="checkbox-row ${signupForm.age ? 'on' : ''}" onclick="App.suToggle('age')"><span class="box">${signupForm.age ? icon('check', 16) : ''}</span><span>אני בת 18 ומעלה</span></div>
-    <div class="checkbox-row ${signupForm.terms ? 'on' : ''}" onclick="App.suToggle('terms')"><span class="box">${signupForm.terms ? icon('check', 16) : ''}</span><span>הבנתי: השקלים וירטואליים, בלי כסף אמיתי.</span></div>
+    <div class="checkbox-row ${signupForm.terms ? 'on' : ''}" onclick="App.suToggle('terms')"><span class="box">${signupForm.terms ? icon('check', 16) : ''}</span><span>הבנתי: נקודות משחק, בלי כסף אמיתי.</span></div>
     <div class="mt-lg"><button class="btn primary" id="su-go" ${signupForm.name.trim() && signupForm.age && signupForm.terms ? '' : 'disabled'} onclick="App.signup()">חותמת על זה</button></div>`;
   function suChange(k, v) { signupForm[k] = v; $('#su-go').disabled = !(signupForm.name.trim() && signupForm.age && signupForm.terms); }
   function suToggle(k) { signupForm[k] = !signupForm[k]; render(); setTimeout(() => { const i = $('#su-name'); if (i && !signupForm.name) i.focus(); }, 0); }
@@ -224,7 +223,7 @@ const App = (() => {
       <div class="step-title mt-lg">איך קוראים לך?</div><div class="step-sub">ככה החברות יראו אותך.</div>
       <div class="field"><input class="input" id="pf-name" placeholder="שם תצוגה" maxlength="30" value="${esc(authForm.name || (Api.me && Api.me.name) || '')}" oninput="App.authSet('name', this.value)"></div>
       <div class="checkbox-row ${authForm.age ? 'on' : ''}" onclick="App.authToggle('age')"><span class="box">${authForm.age ? icon('check', 16) : ''}</span><span>אני בת 18 ומעלה</span></div>
-      <div class="checkbox-row ${authForm.terms ? 'on' : ''}" onclick="App.authToggle('terms')"><span class="box">${authForm.terms ? icon('check', 16) : ''}</span><span>קראתי את <a href="#" onclick="event.preventDefault(); App.termsSheet()">תנאי השימוש</a>. השקלים וירטואליים, בלי כסף אמיתי.</span></div>
+      <div class="checkbox-row ${authForm.terms ? 'on' : ''}" onclick="App.authToggle('terms')"><span class="box">${authForm.terms ? icon('check', 16) : ''}</span><span>קראתי את <a href="#" onclick="event.preventDefault(); App.termsSheet()">תנאי השימוש</a>. נקודות משחק, בלי כסף אמיתי.</span></div>
       <div class="mt-lg"><button class="btn primary" id="pf-go" ${busy ? 'disabled' : ''} onclick="App.completeProfile()">${busy ? 'רגע…' : 'חותמת על זה'}</button></div>
       <button class="btn text mt" onclick="App.signOut()">יציאה</button>
     </div>`;
@@ -234,10 +233,10 @@ const App = (() => {
     sheet(`<div class="sheet-title">תנאי שימוש (בטא)</div>
       <div class="small muted" style="line-height:1.7">
       <p><b>מה זה.</b> מילה היא משחק חברתי של התחייבויות ל-14 יום. הדיווח הוא עצמי ומבוסס אמון.</p>
-      <p><b>שקלי מילה.</b> יחידת משחק בלבד. אין להם ערך כספי, אי אפשר לקנות, למכור, להעביר, למשוך או להמיר אותם, ואין בהם הימור או פרס. אין תרומות באפליקציה.</p>
+      <p><b>נקודות.</b> יחידת משחק בלבד: נקודה על כל יום שעמדת בו. אין להן ערך כספי, אי אפשר לקנות, למכור, להעביר או להמיר אותן, ואין בהן הימור או פרס. אין תשלומים ואין תרומות באפליקציה.</p>
       <p><b>גיל.</b> השימוש מותר מגיל 18.</p>
       <p><b>מידע.</b> נשמרים: שם תצוגה, אימייל (לכניסה בלבד), אזור זמן, המילים והדיווחים שלך. חברות בקבוצה רואות את מה שבחרת לחשוף. אין גישה לאנשי קשר, אין מכירת מידע.</p>
-      <p><b>שליטה.</b> אפשר לייצא את הנתונים ולמחוק את החשבון מההגדרות בכל רגע. לאחר מחיקה הפרופיל הופך לאנונימי; תנועות היסטוריות של קופות משותפות נשמרות ללא זיהוי.</p>
+      <p><b>שליטה.</b> אפשר לייצא את הנתונים ולמחוק את החשבון מההגדרות בכל רגע. לאחר מחיקה הפרופיל הופך לאנונימי; ההיסטוריה של הקבוצות נשמרת ללא זיהוי.</p>
       <p><b>התנהגות.</b> בלי הטרדה, לחץ או תוכן פוגעני. אפשר לחסום ולדווח מכל קבוצה. אנחנו רשאיות להסיר תוכן או חשבון שמפר את זה.</p>
       <p><b>בטא.</b> השירות ניתן כפי שהוא, ללא התחייבות לזמינות. הוא רץ על תשתית חינמית; ייתכנו הגבלות שימוש.</p>
       </div><button class="btn soft mt" onclick="App.closeSheet()">סגירה</button>`);
@@ -330,7 +329,7 @@ const App = (() => {
   function todayRow(x) {
     const st = x.outcome === 'success' ? 'done' : x.outcome === 'miss' ? 'miss' : x.outcome === 'excused' ? 'excused' : x.late ? 'late' : '';
     const mark = x.outcome === 'success' ? icon('check', 18) : x.outcome === 'miss' ? icon('x', 16) : x.outcome === 'excused' ? icon('minus', 16) : '';
-    const meta = x.outcome === 'success' ? '<span class="chip lime">+1</span>' : x.outcome === 'miss' ? `<span class="chip pink">${x.circle ? 'שקל לקופה' : 'לא היום'}</span>` : x.outcome === 'excused' ? '<span class="chip lav">יום חריג</span>' : x.late ? `<span class="chip peach">${icon('clock', 13)} אתמול · עד 10:00</span>` : '';
+    const meta = x.outcome === 'success' ? '<span class="chip lime">+1</span>' : x.outcome === 'miss' ? `<span class="chip pink">לא היום</span>` : x.outcome === 'excused' ? '<span class="chip lav">יום חריג</span>' : x.late ? `<span class="chip peach">${icon('clock', 13)} אתמול · עד 10:00</span>` : '';
     const streak = x.stats.current >= 2 ? `<span class="chip">${icon('flame', 13)} ${x.stats.current} ימים ברצף</span>` : '';
     return `<div class="word-row ${x.outcome === 'success' ? 'done' : ''}">
       <button class="check ${st}" aria-label="דיווח" onclick="event.stopPropagation(); App.reportSheet('${x.id}')">${mark}</button>
@@ -346,7 +345,7 @@ const App = (() => {
     const o = Mila.decorate(Mila.getState().obligations[obligationId]);
     if (o.outcome) {
       // כבר הוכרע: הצגה + אפשרות תיקון
-      return sheet(`<div class="sheet-hero">${wordTile(o.def, 'lg')}<div class="sheet-title">${esc(o.def.title)}</div><div class="sheet-sub">${Mila.relDay(o.localDate)} · ${o.outcome === 'success' ? 'אמרת ועשית. +1' : o.outcome === 'miss' ? (o.circle ? 'לא היום. שקל לקופה' : 'לא היום') : 'יום חריג'}</div></div>
+      return sheet(`<div class="sheet-hero">${wordTile(o.def, 'lg')}<div class="sheet-title">${esc(o.def.title)}</div><div class="sheet-sub">${Mila.relDay(o.localDate)} · ${o.outcome === 'success' ? 'אמרת ועשית. +1' : o.outcome === 'miss' ? 'לא היום. הרצף התאפס' : 'יום חריג'}</div></div>
         ${o.canCorrect ? `<button class="btn soft" onclick="App.correctionSheet('${o.id}')">${icon('edit', 18)} טעות? לתקן</button><div class="tiny muted center mt">עד 24 שעות.</div>` : '<div class="note">' + icon('lock', 18) + '<span>נעול. עברו 24 שעות.</span></div>'}
         <button class="btn text mt" onclick="App.closeSheet()">סגירה</button>`);
     }
@@ -354,14 +353,14 @@ const App = (() => {
     const excusesLeft = Mila.RULES.MAX_EXCUSES_PER_ROUND - Mila.excusesUsed(o.commitmentId);
     sheet(`<div class="sheet-hero">${wordTile(o.def, 'lg')}<div class="sheet-title">${esc(o.def.title)}</div><div class="sheet-sub">${esc(o.def.rule)}</div></div>
       <div class="outcome-btns">
-        <button class="btn primary" onclick="App.doReport('${o.id}','success')">${icon('check', 26)}עמדתי בזה<small>+1</small></button>
-        <button class="btn pink" onclick="App.confirmMiss('${o.id}')">${icon('x', 24)}פספסתי<small>${o.circle ? 'שקל לקופה' : 'לא היום'}</small></button>
+        <button class="btn primary" onclick="App.doReport('${o.id}','success')">${icon('check', 26)}עמדתי בזה<small>+1 נקודה</small></button>
+        <button class="btn pink" onclick="App.confirmMiss('${o.id}')">${icon('x', 24)}פספסתי<small>הרצף מתאפס</small></button>
       </div>
       <button class="btn text mt" ${excusesLeft > 0 ? `onclick="App.excuseSheet('${o.id}')"` : 'disabled'}>${icon('minus', 16)} יום חריג ${excusesLeft > 0 ? `(נשארו ${excusesLeft})` : '(נגמרו)'}</button>`);
   }
   function confirmMiss(id) {
     const o = Mila.decorate(Mila.getState().obligations[id]);
-    confirmSheet({ title: 'לא היום?', sub: o.circle ? 'שקל אחד הולך לקופה. מחר שוב.' : 'נרשם. מחר שוב.', okText: 'כן, פספסתי', okClass: 'pink', onOk: () => doReport(id, 'miss') });
+    confirmSheet({ title: 'לא היום?', sub: 'הרצף של האתגר מתאפס. הנקודות שצברת נשארות. מחר שוב.', okText: 'כן, פספסתי', okClass: 'pink', onOk: () => doReport(id, 'miss') });
   }
   function excuseSheet(id) {
     sheet(`<div class="sheet-title">יום חריג</div><div class="sheet-sub">לא נספר ולא שובר רצף. עד 2 בסבב.</div>
@@ -372,8 +371,8 @@ const App = (() => {
       const { obligation, duplicate } = await Store().report(id, outcome, { note });
       closeSheet(true);
       if (duplicate) toast('כבר נשמר');
-      else if (outcome === 'success') toast('אמרת ועשית. +1', 'lime');
-      else if (outcome === 'miss') toast(Mila.decorate(obligation).circle ? 'הלך לקופה. מחר שוב.' : 'לא היום. מחר שוב.');
+      else if (outcome === 'success') toast('אמרת ועשית. +1 נקודה', 'lime');
+      else if (outcome === 'miss') toast('לא היום. מחר שוב.');
       else toast('יום חריג. הרצף נשאר.');
       render();
     } catch (e) { fail(e); }
@@ -432,8 +431,8 @@ const App = (() => {
       const circles = Mila.myCircles();
       return `${header}${steps}
       <div class="step-title">מי רואה?</div>
-      <div class="choice ${!wiz.circleId ? 'on' : ''}" onclick="App.wizSet('circleId', null); App.refresh()"><span class="radio">${!wiz.circleId ? icon('check', 14) : ''}</span><div class="body"><div class="t">רק אני</div><div class="m">פספוס נשאר אצלי.</div></div><span class="tile sm gray">${icon('lock', 18)}</span></div>
-      ${circles.map(c => `<div class="choice ${wiz.circleId === c.id ? 'on' : ''}" onclick="App.wizSet('circleId','${c.id}'); App.refresh()"><span class="radio">${wiz.circleId === c.id ? icon('check', 14) : ''}</span><div class="body"><div class="t">${esc(c.name)}</div><div class="m">${Mila.circleMembers(c.id).length} חברות · פספוס הולך לקופה</div></div>${circleTile(c, 'sm')}</div>`).join('')}
+      <div class="choice ${!wiz.circleId ? 'on' : ''}" onclick="App.wizSet('circleId', null); App.refresh()"><span class="radio">${!wiz.circleId ? icon('check', 14) : ''}</span><div class="body"><div class="t">רק אני</div><div class="m">בלי קבוצה. בלי דירוג.</div></div><span class="tile sm gray">${icon('lock', 18)}</span></div>
+      ${circles.map(c => `<div class="choice ${wiz.circleId === c.id ? 'on' : ''}" onclick="App.wizSet('circleId','${c.id}'); App.refresh()"><span class="radio">${wiz.circleId === c.id ? icon('check', 14) : ''}</span><div class="body"><div class="t">${esc(c.name)}</div><div class="m">${Mila.circleMembers(c.id).length} חברות · נכנסת לדירוג</div></div>${circleTile(c, 'sm')}</div>`).join('')}
       ${!circles.length ? `<div class="tiny muted">עוד אין לך קבוצה. אפשר לפתוח אחת אחר כך.</div>` : ''}
       ${wiz.circleId ? `<div class="field mt"><label>מה הן רואות</label>
         <div class="seg"><button class="${wiz.visibility === 'status' ? 'on' : ''}" onclick="App.wizSet('visibility','status'); App.refresh()">כל יום</button><button class="${wiz.visibility === 'summary' ? 'on' : ''}" onclick="App.wizSet('visibility','summary'); App.refresh()">רק בסוף</button></div>
@@ -529,7 +528,7 @@ const App = (() => {
       <div class="tiny muted mb">לא חובה. משהו קטן שיהיה שווה להתאמץ בשבילו. רק את רואה.</div>
       <div class="field"><label>מתי מתחילים?</label><div class="seg">${opts.map(([d, l]) => `<button class="${pick.startDate === d ? 'on' : ''}" onclick="App.pickSet('startDate','${d}')">${l}</button>`).join('')}</div></div>
       <div class="field"><label>מי רואה?</label>
-        <div class="choice ${!pick.circleId ? 'on' : ''}" onclick="App.pickSet('circleId', null)"><span class="radio">${!pick.circleId ? icon('check', 14) : ''}</span><div class="body"><div class="t">רק אני</div><div class="m">בלי קבוצה. בלי קופה.</div></div><span class="tile sm gray">${icon('lock', 18)}</span></div>
+        <div class="choice ${!pick.circleId ? 'on' : ''}" onclick="App.pickSet('circleId', null)"><span class="radio">${!pick.circleId ? icon('check', 14) : ''}</span><div class="body"><div class="t">רק אני</div><div class="m">בלי קבוצה. בלי דירוג.</div></div><span class="tile sm gray">${icon('lock', 18)}</span></div>
         ${circles.map(c => `<div class="choice ${pick.circleId === c.id ? 'on' : ''}" onclick="App.pickSet('circleId','${c.id}')"><span class="radio">${pick.circleId === c.id ? icon('check', 14) : ''}</span><div class="body"><div class="t">${esc(c.name)}</div><div class="m">${Mila.circleMembers(c.id).length} חברות · נכנסת לדירוג</div></div>${circleTile(c, 'sm')}</div>`).join('')}
         ${!circles.length ? `<div class="tiny muted">עוד אין לך קבוצה. אפשר להזמין חברות אחר כך.</div>` : ''}
       </div>
@@ -626,8 +625,8 @@ const App = (() => {
     const line = rate === null ? 'לא היו ימים לספור.' : rate >= 0.85 ? 'כמעט בלי לפספס.' : rate >= 0.6 ? 'רוב הימים עמדת.' : 'סבב קשה. מה שעמדת בו נשאר.';
     return `${topbar({ title: 'סיכום', back: true })}
       <div class="sheet-hero">${wordTile(s.def, 'lg')}<div class="sheet-title">${rate !== null && s.stats.miss === 0 && s.stats.success >= 14 ? 'מילה בסלע.' : 'אמרת ועשית.'}</div><div class="sheet-sub">${esc(s.def.title)} · 14 יום</div></div>
-      <div class="card balance-card pastel-lime"><div class="label">הרווחת בסבב</div><div class="amount">${icon('coins', 34)}<span class="num">${s.earned}</span><span class="cur">₪</span></div><div class="note" style="display:inline-flex;margin:8px 0 0">${line}</div></div>
-      <div class="stat-grid mb"><div class="stat lime"><div class="n">${s.stats.success}</div><div class="l">עמדתי</div></div><div class="stat pink"><div class="n">${s.stats.miss}</div><div class="l">${s.circle ? 'הלך לקופה' : 'פספסתי'}</div></div><div class="stat lav"><div class="n">${s.stats.excused}</div><div class="l">ימים חריגים</div></div></div>
+      <div class="card balance-card pastel-lime"><div class="label">נקודות בסבב</div><div class="amount">${icon('star', 34)}<span class="num">${s.earned}</span><span class="cur">נק׳</span></div><div class="note" style="display:inline-flex;margin:8px 0 0">${line}</div></div>
+      <div class="stat-grid mb"><div class="stat lime"><div class="n">${s.stats.success}</div><div class="l">עמדתי</div></div><div class="stat pink"><div class="n">${s.stats.miss}</div><div class="l">פספסתי</div></div><div class="stat lav"><div class="n">${s.stats.excused}</div><div class="l">ימים חריגים</div></div></div>
       <div class="card"><div class="card-title">יום אחרי יום <span class="link">${s.stats.rate !== null ? pct(s.stats.rate) : ''}</span></div>${days14(id)}<div class="kv mt"><span class="k">${icon('flame', 18)} הרצף הכי ארוך</span><span class="v">${s.stats.best} ימים</span></div></div>
       ${s.circle ? `<div class="card tight clickable" onclick="App.go('circle',{id:'${s.circle.id}'})"><div class="list-row">${circleTile(s.circle, 'sm')}<div class="body"><div class="t">${esc(s.circle.name)}</div><div class="m">מי מובילה?</div></div>${icon('chev', 18)}</div></div>` : ''}
       <button class="btn primary" onclick="${s.def.libraryId ? `App.openPick(['${s.def.libraryId}'])` : `App.openWordWizard({title:'${esc(s.def.title).replace(/'/g, '&#39;')}', rule:'${esc(s.def.rule).replace(/'/g, '&#39;')}', icon:'${s.def.icon}', startDate:'${Mila.today()}'})`}">${icon('repeat', 20)} עוד סיבוב?</button>
@@ -717,7 +716,7 @@ const App = (() => {
     if (!c || !Mila.isMember(id)) return `${topbar({ title: 'קבוצה' })}<div class="empty"><div class="t">את לא בקבוצה הזו</div></div>`;
     const members = Mila.circleMembers(id);
     const round = Mila.circleRound(id);
-    const pool = Mila.circlePool(id, round);
+    const prev = Mila.previousRoundWinner(id);
     const left = Math.max(0, Mila.RULES.ROUND_DAYS - round.dayIndex);
     const groupWords = Object.values(S.wordDefs).filter(d => d.circleId === id && d.kind === 'group' && d.status !== 'cancelled').sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     const liveGroup = groupWords.filter(d => (d.endDate || '9999') >= Mila.today());
@@ -727,14 +726,15 @@ const App = (() => {
     const ri = Mila.rankInsight(id);
     const meId = Mila.me().id;
     return `${topbar({ title: c.name, end: `<button class="icon-btn lime" aria-label="להזמין חברה" onclick="App.inviteSheet('${id}')">${icon('share', 20)}</button><button class="icon-btn" aria-label="עוד" onclick="App.circleMenu('${id}')">${icon('more', 22)}</button>` })}
-      <div class="round-line"><span class="bold">יום ${round.dayIndex} מתוך ${Mila.RULES.ROUND_DAYS}</span><span class="muted">·</span><span class="muted">${left === 0 ? 'היום האחרון' : left === 1 ? 'נשאר יום אחד' : `נשארו ${left} ימים`}</span><span class="chip" style="margin-inline-start:auto">${icon('coins', 13)} ${pool} ₪ בקופה</span></div>
+      <div class="round-line"><span class="bold">יום ${round.dayIndex} מתוך ${Mila.RULES.ROUND_DAYS}</span><span class="muted">·</span><span class="muted">${left === 0 ? 'היום האחרון' : left === 1 ? 'נשאר יום אחד' : `נשארו ${left} ימים`}</span><span class="chip" style="margin-inline-start:auto">סבב ${round.index}</span></div>
       <div class="progress mb"><i style="width:${(round.dayIndex / Mila.RULES.ROUND_DAYS) * 100}%"></i></div>
 
       <div class="card"><div class="card-title">מי מובילה?</div>
         ${rows.length ? rows.map(r => `<div class="bar-row ${r.user.id === meId ? 'me' : ''} ${!r.ranked ? 'unranked' : ''}"><span class="place ${r.place === 1 ? 'first' : ''}">${r.place ?? '–'}</span>${avatar(r.user, 32)}<div class="body"><div class="t">${esc(r.user.name)}${r.user.id === meId ? ' (את)' : ''}</div>${r.ranked ? `<div class="bar"><i style="width:${Math.round(r.rate * 100)}%"></i></div>` : `<div class="m">${r.hidden ? 'מחוץ לדירוג' : `עוד ${Math.max(Mila.RULES.MIN_RANKED_EVENTS - r.resolved, 1)} דיווחים`}</div>`}</div><span class="rate">${r.ranked ? pct(r.rate) : ''}</span><span class="pts" title="הצלחות">${r.success}</span></div>`).join('') : `<div class="small muted">עוד אין דיווחים בסבב הזה.</div>`}
         ${ri ? `<div class="insight">${esc(ri.text)}</div>` : ''}
-        <div class="tiny muted" style="margin-top:8px">אחוז הצלחה מתוך הימים שדווחו, ומספר ההצלחות. ${Mila.RULES.MIN_RANKED_EVENTS} דיווחים לפחות כדי להיכנס לדירוג.</div>
+        <div class="tiny muted" style="margin-top:8px">אחוז הצלחה מתוך הימים שדווחו, ומספר הנקודות. ${Mila.RULES.MIN_RANKED_EVENTS} דיווחים לפחות כדי להיכנס לדירוג.</div>
       </div>
+      ${prev ? `<div class="card tight pastel-lav"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">${prev.user.id === meId ? 'את ניצחת את הסבב הקודם.' : `${esc(prev.user.name)} ניצחה את הסבב הקודם.`}</div><div class="small muted">${pct(prev.rate)} התמדה · ${prev.success} נקודות · ${Mila.fmtDate(prev.round.start)} – ${Mila.fmtDate(prev.round.end)}</div></div></div></div>` : ''}
 
       ${hero && !Mila.myAdoption(hero.id) ? `<div class="card pastel-lime clickable tight" onclick="App.go('groupWord',{id:'${hero.id}'})"><div style="display:flex;align-items:center;gap:12px">${wordTile(hero)}<div style="flex:1"><div class="bold">בואי, כולנו צריכות את זה</div><div class="small muted">${esc(hero.title)} · ${Mila.adopters(hero.id).length} בפנים</div></div><button class="btn primary sm">אני בפנים</button></div></div>` : ''}
 
@@ -749,7 +749,7 @@ const App = (() => {
     const t = e.payload && e.payload.title ? `״${esc(e.payload.title)}״` : '';
     switch (e.type) {
       case 'day_success': return `${n} אמרה ועשתה: ${t} <span class="chip lime">+1</span>`;
-      case 'day_miss': return `${n} פספסה: ${t} <span class="chip pink">שקל לקופה</span>`;
+      case 'day_miss': return `${n} פספסה: ${t}`;
       case 'overtake': { const p = Mila.user(e.payload.passedUserId); return `${n} עקפה את ${p ? esc(p.name) : 'חברה'} ${icon('trophy', 14)}`; }
       case 'day_excused': return `${n} יום חריג: ${t}`;
       case 'streak': return `${n} ${e.payload.streak} ימים ברצף: ${t} ${icon('flame', 14)}`;
@@ -803,7 +803,7 @@ const App = (() => {
   }
   function removeMember(circleId, userId) {
     const u = Mila.user(userId);
-    confirmSheet({ title: `להסיר את ${u.name}?`, sub: 'היא לא תראה יותר את הקבוצה. השקלים שלה נשארים שלה.', okText: 'להסיר', okClass: 'pink', onOk: async () => { await Store().removeMember(circleId, userId); closeSheet(true); render(); toast('הוסרה מהקבוצה'); } });
+    confirmSheet({ title: `להסיר את ${u.name}?`, sub: 'היא לא תראה יותר את הקבוצה. הנקודות שלה נשארות שלה.', okText: 'להסיר', okClass: 'pink', onOk: async () => { await Store().removeMember(circleId, userId); closeSheet(true); render(); toast('הוסרה מהקבוצה'); } });
   }
   function encourageSheet(circleId, toUserId) {
     const u = Mila.user(toUserId);
@@ -956,7 +956,7 @@ const App = (() => {
     const r = Mila.circleRound(gwiz.circleId);
     const opts = [[Mila.today(), 'מהיום', 'מי שמצטרפת אחר כך מתחילה מהיום שלה'], [r.nextStart, 'בסבב הבא', `${Mila.fmtDate(r.nextStart)}, כולן ביחד`]];
     return `${topbar({ title: 'מילה לכולנו', subtitle: c.name })}
-      <div class="step-title">איזו מילה נותנות ביחד?</div><div class="step-sub">כל אחת נמדדת לבד. פספוס הולך לקופה.</div>
+      <div class="step-title">איזו מילה נותנות ביחד?</div><div class="step-sub">כל אחת נמדדת לבד. מתחרות על התמדה.</div>
       ${templateChips('gwTemplate', gwiz.title)}
       <div class="field"><label>המילה</label><input class="input" placeholder="למשל: 8,000 צעדים ביום" maxlength="60" value="${esc(gwiz.title)}" oninput="App.gwSet('title', this.value)"></div>
       <div class="field"><label>מה נחשב הצלחה?</label><textarea class="input" maxlength="200" placeholder="כלל שכולן יכולות למדוד" oninput="App.gwSet('rule', this.value)">${esc(gwiz.rule)}</textarea></div>
@@ -991,8 +991,8 @@ const App = (() => {
       ${fresh ? `<div class="note lime">${icon('sparkle', 18)}<span>החברות קיבלו הודעה.</span></div>` : ''}
       <div class="card tight">
         <div class="kv"><span class="k">${icon('calendar', 18)} הסבב</span><span class="v">${Mila.fmtDate(def.startDate)} – ${Mila.fmtDate(def.endDate)}</span></div>
-        <div class="kv"><span class="k">${icon('coin', 18)} על הכף</span><span class="v">1 ₪ ליום, לכל אחת</span></div>
-        <div class="kv"><span class="k">${icon('coins', 18)} פספוס</span><span class="v">הולך לקופה</span></div>
+        <div class="kv"><span class="k">${icon('star', 18)} נקודות</span><span class="v">נקודה לכל יום שעמדת בו</span></div>
+        <div class="kv"><span class="k">${icon('flame', 18)} פספוס</span><span class="v">הרצף מתאפס</span></div>
         <div class="kv"><span class="k">${icon('eye', 18)} רואות</span><span class="v">${def.visibility === 'summary' ? 'רק בסוף' : 'כל יום'}</span></div>
       </div>
       ${ad.length ? `<div class="card tight"><div class="card-title">מי בפנים</div>${ad.map(u => { const st = Mila.commitmentStats(u.commitmentId); return `<div class="list-row">${avatar(u, 36)}<div class="body"><div class="t">${esc(u.name)}${u.id === Mila.me().id ? ' (את)' : ''}</div><div class="m">${st.resolved ? `${st.success} הצלחות${st.current ? ` · ${st.current} ברצף` : ''}` : 'עוד לא התחילה'}</div></div></div>`; }).join('')}</div>` : ''}
@@ -1006,7 +1006,7 @@ const App = (() => {
     const def = Mila.wordDef(id); const start = def.startDate < Mila.today() ? Mila.today() : def.startDate;
     const end = def.endDate; const days = Mila.diffDays(start, end) + 1;
     sheet(`<div class="sheet-hero">${wordTile(def, 'lg')}<div class="sheet-title">אני בפנים?</div><div class="sheet-sub">${esc(def.title)} · ${days} ימים מ-${Mila.relDay(start)}</div></div>
-      <div class="kv"><span class="k">${icon('coin', 18)} על הכף</span><span class="v">עד ${days} ₪</span></div>
+      <div class="kv"><span class="k">${icon('star', 18)} נקודות</span><span class="v">עד ${days}</span></div>
       <div class="kv"><span class="k">${icon('eye', 18)} רואות</span><span class="v">${def.visibility === 'summary' ? 'רק בסוף' : 'כל יום'}</span></div>
       <div class="btn-row mt"><button class="btn soft" onclick="App.closeSheet()">הפעם לא</button><button class="btn primary" onclick="App.adopt('${id}')">חותמת על זה</button></div>`);
   }
@@ -1016,22 +1016,22 @@ const App = (() => {
   function cancelProposal(id) { confirmSheet({ title: 'לבטל?', sub: 'עוד אף אחת לא בפנים.', okText: 'לבטל', okClass: 'pink', onOk: async () => { await Store().cancelProposal(id); closeSheet(true); back(); toast('בוטל.'); } }); }
 
   /* ============================================================
-     S14 — בנק מילה
+     S14 — הנקודות שלי
      ============================================================ */
   SCREENS.bank = () => {
     const b = Mila.bankSummary();
     const S = Mila.getState();
     const circles = Object.keys(b.byCircle).filter(k => k !== 'personal').map(k => S.circles[k]).filter(Boolean);
     const txs = b.transactions.filter(t => bankFilter === 'all' || (bankFilter === 'earn' ? t.type === 'EARN' : t.type !== 'EARN'));
-    return `${topbar({ title: 'השקלים שלי' })}
-      <div class="card balance-card pastel-lime"><div class="label">הרווחת בסך הכול</div><div class="amount">${icon('coins', 40)}<span class="num">${b.earnedTotal}</span><span class="cur">₪</span></div><div class="note" style="display:inline-flex;margin:6px 0 0;padding:6px 12px">שקלים וירטואליים. בלי כסף אמיתי.</div></div>
-      <div class="stat-grid mb"><div class="stat lime"><div class="n">${b.earnedCurrentRound}</div><div class="l">הרווחת בסבב</div></div><div class="stat pink"><div class="n">${b.missedCurrentRound}</div><div class="l">הלך לקופה</div></div><div class="stat lav"><div class="n">${b.pendingSlots}</div><div class="l">עוד על הכף</div></div></div>
-      ${circles.length || b.byCircle.personal ? `<div class="card tight"><div class="card-title">לפי קבוצה</div>${circles.map(c => `<div class="kv"><span class="k">${circleTile(c, 'sm')} ${esc(c.name)}</span><span class="v"><span class="chip lime">הרווחת ${b.byCircle[c.id].earned}</span> <span class="chip pink">לקופה ${b.byCircle[c.id].missed}</span></span></div>`).join('')}${b.byCircle.personal ? `<div class="kv"><span class="k"><span class="tile sm gray">${icon('lock', 18)}</span> רק אני</span><span class="v"><span class="chip lime">הרווחת ${b.byCircle.personal.earned}</span> <span class="chip pink">פספסתי ${b.byCircle.personal.missed}</span></span></div>` : ''}</div>` : ''}
+    return `${topbar({ title: 'הנקודות שלי' })}
+      <div class="card balance-card pastel-lime"><div class="label">נקודות בסך הכול</div><div class="amount">${icon('star', 40)}<span class="num">${b.earnedTotal}</span><span class="cur">נק׳</span></div><div class="note" style="display:inline-flex;margin:6px 0 0;padding:6px 12px">נקודה על כל יום שעמדת בו. בלי כסף.</div></div>
+      <div class="stat-grid mb"><div class="stat lime"><div class="n">${b.earnedCurrentRound}</div><div class="l">בסבב הזה</div></div><div class="stat pink"><div class="n">${b.missedCurrentRound}</div><div class="l">פספוסים</div></div><div class="stat lav"><div class="n">${b.pendingSlots}</div><div class="l">עוד אפשר לצבור</div></div></div>
+      ${circles.length || b.byCircle.personal ? `<div class="card tight"><div class="card-title">לפי קבוצה</div>${circles.map(c => `<div class="kv"><span class="k">${circleTile(c, 'sm')} ${esc(c.name)}</span><span class="v"><span class="chip lime">${b.byCircle[c.id].earned} נק׳</span> <span class="chip pink">${b.byCircle[c.id].missed} פספוסים</span></span></div>`).join('')}${b.byCircle.personal ? `<div class="kv"><span class="k"><span class="tile sm gray">${icon('lock', 18)}</span> רק אני</span><span class="v"><span class="chip lime">הרווחת ${b.byCircle.personal.earned}</span> <span class="chip pink">פספסתי ${b.byCircle.personal.missed}</span></span></div>` : ''}</div>` : ''}
       <div class="section-title">יום אחרי יום</div>
-      <div class="seg mb"><button class="${bankFilter === 'all' ? 'on' : ''}" onclick="App.bankFilter('all')">הכול</button><button class="${bankFilter === 'earn' ? 'on' : ''}" onclick="App.bankFilter('earn')">הרווחת</button><button class="${bankFilter === 'miss' ? 'on' : ''}" onclick="App.bankFilter('miss')">פספוסים</button></div>
+      <div class="seg mb"><button class="${bankFilter === 'all' ? 'on' : ''}" onclick="App.bankFilter('all')">הכול</button><button class="${bankFilter === 'earn' ? 'on' : ''}" onclick="App.bankFilter('earn')">נקודות</button><button class="${bankFilter === 'miss' ? 'on' : ''}" onclick="App.bankFilter('miss')">פספוסים</button></div>
       ${txs.length ? `<div class="card tight">${txs.slice(0, 60).map(t => {
         const plus = t.type === 'EARN'; const rev = t.type === 'REVERSE';
-        return `<div class="tx ${t.reversed ? 'reversed' : ''}"><span class="amt ${rev ? 'zero' : plus ? 'plus' : 'minus'}">${rev ? '↺' : plus ? '+1' : '−1'}</span><div class="body"><div class="t">${esc(t.title || 'מילה')}</div><div class="m">${rev ? 'תיקון' : plus ? 'אמרת ועשית' : t.type === 'MISS_TO_CIRCLE' ? `הלך לקופת ${esc(t.circleName || 'הקבוצה')}` : 'פספוס אישי'} · ${Mila.relDay(t.localDate)}${t.reversed ? ' · בוטל' : ''}</div></div>${wordTile({ title: t.title, icon: t.icon }, 'sm')}</div>`;
+        return `<div class="tx ${t.reversed ? 'reversed' : ''}"><span class="amt ${rev ? 'zero' : plus ? 'plus' : 'minus'}">${rev ? '↺' : plus ? '+1' : '0'}</span><div class="body"><div class="t">${esc(t.title || 'מילה')}</div><div class="m">${rev ? 'תיקון' : plus ? 'אמרת ועשית' : t.type === 'MISS_TO_CIRCLE' ? `פספוס · ${esc(t.circleName || 'הקבוצה')}` : 'פספוס'} · ${Mila.relDay(t.localDate)}${t.reversed ? ' · בוטל' : ''}</div></div>${wordTile({ title: t.title, icon: t.icon }, 'sm')}</div>`;
       }).join('')}</div>` : `<div class="empty"><div class="t">עוד כלום</div><div class="m">כל יום שתדווחי יופיע כאן.</div></div>`}`;
   };
   function setBankFilter(f) { bankFilter = f; render(); }
@@ -1047,9 +1047,9 @@ const App = (() => {
     const active = Mila.activeCommitments();
     const completed = hist.filter(h => h.status === 'completed').length;
     return `${topbar({ title: 'אני', back: false, end: `<button class="icon-btn" aria-label="הגדרות" onclick="App.go('settings')">${icon('settings', 24)}</button>` })}
-      <div class="sheet-hero" style="margin-top:0">${avatar(u, 84)}<div class="sheet-title" style="margin-top:10px">${esc(u.name)}</div><div class="sheet-sub">${completed ? `${hebrewPlural(completed, 'סבב אחד', 'סבבים')} · ` : ''}${hebrewPlural(active.length, 'מילה אחת עכשיו', 'מילים עכשיו')}</div></div>
-      <div class="card tight clickable pastel-lime" onclick="App.go('bank')"><div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('coins')}</span><div style="flex:1"><div class="bold">הרווחת ${b.earnedTotal} ₪</div><div class="small muted">השקלים שלי</div></div>${icon('chev', 20)}</div></div>
-      <div class="stat-grid mb"><div class="stat lime"><div class="n">${b.earnedTotal}</div><div class="l">הרווחת</div></div><div class="stat pink"><div class="n">${b.missedTotal}</div><div class="l">פספסת</div></div><div class="stat lav"><div class="n">${ach.filter(a => a.earned).length}</div><div class="l">הישגים</div></div></div>
+      <div class="sheet-hero" style="margin-top:0">${avatar(u, 84)}<div class="sheet-title" style="margin-top:10px">${esc(u.name)}</div><div class="sheet-sub">${completed ? `${hebrewPlural(completed, 'סבב אחד', 'סבבים')} · ` : ''}${hebrewPlural(active.length, 'אתגר אחד עכשיו', 'אתגרים עכשיו')}</div></div>
+      <div class="card tight clickable pastel-lime" onclick="App.go('bank')"><div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('star')}</span><div style="flex:1"><div class="bold">${b.earnedTotal} נקודות</div><div class="small muted">הנקודות שלי</div></div>${icon('chev', 20)}</div></div>
+      <div class="stat-grid mb"><div class="stat lime"><div class="n">${b.earnedTotal}</div><div class="l">נקודות</div></div><div class="stat pink"><div class="n">${b.missedTotal}</div><div class="l">פספסת</div></div><div class="stat lav"><div class="n">${ach.filter(a => a.earned).length}</div><div class="l">הישגים</div></div></div>
       <div class="section-title">הישגים <small>${ach.filter(a => a.earned).length}/${ach.length}</small></div>
       <div class="ach-grid">${ach.map(a => `<div class="ach ${a.earned ? '' : 'locked'}"><span class="tile sm ${a.earned ? 'lime' : 'gray'}">${icon(a.icon, 20)}</span><div><div class="t">${esc(a.title)}</div><div class="m">${esc(a.desc)}</div></div></div>`).join('')}</div>
       ${active.length ? `<div class="section-title">האתגרים שלי</div>${active.map(c => { const d = Mila.wordDef(c.defId); const st = Mila.commitmentStats(c.id); return `<div class="word-row" onclick="App.go('word',{id:'${c.id}'})">${wordTile(d, 'sm')}<div class="body"><div class="name">${esc(d.title)}</div><div class="meta">יום ${Math.max(st.dayIndex, 1)}/14 · ${st.success} הצלחות${st.current ? ` · ${st.current} ברצף` : ''}</div></div>${icon('chev', 18)}</div>`; }).join('')}` : ''}
@@ -1081,19 +1081,19 @@ const App = (() => {
         <div class="kv"><span class="k">${icon('bell', 18)} שעת תזכורת</span><input class="input ltr" type="time" value="${s.reminderTime}" style="width:auto;padding:8px 12px" onchange="App.setSetting('reminderTime', this.value)"></div></div>
       <div class="card tight">${tog('pushReminders', 'תזכורת יומית', 'פעם ביום')}${tog('socialDigest', 'מה אצל החברות', 'סיכום יומי')}${tog('hideFromLeaderboard', 'בלי אותי בדירוג', 'משחקת, לא מתחרה')}${tog('lockScreenPrivacy', 'מסך נעילה דיסקרטי', 'בלי שמות של מילים')}</div>
       <div class="card tight"><div class="card-title">בטיחות</div>${blocked.length ? blocked.map(b => `<div class="list-row">${avatar(b, 32)}<div class="body"><div class="t">${esc(b.name)}</div><div class="m">חסומה</div></div><button class="btn xs soft" onclick="App.unblock('${b.id}')">ביטול חסימה</button></div>`).join('') : '<div class="small muted">אף אחת לא חסומה.</div>'}</div>
-      <div class="card tight"><div class="card-title">איך זה עובד</div><div class="small muted">עד 3 אתגרים ל-14 יום. כל יום מדווחות: עמדתי או לא.<br>עמדת? שקל שלך. פספסת בקבוצה? שקל לקופה.<br>הדירוג בקבוצה לפי אחוז ההתמדה, מ-${Mila.RULES.MIN_RANKED_EVENTS} דיווחים.<br>השקלים וירטואליים. אי אפשר לקנות, למשוך או להמיר אותם.</div></div>
+      <div class="card tight"><div class="card-title">איך זה עובד</div><div class="small muted">עד 3 אתגרים ל-14 יום. כל יום מדווחות: עמדתי או לא.<br>עמדת? נקודה. פספסת? הרצף של האתגר מתאפס, הנקודות נשארות.<br>הדירוג בקבוצה לפי אחוז ההתמדה, מ-${Mila.RULES.MIN_RANKED_EVENTS} דיווחים. בסוף 14 יום יש מנצחת.<br>נקודות הן משחק. בלי כסף, בלי תשלום.</div></div>
       <div class="card tight"><div class="list-row clickable" onclick="App.exportData()"><span class="tile sm sky">${icon('download', 18)}</span><div class="body"><div class="t">ייצוא הנתונים שלי</div><div class="m">קובץ עם המילים והדיווחים</div></div></div>
         ${S.meta.demo ? `<div class="list-row clickable" onclick="App.resetDemo()"><span class="tile sm peach">${icon('repeat', 18)}</span><div class="body"><div class="t">איפוס הדוגמה</div><div class="m">ולהתחיל באמת</div></div></div>` : ''}
         ${isCloud() ? `<div class="list-row clickable" onclick="App.signOut()"><span class="tile sm gray">${icon('logout', 18)}</span><div class="body"><div class="t">יציאה מהחשבון</div><div class="m">${esc((Api.session && Api.session.user && Api.session.user.email) || '')}</div></div></div>` : ''}
         <div class="list-row clickable" onclick="App.deleteAccount()"><span class="tile sm pink">${icon('trash', 18)}</span><div class="body"><div class="t" style="color:var(--danger)">מחיקת חשבון</div><div class="m">סופי</div></div></div></div>
-      <div class="tiny muted center mt">מילה · בטא · 18+</div>`;
+      <div class="tiny muted center mt">מילה · בטא · מגיל 18</div>`;
   };
   async function setSetting(k, v) { try { await Store().updateSettings({ [k]: v }); render(); } catch (e) { fail(e); } }
   async function rename(name) { try { if (!name.trim()) return; await Store().renameMe(name); toast('עודכן.'); } catch (e) { fail(e); } }
   async function unblock(id) { try { await Store().unblock(id); render(); } catch (e) { fail(e); } }
   async function exportData() { const data = isCloud() ? JSON.stringify(await Api.cloud.exportData(), null, 2) : Mila.exportData(); const blob = new Blob([data], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mila-export.json'; a.click(); URL.revokeObjectURL(a.href); toast('הקובץ ירד'); }
   function resetDemo() { confirmSheet({ title: 'לאפס את הדוגמה?', sub: 'חוזרות למסך הפתיחה.', okText: 'איפוס', okClass: 'pink', onOk: () => { Mila.reset(); closeSheet(true); go('welcome', {}, { reset: true }); } }); }
-  function deleteAccount() { confirmSheet({ title: 'למחוק את החשבון?', sub: 'סופי. המילים, הדיווחים וההישגים נמחקים. בקופות של הקבוצות נשאר רישום אנונימי.', okText: 'למחוק', okClass: 'danger', onOk: async () => { await Store().deleteAccount(); closeSheet(true); go('welcome', {}, { reset: true }); toast('נמחק.'); } }); }
+  function deleteAccount() { confirmSheet({ title: 'למחוק את החשבון?', sub: 'סופי. האתגרים, הדיווחים וההישגים נמחקים. בקבוצות נשאר רישום אנונימי.', okText: 'למחוק', okClass: 'danger', onOk: async () => { await Store().deleteAccount(); closeSheet(true); go('welcome', {}, { reset: true }); toast('נמחק.'); } }); }
 
   /* ============================================================
      S19 — בטיחות: חסימה ודיווח

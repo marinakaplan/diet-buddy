@@ -1,7 +1,9 @@
 # מילה. — כולנו מבטיחות. בואי נראה מי מקיימת.
 
 משחק חברתי של התמדה: כל אחת בוחרת עד 3 אתגרים מספרייה של 50 (או אתגר משלה) ל-14 יום, מדווחת כל יום, והקבוצה מתחרה על אחוז ההתמדה.
-כל הצלחה = שקל וירטואלי; פספוס בקבוצה = שקל לקופה. אין כסף אמיתי, אין רכישה, אין פדיון. חלוקת הקופה בסוף הסבב עדיין לא ממומשת (החלטה פתוחה).
+כל הצלחה = נקודה; פספוס מאפס את הרצף של אותו אתגר ולא מוריד נקודות. הדירוג לפי אחוז התמדה, ובסוף 14 יום יש מנצחת. בלי כסף, בלי תשלום, בלי קופה.
+
+(מבנה הנתונים שומר על יומן append-only עם סוגי תנועה EARN / MISS_TO_CIRCLE / MISS_PERSONAL / REVERSE. בממשק EARN = נקודה, ושאר הסוגים = פספוס. אין יותר ״שקלים״ ו״קופה״ בשום מסך.)
 
 PWA בעברית (RTL) על תשתית חינמית: **Cloudflare Workers + Static Assets + D1**, התחברות עם **Google**.
 אין שירות בתשלום, אין אמצעי תשלום, אין תלות ב-CDN חיצוני.
@@ -17,10 +19,10 @@ PWA בעברית (RTL) על תשתית חינמית: **Cloudflare Workers + Stat
 | `docs/SCREENS.md`, `docs/GLOSSARY.md` | מפת מסכים 2.0 ומילון המונחים |
 | `src/state.js` | בניית מצב המשתמשת — רק מה שמותר לה לראות |
 | `migrations/0001_init.sql`, `0002_library_invites.sql` | סכמת D1 (SQLite) עם טריגרי תקרה ויומן append-only; ספרייה, פרס אישי, סוגי הזמנה |
-| `public/` | האפליקציה: `index.html`, `styles.css`, `js/engine.js` (מודל קריאה + מצב דמו מקומי), `js/app.js` (מסכים), `js/api.js` (קריאות לשרת) |
+| `public/` | האפליקציה: `index.html`, `styles.css`, `js/library.js` (ספרייה), `js/engine.js` (מודל קריאה + מצב דמו מקומי), `js/app.js` (מסכים), `js/api.js` (קריאות לשרת) |
 | `tests/engine.test.cjs` | חוקי המנוע בלקוח (מצב דמו) |
 | `tests/api.test.cjs` | 24 בדיקות שרת: ספרייה, פרטיות אתגר רגיש, סוגי הזמנה, פרס משותף, המהפך, שתי משתמשות, הרשאות, בקשות מקבילות, תקרה, תיקונים, חסימה, סשן |
-| `tests/e2e.two-users.cjs` | Playwright: שני "טלפונים", מעגל משותף, הזמנה, מילה קבוצתית, דיווחים, בנק וקופה, מכשיר חדש, ניתוק רשת |
+| `tests/e2e.two-users.cjs` | Playwright: שני "טלפונים", מעגל משותף, הזמנה, מילה קבוצתית, דיווחים, נקודות ודירוג, מכשיר חדש, ניתוק רשת |
 | `docs/AUDIT.md` | ביקורת מימוש מול האפיון |
 
 ## פיתוח מקומי
@@ -49,6 +51,8 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET --env production
 npm run deploy                                       # https://mila-staging.<subdomain>.workers.dev
 npm run deploy:prod                                  # https://mila.<subdomain>.workers.dev
 ```
+
+לפני פריסה לייצור בפעם הראשונה אחרי 2.0: `npm run db:migrate:prod` (מיגרציה 0002).
 
 ב-`wrangler.toml` ממלאים את `GOOGLE_CLIENT_ID` (ציבורי) לכל סביבה. ב-Google Cloud Console → OAuth client (Web):
 Authorized redirect URIs = `https://<host>/api/auth/google/callback` לכל סביבה.

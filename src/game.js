@@ -7,7 +7,7 @@ import { err, uid, nowISO, localDate, addDays, diffDays, isValidDate, windowOf, 
 
 const ACH = {
   first_word: ['נתתי מילה', 'יצרת את ההתחייבות הראשונה שלך'],
-  first_day: ['חתום וסגור', 'השקל הראשון שהרווחת'],
+  first_day: ['חתום וסגור', 'הנקודה הראשונה שלך'],
   streak_7: ['מילה אחר מילה', 'שבע הצלחות ברצף באותה מילה'],
   streak_14: ['מילה בסלע', '14 הצלחות ברצף. סבב מושלם'],
   first_circle: ['קבוצה ראשונה', 'הצטרפת לקבוצה'],
