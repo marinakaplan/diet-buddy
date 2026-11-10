@@ -416,7 +416,47 @@ export async function leaveCircle(env, user, b) {
 export async function removeMember(env, user, b) {
   if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת הקבוצה יכולה להסיר חברות', 403);
   if (b.userId === user.id) throw err('VALIDATION', 'כדי לצאת בעצמך השתמשי ב״לעזוב את הקבוצה״');
-  await env.DB.batch([S(env, `update circle_memberships set left_at = ?, removed_by = ? where circle_id = ? and user_id = ? and left_at is null`, nowISO(), user.id, b.circleId, b.userId), eventStmt(env, b.circleId, user.id, 'member_removed', { userId: b.userId })]);
+  const stmts = [S(env, `update circle_memberships set left_at = ?, removed_by = ? where circle_id = ? and user_id = ? and left_at is null`, nowISO(), user.id, b.circleId, b.userId), eventStmt(env, b.circleId, user.id, 'member_removed', { userId: b.userId })];
+  // האתגרים שלה בקבוצה הזו נעצרים (הנקודות נשארות שלה)
+  const ks = await all(env, `select k.id from word_commitments k join word_definitions d on d.id = k.definition_id where k.user_id = ? and k.status = 'active' and d.circle_id = ?`, b.userId, b.circleId);
+  for (const k of ks) stmts.push(...endCommitmentStmts(env, k.id, b.userId, 'removed_from_circle'));
+  await runBatch(env, stmts);
+}
+/* מנהלת יכולה להפוך חברה למנהלת, או להחזיר מנהלת אחרת לחברה רגילה (לא את עצמה אם היא היחידה) */
+export async function setMemberRole(env, user, b) {
+  if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת יכולה לשנות הרשאות', 403);
+  const role = b.role === 'admin' ? 'admin' : 'member';
+  const m = await first(env, `select * from circle_memberships where circle_id = ? and user_id = ? and left_at is null`, b.circleId, b.userId);
+  if (!m) throw err('NOT_FOUND', 'החברה לא בקבוצה', 404);
+  if (role === 'member') {
+    const admins = (await first(env, `select count(*) as n from circle_memberships where circle_id = ? and role = 'admin' and left_at is null`, b.circleId)).n;
+    if (admins <= 1 && m.role === 'admin') throw err('VALIDATION', 'צריכה להישאר לפחות מנהלת אחת בקבוצה');
+  }
+  if (m.role === role) return { ok: true };
+  await env.DB.batch([
+    S(env, `update circle_memberships set role = ? where id = ?`, role, m.id),
+    ...(role === 'admin' ? [eventStmt(env, b.circleId, b.userId, 'admin_transferred', {})] : []),
+  ]);
+  return { ok: true };
+}
+/* סגירת קבוצה (מנהלת בלבד): האתגרים בקבוצה נעצרים אצל כולן, ההזמנות מבוטלות,
+   החברות יוצאות והקבוצה נשמרת בארכיון. הנקודות וההיסטוריה של כל אחת נשארות. */
+export async function deleteCircle(env, user, b) {
+  if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת יכולה לסגור את הקבוצה', 403);
+  const c = await first(env, `select * from circles where id = ? and status = 'active'`, b.circleId);
+  if (!c) throw err('NOT_FOUND', 'קבוצה לא נמצאה', 404);
+  const members = await all(env, `select user_id from circle_memberships where circle_id = ? and left_at is null`, c.id);
+  const ks = await all(env, `select k.id, k.user_id from word_commitments k join word_definitions d on d.id = k.definition_id where k.status = 'active' and d.circle_id = ?`, c.id);
+  const day = localDate(user.timezone); const at = nowISO();
+  const stmts = [];
+  for (const k of ks) stmts.push(...endCommitmentStmts(env, k.id, k.user_id, 'circle_deleted'));
+  stmts.push(S(env, `update word_definitions set status = 'cancelled' where circle_id = ? and status = 'proposed'`, c.id));
+  stmts.push(S(env, `update circle_invites set status = 'revoked' where circle_id = ? and status = 'active'`, c.id));
+  stmts.push(S(env, `update circle_memberships set left_at = ? where circle_id = ? and left_at is null`, at, c.id));
+  stmts.push(S(env, `update circles set status = 'archived' where id = ?`, c.id));
+  for (const m of members) if (m.user_id !== user.id) stmts.push(notifyStmt(env, m.user_id, 'circle_closed', `הקבוצה ${c.name} נסגרה`, `${user.display_name} סגרה את הקבוצה. הנקודות שלך נשארות.`, {}, day));
+  await runBatch(env, stmts);
+  return { ok: true };
 }
 
 /* ---------- חברתי ובטיחות ---------- */

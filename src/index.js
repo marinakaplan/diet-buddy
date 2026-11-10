@@ -10,7 +10,7 @@ const ACTIONS = {
   createPersonalWord: game.createPersonalWord, proposeGroupWord: game.proposeGroupWord, adoptGroupWord: game.adoptGroupWord, cancelProposal: game.cancelProposal,
   endCommitment: game.endCommitment, setVisibility: game.setVisibility, report: game.report, correct: game.correct,
   createCircle: game.createCircle, updateCircle: game.updateCircle, createInvite: game.createInvite, revokeCircleInvites: game.revokeCircleInvites,
-  previewInvite: game.previewInvite, acceptInvite: game.acceptInvite, leaveCircle: game.leaveCircle, removeMember: game.removeMember,
+  previewInvite: game.previewInvite, acceptInvite: game.acceptInvite, leaveCircle: game.leaveCircle, removeMember: game.removeMember, setMemberRole: game.setMemberRole, deleteCircle: game.deleteCircle,
   encourage: game.encourage, sendEncouragement: game.sendEncouragement, block: game.block, unblock: game.unblock, reportAbuse: game.reportAbuse,
   markNotificationsRead: game.markNotificationsRead, markSummarySeen: game.markSummarySeen, updateSettings: game.updateSettings, rename: game.rename,
   deleteAccount: game.deleteAccount, exportData: game.exportData,

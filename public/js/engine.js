@@ -252,7 +252,33 @@ const Mila = (() => {
     if (!m) return;
     m.leftAt = nowISO();
     m.removedBy = state.me;
+    endCircleCommitments(circleId, userId, 'removed_from_circle');
     addEvent(circleId, state.me, 'member_removed', { userId });
+    save();
+  }
+  /* עוצרת את האתגרים הפעילים בקבוצה (של משתמשת אחת, או של כולן) */
+  function endCircleCommitments(circleId, userId, reason) {
+    Object.values(state.commitments).filter(c => c.status === 'active' && (!userId || c.userId === userId) && (state.wordDefs[c.defId] || {}).circleId === circleId).forEach(c => {
+      c.status = 'ended_early'; c.endReason = reason;
+      obligationsOf(c.id).filter(o => !o.outcome && ['scheduled', 'open'].includes(o.status)).forEach(o => { o.status = 'cancelled'; });
+    });
+  }
+  function setMemberRole(circleId, userId, role) {
+    if (!isAdmin(circleId)) throw err('רק מנהלת יכולה לשנות הרשאות');
+    const m = membership(circleId, userId); if (!m) throw err('החברה לא בקבוצה');
+    role = role === 'admin' ? 'admin' : 'member';
+    if (role === 'member' && m.role === 'admin' && activeMemberships(circleId).filter(x => x.role === 'admin').length <= 1) throw err('צריכה להישאר לפחות מנהלת אחת בקבוצה');
+    if (m.role !== role) { m.role = role; if (role === 'admin') addEvent(circleId, userId, 'admin_transferred', {}); }
+    save();
+  }
+  /* סגירת קבוצה: אתגרים נעצרים, הזמנות מבוטלות, כולן יוצאות, הקבוצה בארכיון. הנקודות נשארות. */
+  function deleteCircle(circleId) {
+    if (!isAdmin(circleId)) throw err('רק מנהלת יכולה לסגור את הקבוצה');
+    endCircleCommitments(circleId, null, 'circle_deleted');
+    Object.values(state.wordDefs).filter(d => d.circleId === circleId && d.status === 'proposed').forEach(d => { d.status = 'cancelled'; });
+    Object.values(state.invites).filter(i => i.circleId === circleId).forEach(i => { i.status = 'revoked'; });
+    activeMemberships(circleId).forEach(m => { m.leftAt = nowISO(); });
+    state.circles[circleId].status = 'archived';
     save();
   }
 
@@ -802,7 +828,7 @@ const Mila = (() => {
     load, save, reset, emptyState, getState, setState, uid, nowISO, now, setClock,
     today, addDays, diffDays, dateRange, fmtDate, fmtDateLong, relDay, fmtTime, toLocalDate, hashStr,
     createUser, me, user, updateSettings, renameMe,
-    createCircle, updateCircle, myCircles, membership, isMember, isAdmin, circleMembers, circleRound, leaveCircle, removeMember,
+    createCircle, updateCircle, myCircles, membership, isMember, isAdmin, circleMembers, circleRound, leaveCircle, removeMember, setMemberRole, deleteCircle,
     createInvite, currentInvite, revokeInvite, revokeCircleInvites, inviteUrl, previewInvite, acceptInvite,
     wordDef, commitment, myCommitments, activeCommitments, obligationsOf, capCheck, activeWordsOn,
     createPersonalWord, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment, updateWordVisibility,

@@ -327,5 +327,39 @@ test('״המהפך״: עקיפה בדירוג יוצרת אירוע והתראה
   checkInvariants();
 });
 
+
+test('קבוצות: הסרת חברה עוצרת את האתגרים שלה בקבוצה; מנהלת נוספת; לא מורידים את המנהלת האחרונה', () => {
+  const me = fresh('דנה');
+  const c = Mila.createCircle({ name: 'ק' }).circle;
+  const f = Mila.createUser({ name: 'נועה', ageConfirmed: true });
+  Mila.getState().memberships.push({ id: 'm_f2', circleId: c.id, userId: f.id, role: 'member', joinedAt: Mila.nowISO(), leftAt: null });
+  const S = Mila.getState();
+  S.me = f.id; const kf = Mila.createPersonalWord({ libraryId: 'move_walk_30', circleId: c.id }).commitment; S.me = me.id;
+  Mila.setMemberRole(c.id, f.id, 'admin'); assert.ok(Mila.isAdmin(c.id, f.id));
+  Mila.setMemberRole(c.id, f.id, 'member'); assert.ok(!Mila.isAdmin(c.id, f.id));
+  assert.throws(() => Mila.setMemberRole(c.id, me.id, 'member'), /לפחות מנהלת אחת/);
+  Mila.removeMember(c.id, f.id);
+  assert.strictEqual(S.commitments[kf.id].status, 'ended_early'); assert.strictEqual(S.commitments[kf.id].endReason, 'removed_from_circle');
+  assert.ok(Mila.obligationsOf(kf.id).filter(o => !o.outcome).every(o => o.status === 'cancelled'));
+  checkInvariants();
+});
+
+test('קבוצות: סגירת קבוצה עוצרת אתגרים אצל כולן, מבטלת הזמנות ומוציאה את כולן; קבוצה אחרת לא נפגעת', () => {
+  const me = fresh('דנה');
+  const c1 = Mila.createCircle({ name: 'אחת' }).circle; const c2 = Mila.createCircle({ name: 'שתיים' }).circle;
+  const k1 = Mila.createPersonalWord({ libraryId: 'move_walk_30', circleId: c1.id }).commitment;
+  const k2 = Mila.createPersonalWord({ libraryId: 'food_8_water', circleId: c2.id }).commitment;
+  const inv = Mila.createInvite(c1.id);
+  Mila.report(Mila.obligationsOf(k1.id).find(o => o.localDate === today).id, 'success');
+  const pointsBefore = Mila.bankSummary().earnedTotal;
+  Mila.deleteCircle(c1.id);
+  const S = Mila.getState();
+  assert.strictEqual(S.circles[c1.id].status, 'archived'); assert.ok(!Mila.isMember(c1.id));
+  assert.strictEqual(S.commitments[k1.id].status, 'ended_early'); assert.strictEqual(S.invites[inv.token].status, 'revoked');
+  assert.strictEqual(S.commitments[k2.id].status, 'active'); assert.deepStrictEqual(Mila.myCircles().map(c => c.id), [c2.id]);
+  assert.strictEqual(Mila.bankSummary().earnedTotal, pointsBefore, 'הנקודות נשארות');
+  checkInvariants();
+});
+
 console.log(`\n${passed} עברו, ${failed} נכשלו`);
 process.exit(failed ? 1 : 0);

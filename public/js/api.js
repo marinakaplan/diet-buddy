@@ -86,6 +86,8 @@ const Api = (() => {
     acceptInvite: async (token) => { const r = await action('acceptInvite', { token }); await sync(); return Mila.getState().circles[r.circleId]; },
     leaveCircle: (circleId) => after(action('leaveCircle', { circleId })),
     removeMember: (circleId, userId) => after(action('removeMember', { circleId, userId })),
+    setMemberRole: (circleId, userId, role) => after(action('setMemberRole', { circleId, userId, role })),
+    deleteCircle: (circleId) => after(action('deleteCircle', { circleId })),
     createPersonalWord: async (o) => { const r = await action('createPersonalWord', o); await sync(); const S = Mila.getState(); delete S.drafts.word; return { def: S.wordDefs[r.defId], commitment: S.commitments[r.commitmentId] }; },
     proposeGroupWord: async (circleId, o) => { const r = await action('proposeGroupWord', { ...o, circleId }); await sync(); return Mila.getState().wordDefs[r.defId]; },
     adoptGroupWord: async (defId) => { const r = await action('adoptGroupWord', { defId }); await sync(); return Mila.getState().commitments[r.commitmentId]; },

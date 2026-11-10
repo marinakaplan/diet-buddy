@@ -214,6 +214,23 @@ const invariants = async (c) => {
     assert.ok(sD.notifications.some(n => n.type === 'overtake' && /דנה עקפה אותך/.test(n.title)));
     assert.ok(sD.socialEvents.some(e => e.type === 'overtake' && e.actorId === sC.me && e.payload.passedUserId === sD.me));
   });
+  await test('קבוצות: מנהלת נוספת, הסרה עוצרת אתגרים, סגירת קבוצה (רק מנהלת) מוציאה את כולן ושומרת נקודות', async () => {
+    await D.fail('setMemberRole', { circleId: c2, userId: (await C.state()).me, role: 'member' }, 'FORBIDDEN');
+    const sD0 = await D.state(); const dId = sD0.me; const cId = (await C.state()).me;
+    await C.ok('setMemberRole', { circleId: c2, userId: dId, role: 'admin' });
+    assert.strictEqual((await D.state()).memberships.find(m => m.circleId === c2 && m.userId === dId).role, 'admin');
+    await C.ok('setMemberRole', { circleId: c2, userId: dId, role: 'member' });
+    await C.fail('setMemberRole', { circleId: c2, userId: cId, role: 'member' }, 'VALIDATION');
+    const pointsD = (await D.state()).ledger.filter(t => t.userId === dId && t.type === 'EARN').length;
+    await D.fail('deleteCircle', { circleId: c2 }, 'FORBIDDEN');
+    await C.ok('deleteCircle', { circleId: c2 });
+    const sC = await C.state(); const sD = await D.state();
+    assert.ok(!sC.circles[c2] && !sD.circles[c2], 'הקבוצה לא מופיעה יותר');
+    assert.ok(Object.values(sD.commitments).filter(k => k.userId === dId).every(k => k.status !== 'active'), 'האתגרים של מ בקבוצה נעצרו');
+    assert.strictEqual(sD.ledger.filter(t => t.userId === dId && t.type === 'EARN').length, pointsD, 'הנקודות נשארות');
+    assert.ok(sD.notifications.some(n => n.type === 'circle_closed'), 'מ קיבלה הודעה שהקבוצה נסגרה');
+    assert.strictEqual((await D.ok('previewInvite', { token: tokCompete })).ok, false, 'ההזמנות בוטלו');
+  });
   await test('ייצוא ומחיקת חשבון', async () => {
     const ex = await Z.ok('exportData'); assert.ok(ex.user && Array.isArray(ex.ledger));
     await Z.ok('deleteAccount'); const r = await Z.req('/api/state'); assert.strictEqual(r.status, 401);
