@@ -1581,7 +1581,7 @@ const App = (() => {
      מדרג סכומים. התשלום עצמו ב-PayBox (קבוצה) או בביט, מחוץ לאפליקציה.
      PAYBOX_LINK: קישור ההזמנה לקבוצה (PayBox ← הקבוצה ← שיתוף קישור). ריק = מוצג רק ביט.
      ============================================================ */
-  const PAYBOX_LINK = '';
+  const PAYBOX_LINK = 'https://links.payboxapp.com/1UMNyxiuX7b'; // קבוצת "נסיעה לפורטוגל נבחרת לאומית"
   const BIT_LINK = 'https://www.bitpay.co.il/app/me/DBBB417F-9257-B2BF-4E31-4F9C93FDF7ECAB91';
   const TIERS = [
     { amt: 18, emoji: '💛', name: 'חי', sub: 'כל שקל מקרב אותן לפורטוגל' },
@@ -1619,8 +1619,8 @@ const App = (() => {
     const pay = (href, label, cls) => `<a class="btn ${cls} treat-go" href="${esc(href)}" target="_blank" rel="noopener" onclick="App.closeSheet()">${label}</a>`;
     setTimeout(() => sheet(`<div class="sheet-hero treat-sheet">${heartArt(72)}<div class="sheet-title">תודה! את מדהימה 💛</div><div class="sheet-sub">${t ? `${t.emoji} ${t.name}` : 'כל סכום עוזר להן לטוס'}</div></div>
       ${amt ? `<div class="treat-amount"><span>באפליקציה מקלידה</span><b>${amt} ₪</b></div>` : ''}
-      ${PAYBOX_LINK ? pay(PAYBOX_LINK, `לפרגן ב-PayBox${amt ? ` · ${amt} ₪` : ''}`, 'primary') : ''}
-      ${BIT_LINK ? pay(BIT_LINK, `לפרגן בביט${amt ? ` · ${amt} ₪` : ''}`, PAYBOX_LINK ? 'soft mt' : 'primary') : ''}
+      ${PAYBOX_LINK ? pay(PAYBOX_LINK, `<span>לפרגן ב־<bdi>PayBox</bdi>${amt ? ` · <bdi dir="rtl">${amt} ₪</bdi>` : ''}</span>`, 'primary') : ''}
+      ${BIT_LINK ? pay(BIT_LINK, `<span>לפרגן בביט${amt ? ` · <bdi dir="rtl">${amt} ₪</bdi>` : ''}</span>`, PAYBOX_LINK ? 'soft mt' : 'primary') : ''}
       <button class="btn text mt" onclick="App.closeSheet()">אולי אחר כך</button>`), el ? 420 : 0);
   }
 
