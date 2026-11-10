@@ -989,3 +989,29 @@ img, svg, video { max-width: 100%; }
   .stat-strip b { font-size: 1.35rem; }
   .icon-picker { gap: 6px; }
 }
+
+/* ---------- קבוצה: מי עשתה מה היום ---------- */
+.tg-card { padding-block: 4px; }
+.tg-row { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); align-items: flex-start; }
+.tg-row:first-child { border-top: 0; }
+.tg-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.tg-name { font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tg-sum { font-weight: 500; font-size: .8rem; color: var(--ink-2); }
+.tg-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border: 0; font: inherit; text-align: start; color: var(--ink); background: var(--bg); cursor: default; }
+.tg-item:not([disabled]) { cursor: pointer; }
+.tg-item .tg-t { flex: 1; min-width: 0; font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-item .tg-s { flex: none; font-size: .78rem; font-weight: 700; color: var(--ink-2); }
+.tg-item.done { background: var(--lime-soft); } .tg-item.done .tg-s { color: var(--lime-ink); }
+.tg-item.miss { background: var(--pink-soft); } .tg-item.miss .tg-s { color: var(--pink-ink); }
+.tg-item.skip { background: var(--lav-soft); } .tg-item.skip .tg-s { color: var(--lav-ink); }
+.tg-row.me .tg-item.wait .tg-s { color: var(--ink); background: var(--lime); padding: 3px 10px; }
+.tg-none { font-size: .85rem; color: var(--ink-3); }
+.tg-invite { display: flex; align-items: center; gap: 12px; }
+.tg-inv-body { flex: 1; min-width: 0; }
+.rk2 { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.rk2:first-child { border-top: 0; }
+.rk2-p { width: 26px; height: 26px; display: grid; place-items: center; font-weight: 800; font-size: .85rem; background: var(--line); flex: none; }
+.rk2-p.first { background: var(--lime); }
+.rk2-n { flex: 1; font-weight: 600; }
+.rk2.me .rk2-n { font-weight: 800; }
+.rk2-v { font-weight: 700; color: var(--ink-2); }

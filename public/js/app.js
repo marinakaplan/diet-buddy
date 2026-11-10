@@ -901,32 +901,40 @@ const App = (() => {
     const S = Mila.getState();
     const c = S.circles[id];
     if (!c || !Mila.isMember(id)) return `${topbar({ title: 'קבוצה' })}<div class="empty"><div class="t">את לא בקבוצה הזו</div></div>`;
-    const members = Mila.circleMembers(id);
-    const round = Mila.circleRound(id);
-    const prev = Mila.previousRoundWinner(id);
-    const left = Math.max(0, Mila.RULES.ROUND_DAYS - round.dayIndex);
-    const groupWords = Object.values(S.wordDefs).filter(d => d.circleId === id && d.kind === 'group' && d.status !== 'cancelled').sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const liveGroup = groupWords.filter(d => (d.endDate || '9999') >= Mila.today());
-    const hero = liveGroup[0];
-    const canPropose = c.whoCanPropose === 'all' || Mila.isAdmin(id);
-    const { rows } = Mila.leaderboard(id);
-    const ri = Mila.rankInsight(id);
     const meId = Mila.me().id;
-    return `${topbar({ title: c.name, end: `<button class="icon-btn lime" aria-label="להזמין חברה" onclick="App.inviteFlow({ circleId: '${id}' })">${icon('share', 20)}</button><button class="icon-btn" aria-label="עוד" onclick="App.circleMenu('${id}')">${icon('more', 22)}</button>` })}
-      <div class="round-line"><span class="bold">יום ${round.dayIndex}</span><span class="muted">·</span><span class="muted">${left === 0 ? 'היום האחרון' : left === 1 ? 'נשאר יום אחד' : `נשארו ${left} ימים`}</span><span class="chip" style="margin-inline-start:auto">סבב ${round.index}</span></div>
-      <div class="progress mb"><i style="width:${(round.dayIndex / Mila.RULES.ROUND_DAYS) * 100}%"></i></div>
-
-      <div class="card"><div class="card-title">מי מובילה?</div>
-        ${rows.length ? rows.map(r => `<div class="bar-row ${r.user.id === meId ? 'me' : ''} ${!r.ranked ? 'unranked' : ''}"><span class="place ${r.place === 1 ? 'first' : ''}">${r.place ?? '–'}</span>${avatar(r.user, 32)}<div class="body"><div class="t">${esc(r.user.name)}${r.user.id === meId ? ' (את)' : ''}</div>${r.ranked ? `<div class="bar"><i style="width:${Math.round(r.rate * 100)}%"></i></div>` : `<div class="m">${r.hidden ? 'מחוץ לדירוג' : `עוד ${Math.max(Mila.RULES.MIN_RANKED_EVENTS - r.resolved, 1)} דיווחים`}</div>`}</div><span class="rate">${r.ranked ? pct(r.rate) : ''}</span><span class="pts" title="הצלחות">${r.success}</span></div>`).join('') : `<div class="small muted">עוד אין דיווחים בסבב הזה.</div>`}
-        ${ri ? `<div class="insight">${esc(ri.text)}</div>` : ''}
-        <div class="tiny muted" style="margin-top:8px">אחוז הצלחה מתוך הימים שדווחו, ומספר הנקודות. ${Mila.RULES.MIN_RANKED_EVENTS} דיווחים לפחות כדי להיכנס לדירוג.</div>
-      </div>
-      ${prev ? `<div class="card tight pastel-lav"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">${prev.user.id === meId ? 'את ניצחת את הסבב הקודם.' : `${esc(prev.user.name)} ניצחה את הסבב הקודם.`}</div><div class="small muted">${pct(prev.rate)} התמדה · ${prev.success} נקודות · ${Mila.fmtDate(prev.round.start)} – ${Mila.fmtDate(prev.round.end)}</div></div></div></div>` : ''}
-
-      ${hero && !Mila.myAdoption(hero.id) ? `<div class="card pastel-lime clickable tight" onclick="App.go('groupWord',{id:'${hero.id}'})"><div style="display:flex;align-items:center;gap:12px">${wordTile(hero)}<div style="flex:1"><div class="bold">בואי, כולנו צריכות את זה</div><div class="small muted">${esc(hero.title)} · ${Mila.adopters(hero.id).length} בפנים</div></div><button class="btn primary sm">אני בפנים</button></div></div>` : ''}
-
-      <div class="tabs">${[['feed', 'עדכונים'], ['words', 'אתגרים'], ['members', 'חברות']].map(([k, l]) => `<button class="${circleTab === k ? 'on' : ''}" onclick="App.setCircleTab('${k}')">${l}</button>`).join('')}</div>
-      ${circleTab === 'feed' ? circleFeed(id) : circleTab === 'words' ? circleWords(id, groupWords) : circleMembersView(id, members)}
+    const members = Mila.circleMembers(id).slice().sort((x, y) => (x.id === meId ? -1 : y.id === meId ? 1 : 0));
+    const round = Mila.circleRound(id);
+    const left = Math.max(0, Mila.RULES.ROUND_DAYS - round.dayIndex);
+    const today = Mila.today();
+    // מי עשתה מה היום: לכל חברה, האתגרים שלה בקבוצה הזו ומה דיווחה
+    const todayObs = Object.values(S.obligations).filter(o => o.localDate === today && o.status !== 'cancelled');
+    const itemsOf = (uid) => todayObs.filter(o => o.userId === uid).map(o => { const k = Mila.commitment(o.commitmentId); const d = k && Mila.wordDef(k.defId); return d && d.circleId === id ? { o, d } : null; }).filter(Boolean);
+    const stateOf = (o) => o.outcome === 'success' ? ['done', 'עמדה'] : o.outcome === 'miss' ? ['miss', 'פספסה'] : o.outcome === 'excused' ? ['skip', 'יום חריג'] : ['wait', 'עוד לא דיווחה'];
+    const todayRows = members.map(u => {
+      const mine = u.id === meId; const items = itemsOf(u.id);
+      const doneN = items.filter(x => x.o.outcome === 'success').length;
+      const list = items.length ? items.map(({ o, d }) => { const [cls, txt] = stateOf(o); const label = mine ? txt.replace('עמדה', 'עמדת').replace('פספסה', 'פספסת').replace('עוד לא דיווחה', 'לדווח') : txt; return `<button class="tg-item ${cls}" ${mine ? `onclick="App.reportSheet('${o.id}')"` : 'disabled'}><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${label}</span></button>`; }).join('')
+        : `<div class="tg-none">${mine ? `אין לך אתגר בקבוצה. <a href="#" onclick="event.preventDefault(); App.openPick([], { circleId: '${id}' })">להוסיף</a>` : 'עוד אין לה אתגר בקבוצה'}</div>`;
+      return `<div class="tg-row ${mine ? 'me' : ''}">${avatar(u, 36)}<div class="tg-body"><div class="tg-name">${mine ? 'את' : esc(u.name)}${items.length ? `<span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</div>${list}</div></div>`;
+    }).join('');
+    // דירוג פשוט
+    const { rows } = Mila.leaderboard(id);
+    const ranked = rows.filter(r => r.ranked);
+    const rankHtml = ranked.length ? ranked.map(r => `<div class="rk2 ${r.user.id === meId ? 'me' : ''}"><span class="rk2-p ${r.place === 1 ? 'first' : ''}">${r.place}</span><span class="rk2-n">${r.user.id === meId ? 'את' : esc(r.user.name)}</span><span class="rk2-v">${Math.round(r.rate * 100)}%</span></div>`).join('')
+      : `<div class="tiny muted">הדירוג מתחיל אחרי ${Mila.RULES.MIN_RANKED_EVENTS} דיווחים של כל אחת.</div>`;
+    // אתגר משותף שמחכה לי
+    const groupWords = Object.values(S.wordDefs).filter(d => d.circleId === id && d.kind === 'group' && d.status !== 'cancelled' && (d.endDate || '9999') >= today);
+    const waiting = groupWords.filter(d => !Mila.myAdoption(d.id));
+    const waitHtml = waiting.slice(0, 2).map(d => { const owner = Mila.user(d.ownerId); const ownerTxt = d.ownerId === meId ? 'פתחת אתגר משותף, ועוד לא הצטרפת' : `${esc(owner ? owner.name : 'חברה')} מזמינה אותך לאתגר משותף`; return `<div class="card tight pastel-lime tg-invite"><div class="tg-inv-body"><div class="small muted">${ownerTxt}</div><div class="bold">${esc(d.title)}</div></div><button class="btn primary sm" onclick="App.adoptSheet('${d.id}')">מצטרפת</button></div>`; }).join('');
+    const feed = Mila.feed(id, 6);
+    return `${topbar({ title: c.name, subtitle: left === 0 ? `יום ${round.dayIndex} · היום האחרון` : `יום ${round.dayIndex} · נשארו ${left} ימים`, end: `<button class="icon-btn lime" aria-label="להזמין חברה" onclick="App.inviteFlow({ circleId: '${id}' })">${icon('plus', 20)}</button><button class="icon-btn" aria-label="עוד" onclick="App.circleMenu('${id}')">${icon('more', 22)}</button>` })}
+      ${waitHtml}
+      <div class="section-title">היום בקבוצה</div>
+      <div class="card tight tg-card">${todayRows}</div>
+      <div class="section-title">מי מובילה?</div>
+      <div class="card tight">${rankHtml}</div>
+      ${feed.length ? `<div class="section-title">מה קרה לאחרונה</div><div class="card tight">${feed.map(e => `<div class="feed-item">${avatar(e.actor, 32)}<div class="body"><div class="t">${feedText(e)}</div><div class="m">${timeAgo(e.createdAt)}</div></div></div>`).join('')}</div>` : ''}
+      <div class="btn-row mt"><button class="btn soft" onclick="App.inviteFlow({ circleId: '${id}' })">${icon('plus', 18)} להזמין חברה</button>${(c.whoCanPropose === 'all' || Mila.isAdmin(id)) ? `<button class="btn soft" onclick="App.openGroupWizard('${id}')">${icon('users', 18)} אתגר משותף</button>` : ''}</div>
     `;
   };
   function setCircleTab(k) { circleTab = k === 'rank' ? 'feed' : k; render(); }
@@ -935,14 +943,14 @@ const App = (() => {
     const n = `<b>${esc(e.actor.name)}</b>`;
     const t = e.payload && e.payload.title ? `״${esc(e.payload.title)}״` : '';
     switch (e.type) {
-      case 'day_success': return `${n} אמרה ועשתה: ${t} <span class="chip lime">+1</span>`;
-      case 'day_miss': return `${n} פספסה: ${t}`;
+      case 'day_success': return `${n} עמדה ב${t}`;
+      case 'day_miss': return `${n} פספסה את ${t}`;
       case 'overtake': { const p = Mila.user(e.payload.passedUserId); return `${n} עקפה את ${p ? esc(p.name) : 'חברה'} ${icon('trophy', 14)}`; }
       case 'day_excused': return `${n} יום חריג: ${t}`;
       case 'streak': return `${n} ${e.payload.streak} ימים ברצף: ${t} ${icon('flame', 14)}`;
       case 'group_word_proposed': return `${n} פתחה אתגר משותף: ${t}`;
-      case 'group_word_adopted': return `${n} בפנים: ${t}`;
-      case 'word_committed': return `${n} נתנה מילה: ${t}`;
+      case 'group_word_adopted': return `${n} הצטרפה ל${t}`;
+      case 'word_committed': return `${n} התחילה את ${t}`;
       case 'member_joined': return `${n} הצטרפה`;
       case 'member_left': return `${n} עזבה`;
       case 'member_removed': return `${n} הסירה חברה`;
