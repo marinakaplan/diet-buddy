@@ -651,3 +651,6 @@ a.btn.treat-go { display: flex; align-items: center; justify-content: center; te
 .inv-done { font-size: 3rem; line-height: 1; margin-bottom: 8px; animation: hslam .5s cubic-bezier(.3, 1.6, .5, 1) both; }
 .inv-link { font-size: .78rem; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); word-break: break-all; color: var(--ink-2); }
 .invited-banner { margin: 12px 0 -6px; padding: 9px 12px; background: var(--pink-soft); border: 1px solid #FFD0E2; font-size: .86rem; font-weight: 600; color: var(--pink-ink); animation: hup .4s ease .2s both; }
+
+/* כפתורי ההזמנה בדף האתגר: בלי אייקון, טקסט ממורכז בשתי שורות לכל היותר */
+.word-invite .btn { justify-content: center; text-align: center; line-height: 1.3; padding-block: 10px; text-wrap: balance; }
