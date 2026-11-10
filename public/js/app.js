@@ -152,21 +152,46 @@ const App = (() => {
   const SCREENS = {};
   const POST = {};
 
-  SCREENS.welcome = () => `
-    <div class="welcome">
-      <div class="logo-row">${logoMark(54)}<span class="brand">מילה.</span></div>
-      <div class="tag">כולנו מבטיחות. בואי נראה מי מקיימת.</div>
-      <div class="pitch">
-        <p>מכירה את זה שאת אומרת לעצמך ״ממחר אני מתחילה״?</p>
-        <p>ממחר ספורט. ממחר בלי מתוקים. ממחר לישון מוקדם.</p>
-        <p>ואז מגיע מחר. וכלום. 😂</p>
-        <p class="bold">אז די. בואי נעשה מזה משחק.</p>
+  SCREENS.welcome = () => {
+    const ppl = { noa: { name: 'נועה', color: 'lavender' }, me: { name: 'את', color: 'lime' }, dana: { name: 'דנה', color: 'mint' } };
+    const burst = [[-70, -46], [-34, -70], [12, -64], [52, -40], [-62, 14], [60, 10], [-20, 40], [30, 44]];
+    const cta = Api.enabled ? `<button class="btn dark hero-btn" onclick="App.googleSignIn()">${googleMark()} יאללה, אני בפנים</button>` : `<button class="btn dark hero-btn" onclick="App.go('signup')">יאללה, אני בפנים</button>`;
+    return `
+    <div class="hero">
+      <div class="hero-blobs" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="hero-top">${logoMark(34)}<span class="brand">מילה.</span><span class="beta">בטא</span></div>
+
+      <div class="hero-stage">
+        <div class="eyebrow">מכירה את זה?</div>
+        <span class="excuse" style="--d:.15s">ממחר ספורט.</span>
+        <span class="excuse" style="--d:.35s">ממחר בלי מתוקים.</span>
+        <span class="excuse" style="--d:.55s">ממחר לישון מוקדם.</span>
+        <div class="caption">ואז מגיע מחר. וכלום. 😂</div>
+        <div class="stamp2">אז די.</div>
+        <div class="burst" aria-hidden="true">${burst.map(([x, y], i) => `<i style="--x:${x}px;--y:${y}px;--c:var(--${['lime-deep', 'pink-ink', 'lav-ink', 'peach-ink'][i % 4]})"></i>`).join('')}</div>
       </div>
-      <div class="pitch-box"><div class="bold">3 אתגרים. 14 ימים. חברות.</div><div class="small muted">תעמדי באתגרים, תצברי נקודות ותראי מי מתמידה יותר.</div></div>
-      ${Api.enabled ? `<button class="btn dark" onclick="App.googleSignIn()">${googleMark()} יאללה, אני בפנים</button>` : `<button class="btn primary" onclick="App.go('signup')">יאללה, אני בפנים</button>`}
-      <button class="btn text mt" onclick="App.startDemo()">${icon('sparkle', 18)} להציץ בדוגמה</button>
-      <div class="disclaimer">כניסה עם Google · מגיל 18 · בלי כסף, בלי תשלום</div>
+
+      <h1 class="hero-h"><span>כולנו מבטיחות.</span><span>בואי נראה מי <mark>מקיימת</mark>.</span></h1>
+
+      <div class="race">
+        <div class="race-head"><b>בואי נעשה מזה משחק.</b><div class="race-chips"><span style="--d:2.5s">3 אתגרים</span><span style="--d:2.6s">14 ימים</span><span style="--d:2.7s">חברות</span></div></div>
+        <div class="race-body">
+          <div class="race-places"><span class="first">1</span><span>2</span><span>3</span></div>
+          <div class="race-rows">
+            <div class="rr noa">${avatar(ppl.noa, 28)}<span class="nm">נועה</span><span class="bar"><i style="--w:86%"></i></span><span class="pc">86%</span></div>
+            <div class="rr me">${avatar(ppl.me, 28)}<span class="nm">את</span><span class="bar"><i></i></span><span class="pc"><span class="a">83%</span><span class="b">91%</span></span></div>
+            <div class="rr dana">${avatar(ppl.dana, 28)}<span class="nm">דנה</span><span class="bar"><i style="--w:71%"></i></span><span class="pc">71%</span></div>
+            <div class="ovt">עקפת את נועה 😏</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-cta">${cta}
+        <button class="btn text" onclick="App.startDemo()">${icon('sparkle', 18)} להציץ בדוגמה</button>
+        <div class="disclaimer">כניסה עם Google · מגיל 18 · בלי כסף, בלי תשלום</div>
+      </div>
     </div>`;
+  };
 
   function startDemo() {
     Mila.reset();
