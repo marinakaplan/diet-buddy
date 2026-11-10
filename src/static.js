@@ -8,8 +8,19 @@ async function etagFor(path, body) {
   if (!hashes.has(path)) { const d = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(body)); hashes.set(path, '"' + [...new Uint8Array(d)].slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('') + '"'); }
   return hashes.get(path);
 }
+/* /fresh: מנקה בטלפון את המטמון וה-service worker הישנים (בלי לנתק מהחשבון) וטוען את הגרסה העדכנית */
+const FRESH = `<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>מילה</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#FCFAF9;color:#1C1A1F;font:600 18px system-ui,-apple-system,Arial,sans-serif}</style></head>
+<body><p>טוענת את הגרסה החדשה…</p><script>
+(async function () {
+  try { if (navigator.serviceWorker) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(function (r) { return r.unregister(); })); } } catch (e) {}
+  try { if (window.caches) { const keys = await caches.keys(); await Promise.all(keys.map(function (k) { return caches.delete(k); })); } } catch (e) {}
+  location.replace('/?r=' + Date.now());
+})();
+</script></body></html>`;
 export async function serveStatic(req) {
   const url = new URL(req.url);
+  if (url.pathname === '/fresh') return new Response(FRESH, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'clear-site-data': '"cache"' } });
   let path = decodeURIComponent(url.pathname);
   if (!FILES[path] && FILES[path + '.html']) path += '.html'; // /privacy, /terms
   if (path === '/' || !FILES[path]) path = FILES[path] ? path : '/index.html';
