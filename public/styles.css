@@ -827,8 +827,7 @@ body.wide #screen { padding-inline: 24px; }
 .pr-row { display: flex; align-items: center; gap: 10px; }
 .pr-t { flex: 1; min-width: 0; font-weight: 700; }
 .pr-row .icon-btn { width: 32px; height: 32px; color: var(--ink-3); }
-.pr-reward { display: block; margin: 6px 0 0; padding: 0; border: 0; background: none; font: inherit; font-size: .85rem; font-weight: 600; color: var(--lav-ink); cursor: pointer; text-align: start; }
-.pr-reward span { color: var(--ink-3); font-weight: 400; }
-.pr-reward.set { color: var(--ink); }
+.pr-reward { display: inline-flex; align-items: center; gap: 4px; margin: 4px 0 0; padding: 2px 0; border: 0; background: none; font: inherit; font-size: .8rem; font-weight: 400; color: var(--ink-3); cursor: pointer; text-align: start; }
+.pr-reward.set { color: var(--ink-2); }
 .pr-input { margin-top: 8px; }
-.pr-change { font-size: .8rem; font-weight: 700; color: var(--lav-ink); margin-inline-end: 4px; }
+.pr-change { font-size: .8rem; font-weight: 400; color: var(--ink-3); margin-inline-end: 4px; }

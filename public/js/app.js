@@ -571,7 +571,7 @@ const App = (() => {
       <div class="card tight pr-list">${pick.selected.map((id, i) => { const ch = L.get(id); const r = (pick.rewards[id] || '').trim(); return `<div class="pr-item">
         <div class="pr-row">${wordTile(ch, 'sm')}<div class="pr-t">${esc(ch.title)}</div><button class="icon-btn" aria-label="הסרה" onclick="App.pickToggle('${id}')">${icon('x', 16)}</button></div>
         ${ro[id] ? `<input class="input pr-input" id="rw-${id}" maxlength="80" placeholder="${rewardExample(id, i)}" value="${esc(pick.rewards[id] || '')}" oninput="App.pickReward('${id}', this.value)" onblur="App.pickRewardDone('${id}')">`
-          : `<button class="pr-reward ${r ? 'set' : ''}" onclick="App.pickRewardOpen('${id}')">🎁 ${r ? `אם אצליח: ${esc(r)}` : 'אם אצליח, אני… <span>(לא חובה)</span>'}</button>`}
+          : `<button class="pr-reward ${r ? 'set' : ''}" onclick="App.pickRewardOpen('${id}')">${r ? `אם אצליח: ${esc(r)}` : `${icon('plus', 13)} אם אצליח, אני…`}</button>`}
       </div>`; }).join('')}</div>
       <div class="field"><label>מתי מתחילה?</label><div class="seg">${opts.map(([d, l]) => `<button class="${pick.startDate === d ? 'on' : ''}" onclick="${d === Mila.today() ? `App.pickSet('startDate','${d}')` : 'App.pickTomorrow()'}">${l}</button>`).join('')}</div></div>
       <div class="field"><label>מי רואה?</label>
