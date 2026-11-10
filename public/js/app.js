@@ -355,12 +355,12 @@ const App = (() => {
   function todayRow(x) {
     const st = x.outcome === 'success' ? 'done' : x.outcome === 'miss' ? 'miss' : x.outcome === 'excused' ? 'excused' : x.late ? 'late' : '';
     const mark = x.outcome === 'success' ? icon('check', 18) : x.outcome === 'miss' ? icon('x', 16) : x.outcome === 'excused' ? icon('minus', 16) : '';
-    const meta = x.outcome === 'success' ? '<span class="chip lime">+1</span>' : x.outcome === 'miss' ? `<span class="chip pink">פספוס</span>` : x.outcome === 'excused' ? '<span class="chip lav">יום חריג</span>' : x.late ? `<span class="chip peach">${icon('clock', 13)} מאתמול · לדווח עד 10:00</span>` : '';
+    const meta = x.outcome === 'success' ? '<span class="chip lime" dir="ltr">+1</span>' : x.outcome === 'miss' ? `<span class="chip pink">פספוס</span>` : x.outcome === 'excused' ? '<span class="chip lav">יום חריג</span>' : x.late ? `<span class="chip peach">${icon('clock', 13)} מאתמול · לדווח עד 10:00</span>` : '';
     const streak = x.stats.current >= 2 ? `<span class="chip">${icon('flame', 13)} ${x.stats.current} ימים ברצף</span>` : '';
-    return `<div class="word-row ${x.outcome === 'success' ? 'done' : ''}">
-      <button class="check ${st}" aria-label="דיווח" onclick="event.stopPropagation(); App.reportSheet('${x.id}')">${mark}</button>
-      <div class="body" onclick="App.go('word',{id:'${x.commitmentId}'})"><div class="name">${esc(x.def.title)}</div><div class="meta">${meta}${streak}${x.circle ? `<span class="chip outline">${esc(x.circle.name)}</span>` : ''}</div></div>
-      <span onclick="App.go('word',{id:'${x.commitmentId}'})">${wordTile(x.def)}</span>
+    // בלי עיגול נפרד: האייקון של האתגר הוא כפתור הדיווח ומראה את מצב היום
+    return `<div class="word-row tap ${st}" onclick="App.reportSheet('${x.id}')">
+      <span class="wt-state ${st}">${wordTile(x.def)}${mark ? `<i class="wt-badge">${mark}</i>` : ''}</span>
+      <div class="body"><div class="name">${esc(x.def.title)}</div><div class="meta">${meta}${streak}${x.circle ? `<span class="chip outline">${esc(x.circle.name)}</span>` : ''}</div></div>
     </div>`;
   }
 
@@ -373,7 +373,7 @@ const App = (() => {
       // כבר הוכרע: הצגה + אפשרות תיקון
       return sheet(`<div class="sheet-hero">${wordTile(o.def, 'lg')}<div class="sheet-title">${esc(o.def.title)}</div><div class="sheet-sub">${Mila.relDay(o.localDate)} · ${o.outcome === 'success' ? 'אמרת ועשית. +1' : o.outcome === 'miss' ? 'לא היום. הרצף התאפס' : 'יום חריג'}</div></div>
         ${o.canCorrect ? `<button class="btn soft" onclick="App.correctionSheet('${o.id}')">${icon('edit', 18)} טעות? לתקן</button><div class="tiny muted center mt">אפשר לתקן עד 24 שעות אחרי הדיווח.</div>` : '<div class="note">' + icon('lock', 18) + '<span>נעול. עברו 24 שעות.</span></div>'}
-        <button class="btn text mt" onclick="App.closeSheet()">סגירה</button>`);
+        <button class="btn text mt" onclick="App.closeSheet(); App.go('word',{id:'${o.commitmentId}'})">פרטי האתגר</button>`);
     }
     if (!o.open) return toast(o.localDate > Mila.today() ? 'עוד לא הגיע היום הזה' : 'היום הזה נסגר');
     const excusesLeft = Mila.RULES.MAX_EXCUSES_PER_ROUND - Mila.excusesUsed(o.commitmentId);
@@ -382,7 +382,8 @@ const App = (() => {
         <button class="btn primary" onclick="App.doReport('${o.id}','success')">${icon('check', 26)}עמדתי בזה<small>+1 נקודה</small></button>
         <button class="btn pink" onclick="App.confirmMiss('${o.id}')">${icon('x', 24)}פספסתי<small>הרצף מתאפס</small></button>
       </div>
-      <button class="btn text mt" ${excusesLeft > 0 ? `onclick="App.excuseSheet('${o.id}')"` : 'disabled'}>${icon('minus', 16)} יום חריג ${excusesLeft > 0 ? `(נשארו ${excusesLeft})` : '(נגמרו)'}</button>`);
+      <button class="btn text mt" ${excusesLeft > 0 ? `onclick="App.excuseSheet('${o.id}')"` : 'disabled'}>${icon('minus', 16)} יום חריג ${excusesLeft > 0 ? `(נשארו ${excusesLeft})` : '(נגמרו)'}</button>
+      <button class="btn text" onclick="App.closeSheet(); App.go('word',{id:'${o.commitmentId}'})">פרטי האתגר</button>`);
   }
   function confirmMiss(id) {
     const o = Mila.decorate(Mila.getState().obligations[id]);
