@@ -72,7 +72,7 @@
   /* מפעילה: בקשת הרשאה (חייבת לבוא מלחיצה), מינוי, ושמירה בשרת */
   async function enablePush() {
     const d = detect();
-    if (!d.pushApi) throw Object.assign(new Error('unsupported'), { userMessage: d.pushNeedsInstall ? 'באייפון, קודם מוסיפות את מילה למסך הבית ופותחות משם.' : 'הדפדפן הזה לא תומך בהתראות.' });
+    if (!d.pushApi) throw Object.assign(new Error('unsupported'), { userMessage: d.pushNeedsInstall ? 'באייפון, קודם מוסיפה את מילה למסך הבית ופותחת משם.' : 'הדפדפן הזה לא תומך בהתראות.' });
     if (!(root.Api && Api.isCloud())) throw Object.assign(new Error('auth'), { userMessage: 'התראות עובדות אחרי כניסה עם חשבון.' });
     const p = permission() === 'granted' ? 'granted' : await Notification.requestPermission();
     if (p !== 'granted') { Api.track('push_denied'); changed(); throw Object.assign(new Error('denied'), { code: 'DENIED', userMessage: 'ההתראות חסומות. אפשר לפתוח אותן בהגדרות.' }); }
@@ -118,47 +118,47 @@
     const real = !osOverride || osOverride === d.os;
     if (real && d.standalone) return { kind: 'installed' };
     if (real && d.inapp) return {
-      kind: 'inapp', title: `את בתוך ${d.inapp}`, sub: 'מכאן אי אפשר לשמור למסך הבית. פותחות בדפדפן הרגיל, וממשיכות משם.',
+      kind: 'inapp', title: `את בתוך ${d.inapp}`, sub: 'מכאן אי אפשר לשמור למסך הבית. פותחת בדפדפן הרגיל, וממשיכה משם.',
       steps: os === 'ios'
-        ? [step(G.hdots, 'לוחצות על ⋯ או על סמל המצפן', 'בדרך כלל למעלה או למטה בפינה'), step(G.compass, 'בוחרות ״פתיחה ב-Safari״', 'או ״פתיחה בדפדפן״'), step(G.share, 'ב-Safari ממשיכות לפי ההוראות לאייפון')]
-        : [step(G.dots, 'לוחצות על ⋮ למעלה בפינה'), step(G.compass, 'בוחרות ״פתיחה ב-Chrome״', 'או ״פתיחה בדפדפן״'), step(G.addSq, 'ב-Chrome ממשיכות לפי ההוראות לאנדרואיד')],
+        ? [step(G.hdots, 'לוחצת על ⋯ או על סמל המצפן', 'בדרך כלל למעלה או למטה בפינה'), step(G.compass, 'בוחרת ״פתיחה ב-Safari״', 'או ״פתיחה בדפדפן״'), step(G.share, 'ב-Safari ממשיכה לפי ההוראות לאייפון')]
+        : [step(G.dots, 'לוחצת על ⋮ למעלה בפינה'), step(G.compass, 'בוחרת ״פתיחה ב-Chrome״', 'או ״פתיחה בדפדפן״'), step(G.addSq, 'ב-Chrome ממשיכה לפי ההוראות לאנדרואיד')],
       openIn: os === 'ios' ? 'safari' : 'chrome',
     };
     if (os === 'ios') {
       const notSafari = real && d.browser !== 'safari';
       return {
-        kind: 'ios', title: d.iPad && real ? 'שומרות את מילה במסך הבית של האייפד' : 'שומרות את מילה במסך הבית של האייפון',
+        kind: 'ios', title: d.iPad && real ? 'לשמור את מילה במסך הבית של האייפד' : 'לשמור את מילה במסך הבית של האייפון',
         sub: notSafari ? `זה עובד גם מ-${browserName[d.browser] || 'הדפדפן הזה'}. הכי בטוח ב-Safari.` : '30 שניות, פעם אחת. אחר כך היא נפתחת כמו כל אפליקציה.',
         steps: notSafari
-          ? [step(G.share, 'לוחצות על כפתור השיתוף', 'ליד שורת הכתובת. אם אין, בתפריט ⋯'), step(G.addSq, 'בוחרות ״הוספה למסך הבית״', 'לא רואות? גוללות קצת למטה ברשימה'), step(G.check, 'לוחצות ״הוספה״'), step(G.home, 'פותחות את מילה מהמסך הראשי', 'ומשם מפעילות התראות')]
-          : [step(G.share, 'לוחצות על כפתור השיתוף', d.iPad && real ? 'למעלה, ליד שורת הכתובת' : 'בשורה התחתונה. לא רואות? קודם על ⋯'), step(G.addSq, 'בוחרות ״הוספה למסך הבית״', 'לא מופיע? גוללות למטה, או ״עוד״'), step(G.check, 'משאירות ״פתיחה כאפליקציה״ דלוק ולוחצות ״הוספה״', 'אם המתג לא מופיע, פשוט ״הוספה״'), step(G.home, 'פותחות את מילה מהמסך הראשי', 'ומשם מפעילות התראות')],
+          ? [step(G.share, 'לוחצת על כפתור השיתוף', 'ליד שורת הכתובת. אם אין, בתפריט ⋯'), step(G.addSq, 'בוחרת ״הוספה למסך הבית״', 'לא רואה? גוללת קצת למטה ברשימה'), step(G.check, 'לוחצת ״הוספה״'), step(G.home, 'פותחת את מילה מהמסך הראשי', 'ומשם מפעילה התראות')]
+          : [step(G.share, 'לוחצת על כפתור השיתוף', d.iPad && real ? 'למעלה, ליד שורת הכתובת' : 'בשורה התחתונה. לא רואה? קודם על ⋯'), step(G.addSq, 'בוחרת ״הוספה למסך הבית״', 'לא מופיע? גוללת למטה, או ״עוד״'), step(G.check, 'משאירה ״פתיחה כאפליקציה״ דלוק ולוחצת ״הוספה״', 'אם המתג לא מופיע, פשוט ״הוספה״'), step(G.home, 'פותחת את מילה מהמסך הראשי', 'ומשם מפעילה התראות')],
         safariLink: notSafari, arrow: real && !d.iPad && d.browser === 'safari',
       };
     }
     if (os === 'android') {
       const b = real ? d.browser : 'chrome';
-      if (b === 'samsung') return { kind: 'android', title: 'שומרות את מילה במסך הבית', sub: 'בדפדפן של סמסונג.', prompt: real && d.canPrompt,
-        steps: [step(G.burger, 'לוחצות על ☰ בשורה התחתונה'), step(G.addSq, 'בוחרות ״הוספת דף אל״', 'או אייקון ההורדה בשורת הכתובת'), step(G.home, 'בוחרות ״מסך הבית״ ומאשרות')] };
-      if (b === 'firefox') return { kind: 'android', title: 'שומרות את מילה במסך הבית', sub: 'בפיירפוקס.',
-        steps: [step(G.dots, 'לוחצות על ⋮'), step(G.addSq, 'בוחרות ״הוספה למסך הבית״', 'או ״התקנה״'), step(G.check, 'מאשרות ״הוספה״')] };
-      return { kind: 'android', title: 'מתקינות את מילה בטלפון', sub: real && d.canPrompt ? 'לחיצה אחת. בלי חנות ובלי הורדה.' : 'בלי חנות ובלי הורדה.', prompt: real && d.canPrompt,
-        steps: [step(G.dots, 'לוחצות על ⋮ למעלה בפינה'), step(G.addSq, 'בוחרות ״התקנת אפליקציה״', 'או ״הוספה למסך הבית״'), step(G.check, 'לוחצות ״התקנה״'), step(G.home, 'מילה מחכה לך במסך הבית')] };
+      if (b === 'samsung') return { kind: 'android', title: 'לשמור את מילה במסך הבית', sub: 'בדפדפן של סמסונג.', prompt: real && d.canPrompt,
+        steps: [step(G.burger, 'לוחצת על ☰ בשורה התחתונה'), step(G.addSq, 'בוחרת ״הוספת דף אל״', 'או אייקון ההורדה בשורת הכתובת'), step(G.home, 'בוחרת ״מסך הבית״ ומאשרת')] };
+      if (b === 'firefox') return { kind: 'android', title: 'לשמור את מילה במסך הבית', sub: 'בפיירפוקס.',
+        steps: [step(G.dots, 'לוחצת על ⋮'), step(G.addSq, 'בוחרת ״הוספה למסך הבית״', 'או ״התקנה״'), step(G.check, 'מאשרת ״הוספה״')] };
+      return { kind: 'android', title: 'להתקין את מילה בטלפון', sub: real && d.canPrompt ? 'לחיצה אחת. בלי חנות ובלי הורדה.' : 'בלי חנות ובלי הורדה.', prompt: real && d.canPrompt,
+        steps: [step(G.dots, 'לוחצת על ⋮ למעלה בפינה'), step(G.addSq, 'בוחרת ״התקנת אפליקציה״', 'או ״הוספה למסך הבית״'), step(G.check, 'לוחצת ״התקנה״'), step(G.home, 'מילה מחכה לך במסך הבית')] };
     }
     // מחשב
     const b = real ? d.browser : 'chrome';
-    if (b === 'safari') return { kind: 'desktop', title: 'מילה ב-Dock של המק', sub: 'ב-Safari (macOS Sonoma ומעלה).', steps: [step(G.share, 'תפריט ״קובץ״, או כפתור השיתוף'), step(G.addSq, 'בוחרות ״הוספה ל-Dock״'), step(G.check, 'מאשרות ״הוספה״')] };
+    if (b === 'safari') return { kind: 'desktop', title: 'מילה ב-Dock של המק', sub: 'ב-Safari (macOS Sonoma ומעלה).', steps: [step(G.share, 'תפריט ״קובץ״, או כפתור השיתוף'), step(G.addSq, 'בוחרת ״הוספה ל-Dock״'), step(G.check, 'מאשרת ״הוספה״')] };
     if (b === 'firefox') return { kind: 'desktop', title: 'הכי טוב בטלפון', sub: 'פיירפוקס במחשב לא מתקין אפליקציות רשת. שלחי לעצמך את הקישור ופתחי בטלפון.', steps: [], copyOnly: true };
-    return { kind: 'desktop', title: 'מתקינות את מילה במחשב', sub: real && d.canPrompt ? 'לחיצה אחת.' : 'ב-Chrome או ב-Edge.', prompt: real && d.canPrompt,
-      steps: [step(G.install, 'לוחצות על אייקון ההתקנה בשורת הכתובת', 'מסך קטן עם חץ, בצד של הכתובת'), step(G.check, 'לוחצות ״התקנה״'), step(G.bell, 'ובטלפון זה עוד יותר טוב', 'פותחות את אותו קישור בטלפון')] };
+    return { kind: 'desktop', title: 'להתקין את מילה במחשב', sub: real && d.canPrompt ? 'לחיצה אחת.' : 'ב-Chrome או ב-Edge.', prompt: real && d.canPrompt,
+      steps: [step(G.install, 'לוחצת על אייקון ההתקנה בשורת הכתובת', 'מסך קטן עם חץ, בצד של הכתובת'), step(G.check, 'לוחצת ״התקנה״'), step(G.bell, 'ובטלפון זה עוד יותר טוב', 'פותחת את אותו קישור בטלפון')] };
   }
 
   /* הוראות לפתיחת התראות שנחסמו */
   function unblockSteps(d) {
-    if (d.os === 'ios') return [step(G.gear, 'פותחות את ״הגדרות״ של האייפון'), step(G.bell, '״עדכונים״ ← מילה'), step(G.check, 'מדליקות ״אפשר עדכונים״')];
+    if (d.os === 'ios') return [step(G.gear, 'פותחת את ״הגדרות״ של האייפון'), step(G.bell, '״עדכונים״ ← מילה'), step(G.check, 'מדליקה ״אפשר עדכונים״')];
     if (d.os === 'android') return d.standalone
-      ? [step(G.home, 'לחיצה ארוכה על האייקון של מילה'), step(G.gear, '״פרטי אפליקציה״ ← ״התראות״'), step(G.check, 'מדליקות')]
-      : [step(G.lock, 'לוחצות על המנעול או ⚙ ליד הכתובת'), step(G.gear, '״הרשאות״ ← ״התראות״'), step(G.check, 'בוחרות ״אפשר״')];
-    return [step(G.lock, 'לוחצות על המנעול ליד הכתובת'), step(G.bell, 'התראות ← ״אפשר״'), step(G.check, 'מרעננות את הדף')];
+      ? [step(G.home, 'לחיצה ארוכה על האייקון של מילה'), step(G.gear, '״פרטי אפליקציה״ ← ״התראות״'), step(G.check, 'מדליקה')]
+      : [step(G.lock, 'לוחצת על המנעול או ⚙ ליד הכתובת'), step(G.gear, '״הרשאות״ ← ״התראות״'), step(G.check, 'בוחרת ״אפשר״')];
+    return [step(G.lock, 'לוחצת על המנעול ליד הכתובת'), step(G.bell, 'התראות ← ״אפשר״'), step(G.check, 'מרעננת את הדף')];
   }
 
   root.MilaInstall = { detect, platformName, browserName, guide, unblockSteps, prompt, permission, enablePush, disablePush, testPush, refreshPush, onSignOut, get pushOn() { return pushState.on; }, get pushChecked() { return pushState.checked; }, onChange: (f) => listeners.add(f), get: get, mark, G };

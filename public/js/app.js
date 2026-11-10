@@ -349,9 +349,9 @@ const App = (() => {
       ${fresh ? `<div class="card start-card">
           <div class="start-title">במה את עומדת ב-14 הימים הקרובים?</div>
           <ol class="start-steps">
-            <li><b>1</b><span>בוחרות עד 3 אתגרים</span></li>
-            <li><b>2</b><span>כל ערב מסמנות: עמדתי או לא</span></li>
-            <li><b>3</b><span>מזמינות חברות ורואות מי מתמידה</span></li>
+            <li><b>1</b><span>בוחרת עד 3 אתגרים</span></li>
+            <li><b>2</b><span>כל ערב מסמנת אם עמדת בהם</span></li>
+            <li><b>3</b><span>מזמינה חברות ורואה מי מתמידה יותר</span></li>
           </ol>
           <button class="btn primary" onclick="App.openPick()">בוחרת אתגרים</button>
         </div>` : `<div class="section-title">האתגרים שלי להיום ${cards.length ? `<small>${done}/${cards.length}</small>` : ''}</div>
@@ -1231,7 +1231,7 @@ const App = (() => {
     const steps = (g.steps || []).length ? `<ol class="inst-steps">${g.steps.map((x, i) => `<li style="--i:${i}"><span class="n">${i + 1}</span><span class="g">${x.glyph}</span><div><div class="t">${x.title}</div>${x.sub ? `<div class="m">${x.sub}</div>` : ''}</div></li>`).join('')}</ol>` : '';
     const link = location.origin + '/';
     const extra = g.kind === 'inapp'
-      ? `<div class="btn-row">${g.openIn === 'safari' ? `<a class="btn dark" href="x-safari-${link}">פתיחה ב-Safari</a>` : `<a class="btn dark" href="intent://${location.host}/#Intent;scheme=https;package=com.android.chrome;end">פתיחה ב-Chrome</a>`}<button class="btn soft" onclick="App.copyText('${link}')">העתקת קישור</button></div><div class="tiny muted center">לא נפתח? מעתיקות את הקישור ומדביקות בדפדפן.</div>`
+      ? `<div class="btn-row">${g.openIn === 'safari' ? `<a class="btn dark" href="x-safari-${link}">פתיחה ב-Safari</a>` : `<a class="btn dark" href="intent://${location.host}/#Intent;scheme=https;package=com.android.chrome;end">פתיחה ב-Chrome</a>`}<button class="btn soft" onclick="App.copyText('${link}')">העתקת קישור</button></div><div class="tiny muted center">לא נפתח? מעתיקה את הקישור ומדביקה בדפדפן.</div>`
       : g.safariLink ? `<button class="btn soft" onclick="App.copyText('${link}')">העתקת הקישור (להדביק ב-Safari)</button>`
       : g.copyOnly ? `<button class="btn dark" onclick="App.shareLink()">שליחת הקישור לטלפון</button>` : '';
     const head = g.kind === 'installed'
@@ -1248,10 +1248,10 @@ const App = (() => {
     const box = (tile, t, m, body = '') => `<div class="inst-push"><div class="inst-push-h"><span class="tile sm ${tile}">${icon('bell', 18)}</span><div><div class="t">${t}</div><div class="m">${m}</div></div></div>${body}</div>`;
     if (!isCloud()) return box('gray', 'התראות', 'זמינות אחרי כניסה עם חשבון.');
     if (d.iosTooOld) return box('peach', 'התראות צריכות iOS 16.4 ומעלה', '״הגדרות״ ← ״כללי״ ← ״עדכון תוכנה״.');
-    if (d.pushNeedsInstall) return box('lav', 'באייפון, התראות מגיעות רק מהמסך הראשי', 'אפל מאפשרת התראות רק לאפליקציה ששמרת. שומרות לפי השלבים, פותחות משם, ומדליקות.');
+    if (d.pushNeedsInstall) return box('lav', 'באייפון, התראות מגיעות רק מהמסך הראשי', 'אפל מאפשרת התראות רק לאפליקציה ששמרת. שומרת לפי השלבים, פותחת משם, ומדליקה.');
     if (!d.pushApi) return box('gray', 'התראות', 'הדפדפן הזה לא תומך בהתראות. ב-Chrome או ב-Safari זה עובד.');
     const perm = I().permission();
-    if (perm === 'denied') return box('pink', 'ההתראות חסומות במכשיר הזה', 'ככה פותחות אותן:', `<ol class="inst-steps sm">${I().unblockSteps(d).map((x, i) => `<li><span class="n">${i + 1}</span><span class="g">${x.glyph}</span><div><div class="t">${x.title}</div></div></li>`).join('')}</ol>`);
+    if (perm === 'denied') return box('pink', 'ההתראות חסומות במכשיר הזה', 'ככה פותחת אותן:', `<ol class="inst-steps sm">${I().unblockSteps(d).map((x, i) => `<li><span class="n">${i + 1}</span><span class="g">${x.glyph}</span><div><div class="t">${x.title}</div></div></li>`).join('')}</ol>`);
     const rt = (Mila.me() && Mila.me().settings.reminderTime) || '20:00';
     if (I().pushOn) return box('lime', 'התראות פעילות ✓', `תזכורת ב-${esc(rt)} אם עוד לא דיווחת. ועדכון כשמישהי עוקפת אותך.`, `<div class="btn-row"><button class="btn soft sm" onclick="App.pushTest()">שליחת התראת בדיקה</button><button class="btn text sm" onclick="App.pushOff()">כיבוי</button></div>`);
     return box('lime', 'שמילה תזכיר לך?', `ב-${esc(rt)}, רק אם עוד לא דיווחת. ותגיד כשמישהי עוקפת אותך.`, `<button class="btn dark" onclick="App.pushEnable()">${icon('bell', 18)} להפעיל התראות</button>`);
@@ -1288,7 +1288,7 @@ const App = (() => {
   function phoneCard() {
     if (!I()) return '';
     const d = I().detect(); const perm = I().permission();
-    const pushTxt = !isCloud() ? 'אחרי כניסה עם חשבון' : d.pushNeedsInstall ? 'קודם שומרות למסך הבית' : !d.pushApi ? 'לא נתמך בדפדפן הזה' : perm === 'denied' ? 'חסומות. איך פותחים?' : I().pushOn ? 'פעילות ✓' : 'כבויות. להפעיל?';
+    const pushTxt = !isCloud() ? 'אחרי כניסה עם חשבון' : d.pushNeedsInstall ? 'קודם שומרת למסך הבית' : !d.pushApi ? 'לא נתמך בדפדפן הזה' : perm === 'denied' ? 'חסומות. איך פותחים?' : I().pushOn ? 'פעילות ✓' : 'כבויות. להפעיל?';
     return `<div class="card tight"><div class="card-title">מילה בטלפון</div>
       <div class="list-row clickable" onclick="App.installSheet()"><img class="inst-icon xs" src="/icons/icon-192.png" alt=""><div class="body"><div class="t">על המסך הראשי</div><div class="m">${d.standalone ? 'מותקנת ✓' : `הוראות ל${esc(I().platformName(d))}`}</div></div>${icon('chev', 18)}</div>
       <div class="list-row clickable" onclick="App.installSheet()"><span class="tile sm lime">${icon('bell', 18)}</span><div class="body"><div class="t">התראות במכשיר הזה</div><div class="m">${pushTxt}</div></div>${icon('chev', 18)}</div>
