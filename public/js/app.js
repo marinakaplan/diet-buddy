@@ -206,12 +206,26 @@ const App = (() => {
       </div>
       ${pendingInviteToken ? `<div class="invited-banner w2-inv">💌 הוזמנת לקבוצה של חברה. נכנסת עם Google, ומצטרפת.</div>` : ''}
       <div class="hero-cta w2-cta">${cta}
-        <button class="btn text" onclick="App.startDemo()">להציץ בדוגמה</button>
+        <button class="btn text" onclick="App.howSheet()">איך זה עובד?</button>
         <div class="disclaimer">כניסה עם Google · מגיל 18 · חינם · בטא</div>
       </div>
     </div>`;
   };
 
+  /* ״איך זה עובד?״ — הסבר קצר במקום דוגמה */
+  function howSheet() {
+    const cta = Api.enabled ? `<button class="btn dark" onclick="App.closeSheet(); App.googleSignIn()">${googleMark()} יאללה, אני בפנים</button>` : `<button class="btn dark" onclick="App.closeSheet(); App.go('signup')">יאללה, אני בפנים</button>`;
+    sheet(`<div class="how">
+      <div class="sheet-title">איך זה עובד?</div>
+      <ol class="how-steps">
+        <li><b>1</b><div><div class="t">בוחרת עד 3 דברים לעמוד בהם</div><div class="m">ל-14 יום. למשל: בלי טלפון כשהילדים איתך.</div></div></li>
+        <li><b>2</b><div><div class="t">כל ערב מסמנת: עמדתי או לא</div><div class="m">שתי שניות. מילה מזכירה לך.</div></div></li>
+        <li><b>3</b><div><div class="t">החברות שלך רואות</div><div class="m">מפרגנות, מעודדות, ומתחרות איתך על התמדה.</div></div></li>
+      </ol>
+      <div class="how-why"><div class="t">למה זה עובד?</div><p>כי כשמישהי רואה, הרבה יותר קשה לוותר. ו-14 יום זה מספיק קצר כדי להתחיל, ומספיק ארוך כדי שזה יהפוך להרגל.</p></div>
+      ${cta}
+    </div>`);
+  }
   function startDemo() {
     Mila.reset();
     MilaDemo.seed('דניאלה');
@@ -404,7 +418,7 @@ const App = (() => {
         </div>
       </div>
       <div class="greeting"><div><div class="hello">${greet}, ${esc((u.name || '').split(' ')[0])} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${fresh ? 'בואי נתחיל.' : todaySubtitle(cards)}</div></div></div>
-      ${Mila.getState().meta.demo ? `<div class="demo-banner">זו דוגמה עם חברות מומצאות. <a href="#" onclick="event.preventDefault(); App.resetDemo()">להתחיל באמת</a></div>` : ''}
+      ${Mila.getState().meta.demo ? `<div class="demo-banner"><span>זו דוגמה עם חברות מומצאות.</span><button class="btn dark sm" onclick="App.exitDemo()">יציאה מהדוגמה</button></div>` : ''}
 
       ${main ? `<div class="card tight stat-strip">
           <div><b>${main.st.dayIndex}</b><span>יום</span></div>
@@ -1456,6 +1470,7 @@ const App = (() => {
   async function rename(name) { try { if (!name.trim()) return; await Store().renameMe(name); toast('עודכן.'); } catch (e) { fail(e); } }
   async function unblock(id) { try { await Store().unblock(id); render(); } catch (e) { fail(e); } }
   async function exportData() { const data = isCloud() ? JSON.stringify(await Api.cloud.exportData(), null, 2) : Mila.exportData(); const blob = new Blob([data], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mila-export.json'; a.click(); URL.revokeObjectURL(a.href); toast('הקובץ ירד'); }
+  function exitDemo() { Mila.reset(); stack = []; go('welcome', {}, { reset: true }); }
   function resetDemo() { confirmSheet({ title: 'לאפס את הדוגמה?', sub: 'חוזרת למסך הפתיחה.', okText: 'איפוס', okClass: 'pink', onOk: () => { Mila.reset(); closeSheet(true); go('welcome', {}, { reset: true }); } }); }
   function deleteAccount() { confirmSheet({ title: 'למחוק את החשבון?', sub: 'סופי. האתגרים, הדיווחים וההישגים נמחקים. בקבוצות נשאר רישום אנונימי.', okText: 'למחוק', okClass: 'danger', onOk: async () => { await Store().deleteAccount(); closeSheet(true); go('welcome', {}, { reset: true }); toast('נמחק.'); } }); }
 
@@ -1811,7 +1826,7 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
-    invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
+    howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();

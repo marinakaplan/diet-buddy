@@ -958,3 +958,15 @@ body.wide #screen { padding-inline: 24px; }
 @keyframes fxfly { 0% { opacity: 1; transform: translate(-50%, -50%) scale(.6) rotate(0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 40px)) scale(1) rotate(var(--r)); } }
 /* מתג: הכפתור קופץ קצת */
 .switch::after { transition: transform .25s cubic-bezier(.2, 1.6, .4, 1), background .2s; }
+/* איך זה עובד */
+.how-steps { list-style: none; margin: 14px 0 6px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.how-steps li { display: flex; gap: 12px; align-items: flex-start; animation: w2up .4s ease both; }
+.how-steps li:nth-child(2) { animation-delay: .08s; } .how-steps li:nth-child(3) { animation-delay: .16s; }
+.how-steps b { width: 30px; height: 30px; flex: none; display: grid; place-items: center; background: var(--lime); font-weight: 800; }
+.how-steps .t { font-weight: 700; font-size: 1rem; }
+.how-steps .m { color: var(--ink-2); font-size: .88rem; margin-top: 2px; }
+.how-why { margin: 18px 0 16px; padding: 14px; background: var(--lime-soft); }
+.how-why .t { font-weight: 800; margin-bottom: 4px; }
+.how-why p { margin: 0; font-size: .92rem; line-height: 1.55; }
+.demo-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.demo-banner .btn.sm { flex: none; }
