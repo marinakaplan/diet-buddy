@@ -818,3 +818,5 @@ body.wide #screen { padding-inline: 24px; }
   .w2 .hero-blobs i, .w2 .hero-btn, .w2 .hero-btn::after { animation: none !important; }
 }
 @media (max-height: 700px) { .w2-h { font-size: 2rem; } .w2-brand { margin-bottom: 18px; } .w2-rot { margin-top: 18px; } }
+.tomorrow-sheet .tm-logo { display: flex; justify-content: center; margin-bottom: 10px; animation: w2pop .6s cubic-bezier(.2, 1.6, .4, 1) both; }
+.tomorrow-sheet .sheet-title { font-size: 1.5rem; }
