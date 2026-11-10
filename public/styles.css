@@ -924,3 +924,4 @@ body.wide #screen { padding-inline: 24px; }
 .ob-hero .ll-eyes-narrow, .th-brand .ll-eyes-narrow { animation: llside-n 9s ease 4s infinite; }
 .ob-pick > .ic, .ob-choice > .ic { width: 40px; height: 40px; display: grid; place-items: center; background: var(--bg); color: var(--ink); flex: none; }
 .ob-pick.on > .ic, .ob-choice.on > .ic { background: rgba(255,255,255,.6); }
+.ob-title-sm { font-size: 1.55rem; }

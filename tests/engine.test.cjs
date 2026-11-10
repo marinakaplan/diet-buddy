@@ -267,9 +267,10 @@ test('דמו: מצומצם (קבוצה אחת, 3 אתגרים) ועובר את �
 
 test('ספרייה: אתגר מהספרייה נשמר עם מזהה יציב, כותרת וכלל מהספרייה; מזהה לא קיים נדחה', () => {
   fresh();
-  assert.strictEqual(Mila.LIBRARY.CHALLENGES.length, 50);
-  assert.strictEqual(new Set(Mila.LIBRARY.CHALLENGES.map(c => c.id)).size, 50, 'מזהים ייחודיים');
-  for (const cat of Mila.LIBRARY.CATEGORIES) assert.strictEqual(Mila.LIBRARY.inCategory(cat.id).length, 10, cat.name);
+  assert.strictEqual(Mila.LIBRARY.CHALLENGES.length, 56);
+  assert.strictEqual(new Set(Mila.LIBRARY.CHALLENGES.map(c => c.id)).size, 56, 'מזהים ייחודיים');
+  for (const cat of Mila.LIBRARY.CATEGORIES) assert.ok(Mila.LIBRARY.inCategory(cat.id).length >= 10, cat.name);
+  for (const id of ['fam_no_phone_kids', 'food_no_choc_20', 'hab_no_insta_bed', 'move_walk_anyway', 'move_bed_22', 'hab_zero_cart']) assert.ok(Mila.LIBRARY.get(id), id + ' (אונבורדינג)');
   const { def, commitment } = Mila.createPersonalWord({ libraryId: 'food_8_water', title: 'משהו אחר', rule: 'x', reward: ' ספר חדש ' });
   assert.strictEqual(def.libraryId, 'food_8_water'); assert.strictEqual(def.title, '8 כוסות מים ביום'); assert.strictEqual(def.category, 'food');
   assert.strictEqual(commitment.reward, 'ספר חדש'); assert.strictEqual(commitment.rewardShared, false);

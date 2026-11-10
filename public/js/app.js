@@ -278,7 +278,7 @@ const App = (() => {
      אונבורדינג: 3 שלבים קצרים — שם · הבטחה ראשונה · לבד או עם חברה
      ============================================================ */
   let ob = null;
-  const OB_PICKS = ['fam_no_yelling', 'food_no_sweets_evening', 'move_walk_30', 'food_8_water', 'move_sleep_by_23', 'food_no_delivery'];
+  const OB_PICKS = ['fam_no_phone_kids', 'food_no_choc_20', 'hab_no_insta_bed', 'move_walk_anyway', 'move_bed_22', 'hab_zero_cart'];
   SCREENS.onboard = () => {
     if (!ob) ob = { step: 2, picks: [], friend: null };
     const L = Mila.LIBRARY; const first = (Mila.me().name || '').split(' ')[0];
@@ -286,10 +286,10 @@ const App = (() => {
       const n = ob.picks.length;
       return `<div class="ob ob-in">
         ${obDots(2)}
-        <h1 class="ob-title">היי ${esc(first)},<br>מה ההבטחה הראשונה שלך?</h1>
-        <p class="ob-sub">בוחרת אחת, או עד 3. כל ערב רק מסמנת אם עמדת בזה.</p>
+        <h1 class="ob-title ob-title-sm">${esc(first)},<br>תני את המילה שלך<br>לעמוד ב…</h1>
+        <p class="ob-sub">אחת, או עד 3. ל-14 יום.</p>
         <div class="ob-grid">${OB_PICKS.map((id, i) => { const ch = L.get(id); const on = ob.picks.includes(id); return `<button class="ob-pick ${on ? 'on' : ''}" style="--i:${i}" onclick="App.obToggle('${id}')"><span class="ic">${icon(ch.icon || 'leaf', 22)}</span><span class="t">${esc(ch.title)}</span></button>`; }).join('')}</div>
-        <button class="btn text ob-more" onclick="App.obMore()">עוד 44 רעיונות, או אתגר משלך ›</button>
+        <button class="btn text ob-more" onclick="App.obMore()">עוד ${L.CHALLENGES.length - OB_PICKS.length} רעיונות, או אתגר משלך ›</button>
         <div class="ob-foot"><button class="btn primary" ${n ? '' : 'disabled'} onclick="App.obNext()">${n ? `ממשיכה עם ${n === 1 ? 'אתגר אחד' : `${n} אתגרים`}` : 'בוחרת לפחות אחד'}</button>
         <div class="ob-links"><button class="btn text" onclick="App.joinByCodeSheet()">יש לי קוד מחברה</button><button class="btn text" onclick="App.obSkip()">קודם להציץ</button></div></div>
       </div>`;
