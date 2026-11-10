@@ -528,7 +528,7 @@ const App = (() => {
     const L = Mila.LIBRARY;
     const circles = Mila.myCircles();
     const startDate = Mila.today();
-    pick = { step: 1, selected: prefillIds.filter(id => L.get(id)).slice(0, Mila.RULES.DAILY_CAP), open: prefillIds.length ? L.get(prefillIds[0]).cat : L.CATEGORIES[0].id, rewards: {}, startDate, circleId: opts.circleId || (circles.length === 1 ? circles[0].id : null), visibility: 'status', shareSensitive: false, newCircleName: `הקבוצה של ${(Mila.me().name || '').split(' ')[0]}` };
+    pick = { step: 1, selected: prefillIds.filter(id => L.get(id)).slice(0, Mila.RULES.DAILY_CAP), open: prefillIds.length ? L.get(prefillIds[0]).cat : L.CATEGORIES[0].id, rewards: {}, startDate, circleId: opts.circleId || (circles.length === 1 ? circles[0].id : null), visibility: 'status', shareSensitive: false, newCircleName: `הקבוצה של ${(Mila.me().name || '').split(' ')[0]}`, exStart: Math.floor(Math.random() * 10) };
     go('pick');
   }
   SCREENS.pick = () => {
@@ -552,8 +552,8 @@ const App = (() => {
       <button class="btn primary" ${n ? '' : 'disabled'} onclick="App.pickNext()">בחרתי. מה הלאה?</button>
       <button class="btn text mt" onclick="App.pickCustom()">${icon('plus', 16)} לא מצאת? צרי אתגר משלך</button>`;
   };
-  const REWARD_EXAMPLES = ['למשל: מסאז׳ של שעה', 'למשל: ערב לבד עם סדרה', 'למשל: הנעליים שאני רוצה', 'למשל: ארוחת בוקר בחוץ', 'למשל: מניקור', 'למשל: ספר חדש', 'למשל: קפה ועוגה בבית קפה', 'למשל: יום בלי לבשל'];
-  const rewardExample = (id, i) => { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0; return REWARD_EXAMPLES[(h + i * 3) % REWARD_EXAMPLES.length]; };
+  const REWARD_EXAMPLES = ['למשל: אוכלת את השוקולד שהחבאתי מהילדים', 'למשל: ערב שלם שאף אחד לא קורא לי אמא', 'למשל: קונה את השמלה שאין לי לאן ללבוש', 'למשל: ישנה עד 10 בשבת, ומישהו אחר קם לילדים', 'למשל: אמבטיה. עם דלת נעולה.', 'למשל: יוצאת מקבוצת הוואטסאפ של הגן', 'למשל: מספרת לכולן. פעמיים.', 'למשל: מזמינה סושי ולא מתחלקת', 'למשל: כוס יין ושעה שאף אחד לא מדבר איתי', 'למשל: מסאז׳, ומישהו אחר משלם'];
+  const rewardExample = (id, i) => REWARD_EXAMPLES[((pick.exStart || 0) + i) % REWARD_EXAMPLES.length]; // כל אתגר דוגמה אחרת, ומשתנה בכל פתיחה
   function pickReview(header) {
     const L = Mila.LIBRARY;
     const circles = Mila.myCircles();
@@ -592,8 +592,7 @@ const App = (() => {
   /* ״מחר״? נו באמת. */
   function pickTomorrow() {
     sheet(`<div class="sheet-hero tomorrow-sheet"><div class="tm-logo">${liveLogo(64)}</div><div class="sheet-title">די, יפה שלי 😏</div><div class="sheet-sub">את יודעת שמחר לא יקרה.</div></div>
-      <button class="btn primary" onclick="App.pickSet('startDate','${Mila.today()}'); App.closeSheet()">תתחילי מהיום</button>
-      <button class="btn text mt" onclick="App.pickSet('startDate','${Mila.addDays(Mila.today(), 1)}'); App.closeSheet()">בכל זאת מחר</button>`);
+      <button class="btn primary" onclick="App.pickSet('startDate','${Mila.today()}'); App.closeSheet()">תתחילי מהיום</button>`);
   }
   function pickNext() { if (!pick.selected.length) return toast('בחרי אתגר אחד לפחות.'); pick.step = 2; render(); window.scrollTo({ top: 0 }); }
   function pickBack() { pick.step = 1; render(); }
