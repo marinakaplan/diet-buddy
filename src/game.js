@@ -1,6 +1,8 @@
 /* מנוע המשחק בצד השרת. כל פעולה: אימות בעלות/חברות → בדיקת חוקים → batch אטומי ב-D1.
    עקרונות: שקל נוצר רק בהכרעה; יומן append-only; תיקון = REVERSE + תנועה חדשה; דיווח כפול = idempotent;
    תקרת 3 ביום נבדקת כאן ונאכפת שוב בטריגר בתוך אותו batch. */
+import '../public/js/library.js';   // קובע globalThis.MilaLibrary (UMD; הקובץ משותף עם הדפדפן)
+const MilaLibrary = globalThis.MilaLibrary;
 import { err, uid, nowISO, localDate, addDays, diffDays, isValidDate, windowOf, ROUND_DAYS, DAILY_CAP, MAX_EXCUSES, CORRECTION_MS, sha256hex, inviteCode } from './util.js';
 
 const ACH = {
@@ -88,19 +90,27 @@ async function runBatch(env, stmts) {
 
 /* ---------- מילים ---------- */
 export async function createPersonalWord(env, user, b) {
-  const { title, rule } = validateWord(b.title, b.rule);
+  // אתגר מהספרייה: הכותרת, הכלל והאייקון נלקחים מהספרייה (מזהה יציב), לא מהלקוח
+  let lib = null;
+  if (b.libraryId) { lib = MilaLibrary.get(String(b.libraryId)); if (!lib) throw err('VALIDATION', 'האתגר לא נמצא בספרייה'); }
+  const { title, rule } = validateWord(lib ? lib.title : b.title, lib ? lib.rule : b.rule);
   const today = localDate(user.timezone);
   const start = isValidDate(b.startDate) ? b.startDate : today;
   if (start < today) throw err('VALIDATION', 'אי אפשר לתת מילה על ימים שעברו');
   if (diffDays(today, start) > 60) throw err('VALIDATION', 'אפשר לתכנן עד 60 יום קדימה');
-  const circleId = b.circleId || null;
+  let circleId = b.circleId || null;
+  // אתגר רגיש: פרטי כברירת מחדל; שיתוף עם קבוצה רק בבחירה מפורשת
+  if (lib && MilaLibrary.isSensitive(lib.id) && b.shareSensitive !== true) circleId = null;
   if (circleId && !(await isMember(env, circleId, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
   const vis = circleId ? (['status', 'summary'].includes(b.visibility) ? b.visibility : 'status') : 'private';
+  const reward = String(b.reward || '').trim().slice(0, 80) || null;
+  const rewardShared = reward && b.rewardShared === true ? 1 : 0;
   const cap = await capInfo(env, user.id, start);
-  if (!cap.ok) throw err('CAP', 'יש לך כבר שלוש מילים על הכף בימים האלה', 409, { cap });
+  if (!cap.ok) throw err('CAP', 'יש לך כבר שלושה אתגרים בימים האלה', 409, { cap });
   const did = uid(); const end = addDays(start, ROUND_DAYS - 1);
   const { kid, stmts } = commitmentStmts(env, did, user, start, end);
-  const batch = [S(env, `insert into word_definitions(id, kind, circle_id, owner_id, title, rule, icon, visibility, start_date, end_date, status) values (?,?,?,?,?,?,?,?,?,?,'active')`, did, 'personal', circleId, user.id, title, rule, icon(b.icon), vis, start, end), ...stmts];
+  const batch = [S(env, `insert into word_definitions(id, kind, circle_id, owner_id, title, rule, icon, visibility, start_date, end_date, status, library_id, category, library_version) values (?,?,?,?,?,?,?,?,?,?,'active',?,?,?)`, did, 'personal', circleId, user.id, title, rule, icon(lib ? lib.icon : b.icon), vis, start, end, lib ? lib.id : null, lib ? lib.cat : null, lib ? lib.version : null), ...stmts];
+  if (reward) batch.push(S(env, `update word_commitments set reward = ?, reward_shared = ? where id = ?`, reward, rewardShared, kid));
   if (circleId && vis !== 'private') batch.push(eventStmt(env, circleId, user.id, 'word_committed', { defId: did, title }));
   batch.push(...grantStmts(env, user.id, 'first_word', did));
   await runBatch(env, batch);
@@ -202,6 +212,36 @@ async function afterSuccess(env, user, o, d) {
   await env.DB.batch(stmts);
 }
 
+/* ---------- דירוג בקבוצה (לאיתור ״המהפך״) ---------- */
+const MIN_RANKED = 3;
+async function circleRank(env, circleId) {
+  const c = await first(env, `select round_start from circles where id = ?`, circleId);
+  if (!c) return [];
+  const today = localDate('UTC'); const i = Math.floor(diffDays(c.round_start, today) / ROUND_DAYS); const rs = addDays(c.round_start, i * ROUND_DAYS); const re = addDays(rs, ROUND_DAYS - 1);
+  const rows = await all(env, `select o.user_id, sum(case when o.outcome = 'success' then 1 else 0 end) as s, sum(case when o.outcome = 'miss' then 1 else 0 end) as m
+    from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id join circle_memberships cm on cm.circle_id = d.circle_id and cm.user_id = o.user_id and cm.left_at is null
+    where d.circle_id = ? and o.status <> 'cancelled' and k.status <> 'cancelled' and o.local_date between ? and ? group by o.user_id`, circleId, rs, re);
+  const hidden = new Set((await all(env, `select u.id from users u join circle_memberships cm on cm.user_id = u.id and cm.circle_id = ? and cm.left_at is null where u.settings like '%"hideFromLeaderboard":true%'`, circleId)).map(r => r.id));
+  return rows.map(r => ({ userId: r.user_id, success: r.s, resolved: r.s + r.m, rate: r.s + r.m ? r.s / (r.s + r.m) : 0, ranked: r.s + r.m >= MIN_RANKED && !hidden.has(r.user_id) }))
+    .filter(r => r.ranked).sort((a, b) => b.rate - a.rate || b.success - a.success);
+}
+async function afterOvertake(env, user, before, d) {
+  const after = await circleRank(env, d.circle_id);
+  const myAfter = after.findIndex(r => r.userId === user.id); if (myAfter < 0) return;
+  const myBefore = before.findIndex(r => r.userId === user.id);
+  const passed = after.filter((r, i) => r.userId !== user.id && i > myAfter && (myBefore < 0 ? before.some(x => x.userId === r.userId) : before.findIndex(x => x.userId === r.userId) < myBefore));
+  if (!passed.length) return;
+  const names = await all(env, `select id, display_name from users where id in (${passed.map(() => '?').join(',')})`, ...passed.map(r => r.userId));
+  const nameOf = (id) => (names.find(n => n.id === id) || {}).display_name || 'חברה';
+  const day = localDate(user.timezone); const stmts = [];
+  for (const r of passed) {
+    stmts.push(eventStmt(env, d.circle_id, user.id, 'overtake', { passedUserId: r.userId, title: d.title }));
+    stmts.push(notifyStmt(env, user.id, 'overtake', `עקפת את ${nameOf(r.userId)}.`, 'עכשיו נראה אם היא תיתן לך להישאר שם.', { circleId: d.circle_id }, day + r.userId));
+    stmts.push(notifyStmt(env, r.userId, 'overtake', `${user.display_name} עקפה אותך.`, 'עוד הצלחה אחת ואת חוזרת.', { circleId: d.circle_id }, day + user.id));
+  }
+  await env.DB.batch(stmts);
+}
+
 export async function report(env, user, b) {
   const outcome = b.outcome;
   if (!['success', 'miss', 'excused'].includes(outcome)) throw err('VALIDATION', 'תוצאה לא תקינה');
@@ -220,11 +260,12 @@ export async function report(env, user, b) {
     if (used.n >= MAX_EXCUSES) throw err('VALIDATION', `כבר השתמשת ב-${MAX_EXCUSES} החרגות בסבב הזה`);
   }
   const at = nowISO();
+  const rankBefore = d.circle_id && outcome === 'success' ? await circleRank(env, d.circle_id) : null;
   try { await runBatch(env, resolveStmts(env, o, d, outcome, 'self_report', user.id, at, b.note ? String(b.note).slice(0, 60) : null)); }
   catch (e) { if (e.code === 'CONFLICT') { const cur = await first(env, `select outcome from daily_obligations where id = ?`, o.id); return { duplicate: true, outcome: cur.outcome }; } throw e; }
   const after = await first(env, `select resolved_at, outcome from daily_obligations where id = ?`, o.id);
   if (after.resolved_at !== at) return { duplicate: true, outcome: after.outcome };   // מישהי הקדימה אותנו (בקשה מקבילה)
-  if (outcome === 'success') await afterSuccess(env, user, o, d);
+  if (outcome === 'success') { await afterSuccess(env, user, o, d); if (rankBefore) await afterOvertake(env, user, rankBefore, d); }
   return { duplicate: false, outcome };
 }
 
@@ -282,9 +323,14 @@ export async function settle(env, user) {
 }
 
 /* ---------- קבוצות ---------- */
-async function newInviteStmt(env, circleId, userId) {
+const INVITE_KINDS = new Set(['follow', 'compete', 'same']);
+async function newInviteStmt(env, circleId, userId, o = {}) {
   const tok = inviteCode();
-  return { tok, stmt: S(env, `insert into circle_invites(token_hash, token_hint, circle_id, inviter_id, expires_at, max_uses) values (?,?,?,?,?,20)`, await sha256hex(tok), tok.slice(0, 2), circleId, userId, new Date(Date.now() + 7 * 86400000).toISOString()) };
+  const kind = INVITE_KINDS.has(o.kind) ? o.kind : 'follow';
+  const libraryId = o.libraryId && MilaLibrary.get(String(o.libraryId)) ? String(o.libraryId) : null;
+  const message = String(o.message || '').trim().slice(0, 200) || null;
+  const wordTitle = String(o.wordTitle || '').trim().slice(0, 60) || null;
+  return { tok, stmt: S(env, `insert into circle_invites(token_hash, token_hint, circle_id, inviter_id, expires_at, max_uses, kind, message, library_id, word_title) values (?,?,?,?,?,20,?,?,?,?)`, await sha256hex(tok), tok.slice(0, 2), circleId, userId, new Date(Date.now() + 7 * 86400000).toISOString(), kind, message, libraryId, wordTitle) };
 }
 export async function createCircle(env, user, b) {
   const name = String(b.name || '').trim(); if (!name) throw err('VALIDATION', 'שם הקבוצה לא יכול להיות ריק'); if (name.length > 50) throw err('VALIDATION', 'שם הקבוצה ארוך מדי (עד 50 תווים)');
@@ -308,7 +354,7 @@ export async function updateCircle(env, user, b) {
 }
 export async function createInvite(env, user, b) {
   if (!(await isMember(env, b.circleId, user.id))) throw err('FORBIDDEN', 'אין הרשאה', 403);
-  const inv = await newInviteStmt(env, b.circleId, user.id); await inv.stmt.run(); return { token: inv.tok };
+  const inv = await newInviteStmt(env, b.circleId, user.id, b); await inv.stmt.run(); return { token: inv.tok };
 }
 export async function revokeCircleInvites(env, user, b) {
   if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת יכולה לבטל קישורים', 403);
@@ -330,7 +376,7 @@ export async function previewInvite(env, user, b) {
   const members = (await first(env, `select count(*) as n from circle_memberships where circle_id = ? and left_at is null`, c.id)).n;
   const sample = await first(env, `select title from word_definitions where circle_id = ? and kind = 'group' and status <> 'cancelled' order by created_at desc limit 1`, c.id);
   const today = localDate(user.timezone); const i = Math.floor(diffDays(c.round_start, today) / ROUND_DAYS); const rs = addDays(c.round_start, i * ROUND_DAYS);
-  return { ok: true, inv: { token, expiresAt: inv.expires_at, uses: inv.uses, maxUses: inv.max_uses }, circle: { id: c.id, name: c.name, description: c.description, color: c.color }, inviter: { id: inviter.id, name: inviter.display_name, color: inviter.color }, memberCount: members, maxMembers: c.max_members, alreadyMember: await isMember(env, c.id, user.id), sampleWord: sample ? { title: sample.title } : null, round: { index: i + 1, start: rs, end: addDays(rs, 13), dayIndex: Math.min(Math.max(diffDays(rs, today) + 1, 0), 14), nextStart: addDays(rs, 14) } };
+  return { ok: true, inv: { token, expiresAt: inv.expires_at, uses: inv.uses, maxUses: inv.max_uses }, kind: inv.kind || 'follow', message: inv.message || '', libraryId: inv.library_id || null, wordTitle: inv.word_title || '', challenge: inv.library_id ? MilaLibrary.get(inv.library_id) : null, circle: { id: c.id, name: c.name, description: c.description, color: c.color }, inviter: { id: inviter.id, name: inviter.display_name, color: inviter.color }, memberCount: members, maxMembers: c.max_members, alreadyMember: await isMember(env, c.id, user.id), sampleWord: sample ? { title: sample.title } : null, round: { index: i + 1, start: rs, end: addDays(rs, 13), dayIndex: Math.min(Math.max(diffDays(rs, today) + 1, 0), 14), nextStart: addDays(rs, 14) } };
 }
 export async function acceptInvite(env, user, b) {
   const p = await previewInvite(env, user, b);

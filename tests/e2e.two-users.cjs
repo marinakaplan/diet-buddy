@@ -65,7 +65,7 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
 
   console.log('3. ב פותחת את הקישור בטלפון שלה, נרשמת, רואה תצוגה מקדימה ומצטרפת');
   await signUpViaUi(b, B, `${BASE}/?invite=${token}`);
-  await b.page.waitForSelector('text=באה איתי?', { timeout: 20000 });
+  await b.page.waitForSelector('text=תראי אם אני עומדת בזה', { timeout: 20000 });
   await shot(b, '04-b-invite-preview');
   await b.page.click('text=אני בפנים');
   await b.page.waitForSelector('text=מי מובילה?', { timeout: 20000 });
@@ -80,22 +80,51 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   await a.page.waitForSelector('text=החברות קיבלו הודעה', { timeout: 20000 });
   const defId = await a.page.evaluate(() => Object.values(Mila.getState().wordDefs).find(d => d.kind === 'group').id);
   await a.page.click('button:has-text("אני בפנים")'); await a.page.click('text=חותמת על זה');
-  await a.page.waitForSelector('text=על הכף מ-', { timeout: 20000 });
+  await a.page.waitForSelector('text=דיווח עד 10:00 למחרת', { timeout: 20000 });
 
   console.log('5. ב רואה את המילה (דרך רענון) ומאמצת');
   await sync(b);
   await b.page.evaluate(() => App.tab('circles')); await b.page.waitForSelector('text=מילים שמחכות לך', { timeout: 20000 }); await shot(b, '05-b-circles');
   await b.page.evaluate((id) => App.go('groupWord', { id }), defId);
   await b.page.click('button:has-text("אני בפנים")'); await b.page.click('text=חותמת על זה');
-  await b.page.waitForSelector('text=על הכף מ-', { timeout: 20000 });
+  await b.page.waitForSelector('text=דיווח עד 10:00 למחרת', { timeout: 20000 });
   assert.strictEqual(await b.page.evaluate((id) => Mila.adopters(id).length, defId), 2, 'AT-04');
+
+  console.log('5b. ב בוחרת 2 אתגרים מהספרייה עם ״אם אצליח, אני…״ (מסך הבחירה בממשק)');
+  await b.page.evaluate(() => App.openPick());
+  await b.page.waitForSelector('text=אז במה את מתחילה?', { timeout: 20000 }); await shot(b, '05b-b-pick');
+  await b.page.click('text=בלי להזמין אוכל'); await b.page.click('text=8 כוסות מים ביום');
+  await b.page.waitForSelector('text=2 מתוך 3 נבחרו', { timeout: 10000 }); await shot(b, '05c-b-pick-selected');
+  await b.page.click('text=בחרתי. מה הלאה?');
+  await b.page.waitForSelector('text=אם אצליח, אני…', { timeout: 10000 });
+  await b.page.fill('input[placeholder="למשל: קונה לעצמי משהו נחמד"] >> nth=0', 'ספר חדש');
+  await shot(b, '05d-b-pick-review');
+  await b.page.click('text=חותמת על זה');
+  await b.page.waitForFunction(() => Mila.activeCommitments().length === 3, null, { timeout: 30000 });
+  const libDefs = await b.page.evaluate(() => Mila.activeCommitments().map(c => Mila.wordDef(c.defId)).filter(d => d.libraryId).map(d => d.libraryId + ':' + d.category + ':' + (d.circleId ? 'circle' : 'private')));
+  assert.deepStrictEqual(libDefs.sort(), ['food_8_water:food:circle', 'food_no_delivery:food:circle'], 'אתגרי ספרייה: ' + libDefs);
+  assert.strictEqual(await b.page.evaluate(() => Mila.activeCommitments().find(c => Mila.wordDef(c.defId).libraryId === 'food_no_delivery').reward), 'ספר חדש');
+
+  console.log('5c. א שולחת הזמנה מסוג ״בואי, שתינו צריכות את זה״ מתוך האתגר; ב רואה את ההודעה האישית');
+  const kAid = await a.page.evaluate((id) => Mila.myAdoption(id).id, defId);
+  const groupTitle = await a.page.evaluate((id) => Mila.wordDef(id).title, defId);
+  await a.page.evaluate((id) => App.go('word', { id }), kAid);
+  await a.page.click('#screen button:has-text("בואי, שתינו צריכות את זה")');
+  await a.page.waitForSelector('#inv-msg', { timeout: 10000 }); await shot(a, '05e-a-invite-same');
+  await a.page.fill('#inv-msg', '8,000 צעדים ביום. בואי נראה מי זזה יותר.');
+  await a.page.evaluate(() => App.inviteSend('copy'));
+  await a.page.waitForFunction(() => Object.values(Mila.getState().invites).some(i => i.kind === 'same'), null, { timeout: 20000 });
+  const tokSame = await a.page.evaluate(() => Api.cloud.inviteToken(Mila.myCircles()[0].id));
+  const pv = await b.page.evaluate(async (t) => Api.cloud.previewInvite(t), tokSame);
+  assert.strictEqual(pv.kind, 'same'); assert.strictEqual(pv.message, '8,000 צעדים ביום. בואי נראה מי זזה יותר.'); assert.strictEqual(pv.wordTitle, groupTitle);
+  await b.page.evaluate((t) => App.go('invite', { token: t }), tokSame); await b.page.waitForSelector('text=את כבר בפנים', { timeout: 10000 }); await shot(b, '05f-b-invite-preview');
 
   console.log('6. שתיהן מדווחות: א הצליחה, ב פספסה');
   for (const [p, outcome] of [[a, 'success'], [b, 'miss']]) {
     await p.page.evaluate(() => App.tab('today'));
-    const obId = await p.page.evaluate(() => Mila.todayCards().find(x => !x.outcome).id);
+    const obId = await p.page.evaluate((d) => Mila.todayCards().find(x => !x.outcome && x.def.id === d).id, defId);
     await p.page.evaluate((id) => App.reportSheet(id), obId); await p.page.waitForTimeout(400);
-    if (outcome === 'success') await p.page.click('text=עמדתי במילה'); else { await p.page.click('.outcome-btns >> text=פספסתי'); await p.page.click('text=כן, פספסתי'); }
+    if (outcome === 'success') await p.page.click('text=עמדתי בזה'); else { await p.page.click('.outcome-btns >> text=פספסתי'); await p.page.click('text=כן, פספסתי'); }
     await p.page.waitForFunction((id) => Mila.getState().obligations[id] && Mila.getState().obligations[id].outcome, obId, { timeout: 20000 });
   }
   await shot(a, '06-a-today'); await shot(b, '06-b-today');
@@ -104,18 +133,18 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   await sync(a); await sync(b);
   const bankA = await a.page.evaluate(() => Mila.bankSummary()); const bankB = await b.page.evaluate(() => Mila.bankSummary());
   assert.strictEqual(bankA.earnedTotal, 1); assert.strictEqual(bankA.missedTotal, 0);
-  assert.strictEqual(bankB.earnedTotal, 0); assert.strictEqual(bankB.missedTotal, 1);
+  assert.strictEqual(bankB.earnedTotal, 0); assert.strictEqual(bankB.missedTotal, 1, 'רק הפספוס שדווח; אתגרי הספרייה של היום עדיין פתוחים');
   assert.strictEqual(await a.page.evaluate((id) => Mila.circlePool(id), circleId), 1);
   assert.strictEqual(await b.page.evaluate((id) => Mila.circlePool(id), circleId), 1);
   const feedA = await a.page.evaluate((id) => Mila.feed(id).map(e => e.type + ':' + e.actor.name), circleId);
   const feedB = await b.page.evaluate((id) => Mila.feed(id).map(e => e.type + ':' + e.actor.name), circleId);
   assert.ok(feedA.includes('day_miss:נועה'), 'א רואה את ב: ' + feedA); assert.ok(feedB.includes('day_success:יעל'), 'ב רואה את א: ' + feedB);
   await a.page.evaluate(() => App.go('bank')); await a.page.waitForTimeout(400); await shot(a, '07-a-bank');
-  await b.page.evaluate((id) => { App.go('circle', { id }); App.setCircleTab('rank'); }, circleId); await b.page.waitForTimeout(400); await shot(b, '08-b-circle-rank');
+  await b.page.evaluate((id) => { App.go('circle', { id }); }, circleId); await b.page.waitForSelector('text=מי מובילה?', { timeout: 10000 }); await shot(b, '08-b-circle-rank');
   await b.page.evaluate(() => App.setCircleTab('feed')); await b.page.waitForTimeout(300); await shot(b, '09-b-circle-feed');
 
   console.log('8. דיווח כפול מהדפדפן לא מכפיל; מניפולציה ביתרה לא נשמרת');
-  const dup = await a.page.evaluate(async () => { const o = Mila.todayCards()[0]; const r = await Api.cloud.report(o.id, 'miss'); return { dup: r.duplicate, earned: Mila.bankSummary().earnedTotal }; });
+  const dup = await a.page.evaluate(async () => { const o = Mila.todayCards().find(x => x.outcome); const r = await Api.cloud.report(o.id, 'miss'); return { dup: r.duplicate, earned: Mila.bankSummary().earnedTotal }; });
   assert.ok(dup.dup && dup.earned === 1, 'AT-06');
   const tamper = await a.page.evaluate(async () => { Mila.getState().ledger.push({ id: 'fake', userId: Mila.me().id, type: 'EARN', amount: 1, obligationId: 'x' }); const before = Mila.bankSummary().earnedTotal; await Api.sync(); return { before, after: Mila.bankSummary().earnedTotal }; });
   assert.strictEqual(tamper.before, 2); assert.strictEqual(tamper.after, 1, 'השרת הוא מקור האמת');
@@ -140,7 +169,7 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   console.log('11. PWA: manifest ו-service worker נגישים; התנתקות');
   const man = await (await fetch(BASE + '/manifest.json')).json(); assert.strictEqual(man.dir, 'rtl'); assert.ok(man.icons.length);
   assert.strictEqual((await fetch(BASE + '/sw.js')).status, 200);
-  await b.page.evaluate(() => App.signOut()); await b.page.waitForSelector('text=להמשיך עם Google', { timeout: 20000 });
+  await b.page.evaluate(() => App.signOut()); await b.page.waitForSelector('text=יאללה, אני בפנים', { timeout: 20000 });
   assert.strictEqual(await b.page.evaluate(async () => (await fetch('/api/state')).status), 401);
   await shot(b, '11-b-signed-out');
 

@@ -78,7 +78,7 @@ const Api = (() => {
     renameMe: (name) => after(action('rename', { name })),
     createCircle: async (o) => { const r = await action('createCircle', o); inviteTokens[r.circleId] = r.inviteToken; await sync(); return { circle: Mila.getState().circles[r.circleId], invite: { token: r.inviteToken } }; },
     updateCircle: (circleId, patch) => after(action('updateCircle', { circleId, patch })),
-    createInvite: async (circleId) => { const r = await action('createInvite', { circleId }); inviteTokens[circleId] = r.token; await sync(); return { token: r.token, circleId }; },
+    createInvite: async (circleId, opts = {}) => { const r = await action('createInvite', { circleId, kind: opts.kind, message: opts.message, libraryId: opts.libraryId, wordTitle: opts.wordTitle }); inviteTokens[circleId] = r.token; await sync(); return { token: r.token, circleId }; },
     inviteToken: (circleId) => inviteTokens[circleId] || null,
     revokeCircleInvites: async (circleId) => { const r = await action('revokeCircleInvites', { circleId }); inviteTokens[circleId] = r.token; await sync(); return { token: r.token }; },
     previewInvite: async (token) => { const p = await action('previewInvite', { token }); previewCache[token.toUpperCase()] = p; return p; },

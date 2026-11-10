@@ -179,10 +179,13 @@ const Mila = (() => {
   }
 
   /* ---------- הזמנות ---------- */
-  function createInvite(circleId, { maxUses = 20 } = {}) {
+  const INVITE_KINDS = ['follow', 'compete', 'same'];
+  function createInvite(circleId, { maxUses = 20, kind = 'follow', message = '', libraryId = null, wordTitle = '' } = {}) {
     if (!isMember(circleId)) throw err('אין הרשאה');
+    if (!INVITE_KINDS.includes(kind)) kind = 'follow';
+    if (libraryId && !LIB.get(libraryId)) libraryId = null;
     const token = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const inv = { token, circleId, inviterId: state.me, createdAt: nowISO(), expiresAt: new Date(now().getTime() + RULES.INVITE_DAYS * 86400000).toISOString(), status: 'active', uses: 0, maxUses };
+    const inv = { token, circleId, inviterId: state.me, createdAt: nowISO(), expiresAt: new Date(now().getTime() + RULES.INVITE_DAYS * 86400000).toISOString(), status: 'active', uses: 0, maxUses, kind, message: String(message || '').trim().slice(0, 200), libraryId, wordTitle: String(wordTitle || '').trim().slice(0, 60) };
     state.invites[token] = inv;
     save();
     return inv;
@@ -208,7 +211,7 @@ const Mila = (() => {
     if (isBlocked(inv.inviterId, state.me) || isBlocked(state.me, inv.inviterId)) return { ok: false, reason: 'not_found' };
     const members = circleMembers(circle.id);
     const sample = Object.values(state.wordDefs).find(d => d.circleId === circle.id && d.kind === 'group' && d.status !== 'cancelled');
-    return { ok: true, inv, circle: { id: circle.id, name: circle.name, description: circle.description, color: circle.color }, inviter, memberCount: members.length, maxMembers: circle.maxMembers, alreadyMember: isMember(circle.id), sampleWord: sample ? { title: sample.title } : null, round: circleRound(circle.id) };
+    return { ok: true, inv, kind: inv.kind || 'follow', message: inv.message || '', libraryId: inv.libraryId || null, wordTitle: inv.wordTitle || '', challenge: inv.libraryId ? LIB.get(inv.libraryId) : null, circle: { id: circle.id, name: circle.name, description: circle.description, color: circle.color }, inviter, memberCount: members.length, maxMembers: circle.maxMembers, alreadyMember: isMember(circle.id), sampleWord: sample ? { title: sample.title } : null, round: circleRound(circle.id) };
   }
 
   function acceptInvite(token) {
@@ -256,41 +259,9 @@ const Mila = (() => {
   /* ---------- מילים ---------- */
   const WORD_ICONS = ['walk', 'run', 'dumbbell', 'book', 'noPhone', 'water', 'sleep', 'moon', 'noSugar', 'leaf', 'meditate', 'pencil', 'heart', 'smile', 'home', 'users', 'coffee', 'call', 'tools', 'star'];
 
-  /* רעיונות למילה, לפי תחומים. כל אחת ניתנת לעריכה אחרי הבחירה. */
-  const TEMPLATES = [
-    // בית ומשפחה
-    { cat: 'בית ומשפחה', title: 'לא לצעוק על הילדים', rule: 'יום שלם בלי להרים את הקול בבית', icon: 'home' },
-    { cat: 'בית ומשפחה', title: '15 דקות משחק עם הילדים', rule: 'משחק משותף בלי מסכים, 15 דקות לפחות', icon: 'smile' },
-    { cat: 'בית ומשפחה', title: 'ארוחת ערב בלי מסכים', rule: 'כולם בשולחן, הטלפונים בצד', icon: 'users' },
-    { cat: 'בית ומשפחה', title: '10 דקות סידור', rule: 'טיימר של 10 דקות וסידור של פינה אחת', icon: 'tools' },
-    // אוכל
-    { cat: 'אוכל', title: 'בלי שוקולד', rule: 'אף חתיכת שוקולד היום, בשום צורה', icon: 'noSugar' },
-    { cat: 'אוכל', title: 'בלי סוכר', rule: 'ללא ממתקים ומשקאות ממותקים', icon: 'noSugar' },
-    { cat: 'אוכל', title: 'בלי פחמימות בערב', rule: 'ארוחת ערב בלי לחם, פסטה, אורז או תפוחי אדמה', icon: 'leaf' },
-    { cat: 'אוכל', title: 'בלי משלוחים', rule: 'אף הזמנת אוכל במשלוח היום', icon: 'tools' },
-    { cat: 'אוכל', title: 'בלי נשנושים אחרי 21:00', rule: 'אחרי תשע בערב רק מים או תה', icon: 'moon' },
-    { cat: 'אוכל', title: '8 כוסות מים', rule: 'שמונה כוסות מים לאורך היום', icon: 'water' },
-    { cat: 'אוכל', title: 'ירק בכל ארוחה', rule: 'משהו ירוק או ירק בכל אחת מהארוחות', icon: 'leaf' },
-    // תנועה
-    { cat: 'תנועה', title: 'אימון 5 דקות ביום', rule: 'חמש דקות של תרגילים, בכל שעה שנוחה', icon: 'dumbbell' },
-    { cat: 'תנועה', title: 'הליכה 30 דקות', rule: 'לפחות 30 דקות הליכה רצופה ביום', icon: 'walk' },
-    { cat: 'תנועה', title: '8,000 צעדים ביום', rule: 'מונה הצעדים מראה 8,000 או יותר עד סוף היום', icon: 'run' },
-    { cat: 'תנועה', title: '20 סקוואטים', rule: 'עשרים סקוואטים, ברצף או בחלקים', icon: 'dumbbell' },
-    { cat: 'תנועה', title: 'מדרגות במקום מעלית', rule: 'כל עלייה היום במדרגות', icon: 'walk' },
-    // ראש ושקט
-    { cat: 'ראש ושקט', title: 'בלי טלפון במיטה', rule: 'הטלפון מחוץ לחדר השינה מרגע הכיבוי', icon: 'noPhone' },
-    { cat: 'ראש ושקט', title: 'בלי רשתות חברתיות עד 10:00', rule: 'אינסטגרם, טיקטוק ופייסבוק נפתחים רק אחרי עשר', icon: 'noPhone' },
-    { cat: 'ראש ושקט', title: 'שינה עד 23:00', rule: 'במיטה ואורות כבויים עד 23:00', icon: 'sleep' },
-    { cat: 'ראש ושקט', title: '10 דקות מדיטציה', rule: 'תרגול נשימה או מדיטציה של 10 דקות', icon: 'meditate' },
-    { cat: 'ראש ושקט', title: 'קריאה 10 עמודים', rule: 'קוראת 10 עמודים מספר (לא מסך)', icon: 'book' },
-    { cat: 'ראש ושקט', title: '3 דברים טובים', rule: 'לכתוב שלושה דברים טובים שקרו היום', icon: 'pencil' },
-    // אנשים
-    { cat: 'אנשים', title: 'שיחה עם מישהו שאוהבים', rule: 'שיחת טלפון או מפגש של 10 דקות לפחות', icon: 'call' },
-    { cat: 'אנשים', title: 'מילה טובה למישהו', rule: 'מחמאה או תודה אמיתית לאדם אחד', icon: 'heart' },
-    // כסף וסדר
-    { cat: 'כסף וסדר', title: 'בלי קניות אימפולסיביות', rule: 'שום קנייה שלא תוכננה מראש', icon: 'coffee' },
-    { cat: 'כסף וסדר', title: 'קפה מהבית', rule: 'בלי לקנות קפה בחוץ היום', icon: 'coffee' },
-  ];
+  /* ספריית האתגרים הקבועה (library.js). TEMPLATES נשמר לתאימות: רשימה שטוחה עם שם קטגוריה. */
+  const LIB = typeof MilaLibrary !== 'undefined' ? MilaLibrary : { VERSION: 0, CATEGORIES: [], CHALLENGES: [], get: () => null, category: () => null, isSensitive: () => false, inCategory: () => [] };
+  const TEMPLATES = LIB.CHALLENGES.map(ch => ({ id: ch.id, cat: (LIB.category(ch.cat) || {}).name || ch.cat, catId: ch.cat, title: ch.title, rule: ch.rule, icon: ch.icon, sensitive: LIB.isSensitive(ch.id) }));
 
   function wordDef(id) { return state.wordDefs[id]; }
   function commitment(id) { return state.commitments[id]; }
@@ -341,14 +312,24 @@ const Mila = (() => {
   }
 
   /* יצירת מילה אישית (ואופציונלית – חשיפה לקבוצה אחד) */
-  function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, visibility = 'private' }) {
+  function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, visibility = 'private', libraryId = null, reward = '', rewardShared = false, shareSensitive = false }) {
+    let lib = null, category = null, sensitive = false;
+    if (libraryId) {
+      lib = LIB.get(libraryId);
+      if (!lib) throw err('האתגר לא נמצא בספרייה');
+      title = lib.title; rule = lib.rule; icon = lib.icon; category = lib.cat; sensitive = LIB.isSensitive(libraryId);
+      // אתגר רגיש: פרטי כברירת מחדל. שיתוף עם קבוצה רק בבחירה מפורשת.
+      if (sensitive && !shareSensitive) circleId = null;
+    }
     validateWordInput({ title, rule });
     if (circleId && !isMember(circleId)) throw err('את לא חברה בקבוצה הזו');
+    reward = String(reward || '').trim().slice(0, 80);
     const cap = capCheck(state.me, startDate);
-    if (!cap.ok) throw Object.assign(err('יש לך כבר שלוש מילים על הכף בימים האלה'), { code: 'CAP', cap });
-    const def = { id: uid('w'), kind: 'personal', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility: circleId ? visibility : 'private', version: 1, startDate, status: 'active', createdAt: nowISO() };
+    if (!cap.ok) throw Object.assign(err('יש לך כבר שלושה אתגרים בימים האלה'), { code: 'CAP', cap });
+    const def = { id: uid('w'), kind: 'personal', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility: circleId ? visibility : 'private', version: 1, startDate, status: 'active', createdAt: nowISO(), libraryId: libraryId || null, category, sensitive };
     state.wordDefs[def.id] = def;
     const c = createCommitment(def.id, state.me, startDate);
+    c.reward = reward; c.rewardShared = !!(reward && rewardShared);
     if (circleId && visibility !== 'private') addEvent(circleId, state.me, 'word_committed', { defId: def.id, title: def.title });
     grant(state.me, 'first_word', def.id);
     delete state.drafts.word;
@@ -487,9 +468,46 @@ const Mila = (() => {
     if (outcome === 'excused') {
       if (excusesUsed(o.commitmentId) >= RULES.MAX_EXCUSES_PER_ROUND) throw err(`כבר השתמשת ב-${RULES.MAX_EXCUSES_PER_ROUND} החרגות בסבב הזה`);
     }
+    const def = state.wordDefs[state.commitments[o.commitmentId].defId];
+    const before = def.circleId ? leaderboard(def.circleId).rows : null;
     resolve(o, outcome, { reason: 'self_report', actorId: state.me, note });
+    if (before && outcome === 'success') overtakes(def.circleId, before, leaderboard(def.circleId).rows, def);
     save();
     return { obligation: o, duplicate: false };
+  }
+  /* ״המהפך״: מי שהייתה מעליי בדירוג לפני הדיווח ונמצאת מתחתיי אחריו */
+  function overtakes(circleId, before, after, def) {
+    const pos = (rows, id) => { const i = rows.findIndex(r => r.user.id === id && r.ranked); return i < 0 ? null : i; };
+    const myBefore = pos(before, state.me), myAfter = pos(after, state.me);
+    if (myAfter === null) return [];
+    const passed = after.filter((r, i) => r.user.id !== state.me && r.ranked && i > myAfter && (myBefore === null ? pos(before, r.user.id) !== null : pos(before, r.user.id) < myBefore));
+    for (const r of passed) {
+      addEvent(circleId, state.me, 'overtake', { passedUserId: r.user.id, title: def.title });
+      notify(state.me, 'overtake', `עקפת את ${r.user.name}.`, 'עכשיו נראה אם היא תיתן לך להישאר שם.', { circleId });
+      notify(r.user.id, 'overtake', `${me().name} עקפה אותך.`, 'עוד הצלחה אחת ואת חוזרת.', { circleId });
+    }
+    return passed;
+  }
+  /* משפט המצב שלי בתחרות (לכותרת הקבוצה ולמסך היום) */
+  function rankInsight(circleId, userId = state.me) {
+    const { rows } = leaderboard(circleId);
+    const ranked = rows.filter(r => r.ranked);
+    const mine = rows.find(r => r.user.id === userId);
+    if (!mine) return null;
+    const pct = (x) => Math.round(x * 100);
+    if (!mine.ranked) { const left = Math.max(RULES.MIN_RANKED_EVENTS - mine.resolved, 1); return { place: null, total: ranked.length, text: mine.hidden ? 'את מחוץ לדירוג.' : `עוד ${left === 1 ? 'דיווח אחד' : `${left} דיווחים`} ואת בדירוג.` }; }
+    const i = ranked.findIndex(r => r.user.id === userId);
+    const above = i > 0 ? ranked[i - 1] : null;
+    const below = i < ranked.length - 1 ? ranked[i + 1] : null;
+    if (!above) {
+      if (!below) return { place: mine.place, total: ranked.length, text: 'את מובילה. בינתיים לבד.' };
+      const gap = pct(mine.rate) - pct(below.rate);
+      return { place: mine.place, total: ranked.length, text: gap > 0 ? `את מובילה. ${below.user.name} ${gap} נקודות אחוז מאחורייך.` : `את מובילה, ו${below.user.name} צמודה אלייך.` };
+    }
+    const gap = pct(above.rate) - pct(mine.rate);
+    const next = (mine.success + 1) / (mine.resolved + 1);
+    const text = gap <= 0 ? `את צמודה ל${above.user.name}. עוד הצלחה אחת ואת עוקפת.` : next >= above.rate ? `${above.user.name} מובילה עלייך ב-${gap} נקודות אחוז. עוד הצלחה אחת ואת עוקפת אותה.` : `${above.user.name} מובילה עלייך ב-${gap} נקודות אחוז. עוד הצלחה אחת ואת מצמצמת את הפער.`;
+    return { place: mine.place, total: ranked.length, above: above.user, gap, text };
   }
 
   /* הכרעה: יוצרת תנועה אחת בלבד לכל אירוע */
@@ -698,7 +716,7 @@ const Mila = (() => {
 
   /* ---------- הישגים ---------- */
   const ACHIEVEMENTS = {
-    first_word: { title: 'נתתי מילה', desc: 'יצרת את ההתחייבות הראשונה שלך', icon: 'pencil' },
+    first_word: { title: 'נתתי מילה', desc: 'האתגר הראשון שלך', icon: 'pencil' },
     first_day: { title: 'חתום וסגור', desc: 'השקל הראשון שהרווחת', icon: 'check' },
     streak_7: { title: 'מילה אחר מילה', desc: 'שבע הצלחות ברצף באותה מילה', icon: 'flame' },
     streak_14: { title: 'מילה בסלע', desc: '14 הצלחות ברצף. סבב מושלם', icon: 'trophy' },
@@ -772,7 +790,7 @@ const Mila = (() => {
   function err(msg) { const e = new Error(msg); e.userMessage = msg; return e; }
 
   return {
-    RULES, TEMPLATES, WORD_ICONS, ACHIEVEMENTS, REACTIONS, AVATAR_COLORS,
+    RULES, TEMPLATES, LIBRARY: LIB, WORD_ICONS, ACHIEVEMENTS, REACTIONS, AVATAR_COLORS,
     load, save, reset, emptyState, getState, setState, uid, nowISO, now, setClock,
     today, addDays, diffDays, dateRange, fmtDate, fmtDateLong, relDay, fmtTime, toLocalDate, hashStr,
     createUser, me, user, updateSettings, renameMe,
@@ -782,7 +800,7 @@ const Mila = (() => {
     createPersonalWord, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment, updateWordVisibility,
     windowOf, isOpenNow, refreshStatuses, excusesUsed, report, canCorrect, correct,
     activeLedger, bankSummary, circlePool, circlePoolAllTime, streak, commitmentStats,
-    todayCards, decorate, upcomingWords, wordHistory, leaderboard,
+    todayCards, decorate, upcomingWords, wordHistory, leaderboard, rankInsight,
     addEvent, feed, myFeedDigest, encourage, sendEncouragement,
     grant, achievementsFor, notify, notifications, unreadCount, markAllRead,
     isBlocked, block, unblock, blockedUsers, reportAbuse,

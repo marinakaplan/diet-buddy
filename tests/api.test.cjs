@@ -160,6 +160,60 @@ const invariants = async (c) => {
     assert.strictEqual(Object.values(sA.obligations).filter(o => o.commitmentId === kA && o.status === 'cancelled').length, 13);
     assert.strictEqual(sA.ledger.filter(t => t.obligationId === obA).length, 1);
   });
+  /* ---------- מילה 2.0: ספרייה, פרס אישי, סוגי הזמנה, ״המהפך״ ---------- */
+  const C = new Client('C'), D = new Client('D'), E = new Client('E');
+  let c2, tokCompete;
+  await test('ספרייה: אתגר נשמר לפי מזהה יציב (כותרת מהשרת, לא מהלקוח); מזהה לא קיים נדחה; פרס אישי נשמר', async () => {
+    await C.login(`c.${stamp}@test.mila`, 'דנה'); await C.profile('דנה');
+    c2 = (await C.ok('createCircle', { name: 'ליגה' })).circleId;
+    await C.fail('createPersonalWord', { libraryId: 'nope', startDate: today() }, 'VALIDATION');
+    const r = await C.ok('createPersonalWord', { libraryId: 'food_no_delivery', title: 'זבל', rule: 'זבל', circleId: c2, startDate: today(), reward: ' ספר חדש ' });
+    const s = await C.state(); const d = s.wordDefs[r.defId]; const k = s.commitments[r.commitmentId];
+    assert.strictEqual(d.title, 'בלי להזמין אוכל'); assert.strictEqual(d.libraryId, 'food_no_delivery'); assert.strictEqual(d.category, 'food'); assert.strictEqual(d.circleId, c2);
+    assert.strictEqual(k.reward, 'ספר חדש'); assert.strictEqual(k.rewardShared, false);
+    await C.ok('createPersonalWord', { libraryId: 'hab_coffee_home', circleId: c2, startDate: today() });
+    await C.ok('createPersonalWord', { libraryId: 'hab_read_10', circleId: c2, startDate: today() });
+  });
+  await test('ספרייה: אתגר רגיש (זוגיות) נשאר פרטי גם עם circleId; בלי shareSensitive לא נכנס לקבוצה', async () => {
+    await E.login(`e.${stamp}@test.mila`, 'רות'); await E.profile('רות');
+    const r = await E.ok('createPersonalWord', { libraryId: 'cpl_hug_20', circleId: c2, startDate: today() });   // ר לא חברה בליגה; האתגר הרגיש נופל לפרטי לפני בדיקת החברות
+    const s = await E.state(); assert.strictEqual(s.wordDefs[r.defId].circleId, null); assert.strictEqual(s.wordDefs[r.defId].visibility, 'private');
+    const sC = await C.state(); assert.ok(!sC.wordDefs[r.defId], 'לא נחשף לחברות הליגה');
+  });
+  await test('הזמנות: סוג + הודעה אישית נשמרים ומוחזרים בתצוגה מקדימה; סוג לא חוקי → follow', async () => {
+    tokCompete = (await C.ok('createInvite', { circleId: c2, kind: 'compete', message: '  בואי תבחרי גם. נראה מי מתמידה יותר.  ' })).token;
+    const tokSame = (await C.ok('createInvite', { circleId: c2, kind: 'same', libraryId: 'food_no_delivery', message: 'x' })).token;
+    const tokBad = (await C.ok('createInvite', { circleId: c2, kind: 'hack', libraryId: 'nope' })).token;
+    await D.login(`d.${stamp}@test.mila`, 'מאיה'); await D.profile('מאיה');
+    const p1 = await D.ok('previewInvite', { token: tokCompete }); assert.strictEqual(p1.kind, 'compete'); assert.strictEqual(p1.message, 'בואי תבחרי גם. נראה מי מתמידה יותר.');
+    const p2 = await D.ok('previewInvite', { token: tokSame }); assert.strictEqual(p2.kind, 'same'); assert.strictEqual(p2.libraryId, 'food_no_delivery'); assert.strictEqual(p2.challenge.title, 'בלי להזמין אוכל');
+    const p3 = await D.ok('previewInvite', { token: tokBad }); assert.strictEqual(p3.kind, 'follow'); assert.strictEqual(p3.libraryId, null);
+    await D.ok('acceptInvite', { token: tokCompete });
+    const s = await D.state(); assert.strictEqual(s.memberships.filter(m => m.circleId === c2).length, 2); assert.strictEqual(Object.values(s.obligations).filter(o => o.userId === s.me).length, 0, 'הצטרפות לתחרות לא יוצרת התחייבות בלי אישור');
+  });
+  let obsC, obsD;
+  await test('פרס משותף נראה לחברות; פרס פרטי לא', async () => {
+    const r = await D.ok('createPersonalWord', { libraryId: 'move_walk_30', circleId: c2, startDate: today(), reward: 'מסאז׳', rewardShared: true });
+    await D.ok('createPersonalWord', { libraryId: 'move_8000_steps', circleId: c2, startDate: today() });
+    await D.ok('createPersonalWord', { libraryId: 'move_stairs', circleId: c2, startDate: today() });
+    const sC = await C.state(); const sD = await D.state();
+    assert.strictEqual(sC.commitments[r.commitmentId].reward, 'מסאז׳', 'פרס משותף נראה ל-ד');
+    const mineC = Object.values(sC.commitments).find(k => k.userId === sC.me && k.reward); assert.ok(mineC);
+    assert.strictEqual(sD.commitments[mineC.id].reward, '', 'פרס פרטי של ד לא נחשף ל-מ');
+    obsC = Object.values(sC.obligations).filter(o => o.userId === sC.me && o.localDate === today()).map(o => o.id);
+    obsD = Object.values(sD.obligations).filter(o => o.userId === sD.me && o.localDate === today()).map(o => o.id);
+    assert.strictEqual(obsC.length, 3); assert.strictEqual(obsD.length, 3);
+  });
+  await test('״המהפך״: עקיפה בדירוג → התראה לעוקפת ולנעקפת ואירוע בקבוצה', async () => {
+    await D.ok('report', { obligationId: obsD[0], outcome: 'success' }); await D.ok('report', { obligationId: obsD[1], outcome: 'miss' }); await D.ok('report', { obligationId: obsD[2], outcome: 'miss' });   // מ: 33%
+    await C.ok('report', { obligationId: obsC[0], outcome: 'miss' }); await C.ok('report', { obligationId: obsC[1], outcome: 'success' });
+    let sC = await C.state(); assert.ok(!sC.notifications.some(n => n.type === 'overtake'), 'עם 2 דיווחים עדיין לא בדירוג');
+    await C.ok('report', { obligationId: obsC[2], outcome: 'success' });   // ד: 67% > 33%
+    sC = await invariants(C); const sD = await invariants(D);
+    assert.ok(sC.notifications.some(n => n.type === 'overtake' && /עקפת את מאיה/.test(n.title)), JSON.stringify(sC.notifications.map(n => n.title)));
+    assert.ok(sD.notifications.some(n => n.type === 'overtake' && /דנה עקפה אותך/.test(n.title)));
+    assert.ok(sD.socialEvents.some(e => e.type === 'overtake' && e.actorId === sC.me && e.payload.passedUserId === sD.me));
+  });
   await test('ייצוא ומחיקת חשבון', async () => {
     const ex = await Z.ok('exportData'); assert.ok(ex.user && Array.isArray(ex.ledger));
     await Z.ok('deleteAccount'); const r = await Z.req('/api/state'); assert.strictEqual(r.status, 401);

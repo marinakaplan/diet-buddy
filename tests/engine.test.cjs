@@ -9,7 +9,7 @@ const assert = require('assert');
 const store = {};
 global.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } };
 global.location = { origin: 'http://localhost', pathname: '/' };
-for (const f of ['public/js/engine.js', 'public/js/demo.js']) vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), { filename: f });
+for (const f of ['public/js/library.js', 'public/js/engine.js', 'public/js/demo.js']) vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), { filename: f });
 
 let passed = 0, failed = 0;
 function test(name, fn) { try { fn(); passed++; console.log('  ✓', name); } catch (e) { failed++; console.log('  ✗', name, '\n     ', e.message); } }
@@ -265,6 +265,65 @@ test('דמו: הזריעה עוברת את כל האינווריאנטים ומ�
   assert.ok(err && err.code === 'CAP', 'מסע D: אין חריגה סמויה מהתקרה');
   const lb = Mila.leaderboard(Mila.myCircles()[0].id);
   assert.ok(lb.rows.some(r => r.ranked));
+  checkInvariants();
+});
+
+
+test('ספרייה: אתגר מהספרייה נשמר עם מזהה יציב, כותרת וכלל מהספרייה; מזהה לא קיים נדחה', () => {
+  fresh();
+  assert.strictEqual(Mila.LIBRARY.CHALLENGES.length, 50);
+  assert.strictEqual(new Set(Mila.LIBRARY.CHALLENGES.map(c => c.id)).size, 50, 'מזהים ייחודיים');
+  for (const cat of Mila.LIBRARY.CATEGORIES) assert.strictEqual(Mila.LIBRARY.inCategory(cat.id).length, 10, cat.name);
+  const { def, commitment } = Mila.createPersonalWord({ libraryId: 'food_8_water', title: 'משהו אחר', rule: 'x', reward: ' ספר חדש ' });
+  assert.strictEqual(def.libraryId, 'food_8_water'); assert.strictEqual(def.title, '8 כוסות מים ביום'); assert.strictEqual(def.category, 'food');
+  assert.strictEqual(commitment.reward, 'ספר חדש'); assert.strictEqual(commitment.rewardShared, false);
+  assert.throws(() => Mila.createPersonalWord({ libraryId: 'nope' }), /לא נמצא/);
+  checkInvariants();
+});
+
+test('ספרייה: אתגר רגיש (זוגיות) נשאר פרטי גם כשנבחרה קבוצה, אלא אם שותף במפורש', () => {
+  fresh();
+  const c = Mila.createCircle({ name: 'ק' }).circle;
+  const a = Mila.createPersonalWord({ libraryId: 'cpl_hug_20', circleId: c.id, visibility: 'status' });
+  assert.strictEqual(a.def.circleId, null); assert.strictEqual(a.def.visibility, 'private'); assert.ok(a.def.sensitive);
+  assert.ok(!Mila.getState().socialEvents.some(e => e.type === 'word_committed'), 'לא הופיע בפעילות הקבוצה');
+  const b = Mila.createPersonalWord({ libraryId: 'cpl_compliment', circleId: c.id, visibility: 'status', shareSensitive: true });
+  assert.strictEqual(b.def.circleId, c.id);
+  checkInvariants();
+});
+
+test('הזמנות: שלושה סוגים עם הודעה אישית; תצוגה מקדימה מחזירה סוג, הודעה ואתגר', () => {
+  fresh();
+  const c = Mila.createCircle({ name: 'ק' }).circle;
+  const inv = Mila.createInvite(c.id, { kind: 'same', message: '  14 ימים בלי משלוחים. באה?  ', libraryId: 'food_no_delivery' });
+  const p = Mila.previewInvite(inv.token);
+  assert.strictEqual(p.kind, 'same'); assert.strictEqual(p.message, '14 ימים בלי משלוחים. באה?'); assert.strictEqual(p.challenge.id, 'food_no_delivery');
+  const bad = Mila.createInvite(c.id, { kind: 'whatever', libraryId: 'nope' });
+  assert.strictEqual(Mila.previewInvite(bad.token).kind, 'follow'); assert.strictEqual(Mila.previewInvite(bad.token).libraryId, null);
+});
+
+test('״המהפך״: עקיפה בדירוג יוצרת אירוע והתראה; משפט המצב מתאר את הפער', () => {
+  const me = fresh('דנה');
+  const start = Mila.addDays(today, -4);
+  const c = Mila.createCircle({ name: 'ק', roundStart: start }).circle;
+  const friend = Mila.createUser({ name: 'נועה', ageConfirmed: true });
+  Mila.getState().memberships.push({ id: 'm_f', circleId: c.id, userId: friend.id, role: 'member', joinedAt: Mila.nowISO(), leftAt: null });
+  const S = Mila.getState();
+  // ימים שעברו נזקפים אוטומטית כפספוס. נועה התחילה יום אחרי: 1 הצלחה מתוך 3 (33%); אני: 1 מתוך 4 (25%)
+  S.me = friend.id; const kf = Mila.createPersonalWord({ libraryId: 'move_walk_30', circleId: c.id, startDate: Mila.addDays(start, 1) }).commitment;
+  S.me = me.id; const km = Mila.createPersonalWord({ libraryId: 'move_walk_30', circleId: c.id, startDate: start }).commitment;
+  const setOutcome = (kid, date, outcome) => { const o = Mila.obligationsOf(kid).find(x => x.localDate === date); o.outcome = outcome; o.status = outcome === 'success' ? 'confirmed_success' : 'confirmed_miss'; o.resolvedAt = Mila.nowISO(); };
+  setOutcome(kf.id, Mila.addDays(start, 1), 'success');
+  setOutcome(km.id, start, 'success');
+  let ri = Mila.rankInsight(c.id);
+  assert.strictEqual(ri.place, 2, JSON.stringify(ri)); assert.ok(/נועה מובילה עלייך ב-8 נקודות אחוז. עוד הצלחה אחת ואת עוקפת אותה/.test(ri.text), ri.text);
+  const todayOb = Mila.obligationsOf(km.id).find(x => x.localDate === today);
+  const before = Mila.getState().socialEvents.filter(e => e.type === 'overtake').length;
+  Mila.report(todayOb.id, 'success');                                                                     // אני 2/5 = 40% > 33% → עקפתי
+  const ev = Mila.getState().socialEvents.filter(e => e.type === 'overtake');
+  assert.strictEqual(ev.length, before + 1); assert.strictEqual(ev[ev.length - 1].payload.passedUserId, friend.id);
+  assert.ok(Mila.notifications().some(n => n.type === 'overtake' && /עקפת את נועה/.test(n.title)));
+  ri = Mila.rankInsight(c.id); assert.strictEqual(ri.place, 1); assert.ok(/את מובילה/.test(ri.text), ri.text);
   checkInvariants();
 });
 
