@@ -321,6 +321,7 @@ const App = (() => {
     // סבב "ראשי" להצגה בטבעת: ההתחייבות הפעילה עם הכי הרבה ימים שעברו
     const main = active.map(c => ({ c, st: Mila.commitmentStats(c.id) })).sort((a, b) => b.st.dayIndex - a.st.dayIndex)[0];
     const done = cards.filter(x => x.outcome).length;
+    const fresh = !active.length && !upcoming.length; // עוד לא בחרה אף אתגר
     const bestStreak = Math.max(0, ...active.map(c => Mila.streak(c.id).current));
     const rankAll = Mila.myCircles().map(c => ({ c, ri: Mila.rankInsight(c.id) })).filter(x => x.ri);
     const rankCircle = rankAll.find(x => x.ri.place) || rankAll[0];
@@ -328,11 +329,11 @@ const App = (() => {
     return `
       <div class="topbar" style="padding-bottom:4px">
         <div class="topbar-side"><button class="icon-btn" aria-label="התראות" onclick="App.go('notifications')">${icon('bell', 24)}${unread ? '<span class="badge-dot"></span>' : ''}</button></div>
-        <div class="title-wrap">${active.length < Mila.RULES.DAILY_CAP ? `<button class="btn primary sm" onclick="App.openPick()">${icon('plus', 16)} אתגר חדש</button>` : ''}</div>
+        <div class="title-wrap"></div>
         <div class="topbar-side end"><button class="icon-btn" aria-label="הפרופיל שלי" onclick="App.tab('me')">${avatar(u, 40)}</button></div>
       </div>
       ${Mila.getState().meta.demo ? `<div class="demo-banner">דוגמה. הקבוצות והחברות מומצאות. <a href="#" onclick="event.preventDefault(); App.resetDemo()">להתחיל באמת</a></div>` : ''}
-      <div class="greeting"><div><div class="hello">${greet}, ${esc(u.name)} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${todaySubtitle(cards)}</div></div></div>
+      <div class="greeting"><div><div class="hello">${greet}, ${esc(u.name)} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${fresh ? 'בואי נתחיל.' : todaySubtitle(cards)}</div></div></div>
 
       ${main ? `<div class="card ring-card">
           ${ring(main.st.dayIndex, Mila.RULES.ROUND_DAYS, `<div class="label">יום</div><div class="big"><b>${main.st.dayIndex}</b> מתוך ${Mila.RULES.ROUND_DAYS}</div>`)}
@@ -345,8 +346,16 @@ const App = (() => {
       ${pendingSum.length ? pendingSum.map(c => `<div class="card pastel-lav clickable tight" onclick="App.go('summary',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">הסבב נגמר: ${esc(Mila.wordDef(c.defId).title)}</div><div class="small muted">איך הלך?</div></div>${icon('chev', 20)}</div></div>`).join('') : ''}
 
       ${installCard()}
-      <div class="section-title">האתגרים שלי להיום ${cards.length ? `<small>${done}/${cards.length}</small>` : ''}</div>
-      ${cards.length ? cards.map(todayRow).join('') : `<div class="card empty"><span class="tile lg lime">${icon('pencil', 28)}</span><div class="t">אז במה את מתחילה?</div><div class="m">עד 3 אתגרים ל-14 יום.</div><button class="btn primary" onclick="App.openPick()">בוחרת אתגרים</button></div>`}
+      ${fresh ? `<div class="card start-card">
+          <div class="start-title">במה את עומדת ב-14 הימים הקרובים?</div>
+          <ol class="start-steps">
+            <li><b>1</b><span>בוחרות עד 3 אתגרים</span></li>
+            <li><b>2</b><span>כל ערב מסמנות: עמדתי או לא</span></li>
+            <li><b>3</b><span>מזמינות חברות ורואות מי מתמידה</span></li>
+          </ol>
+          <button class="btn primary" onclick="App.openPick()">בוחרת אתגרים</button>
+        </div>` : `<div class="section-title">האתגרים שלי להיום ${cards.length ? `<small>${done}/${cards.length}</small>` : ''}</div>
+      ${cards.length ? cards.map(todayRow).join('') : `<div class="card tight muted small">אין אתגר על הכף היום.</div>`}`}
       ${cards.length && active.length < Mila.RULES.DAILY_CAP ? `<button class="btn ghost mt" onclick="App.openPick()">${icon('plus', 20)} עוד אתגר</button>` : ''}
       ${cards.length && active.length >= Mila.RULES.DAILY_CAP ? `<div class="note">${icon('info', 18)}<span>3 אתגרים. זה המקסימום.</span></div>` : ''}
 
@@ -354,7 +363,7 @@ const App = (() => {
 
       ${digest.length ? `<div class="section-title">אצל החברות <small onclick="App.tab('circles')" style="cursor:pointer">הכול</small></div>
         <div class="card tight">${digest.map(e => `<div class="feed-item" onclick="App.go('circle',{id:'${e.circleId}'})">${avatar(e.actor, 36)}<div class="body"><div class="t">${feedText(e)}</div><div class="m">${esc(e.circle.name)} · ${timeAgo(e.createdAt)}</div></div></div>`).join('')}</div>` : ''}
-      ${!Mila.myCircles().length ? `<div class="card pastel-pink clickable tight" onclick="App.inviteFlow({ kind: 'compete' })"><div style="display:flex;align-items:center;gap:12px"><span class="tile pink">${icon('users')}</span><div style="flex:1"><div class="bold">נראה אותך עומדת בזה יותר ממני</div><div class="small muted">הזמיני חברה. מתחרות על התמדה.</div></div>${icon('chev', 20)}</div></div>` : ''}
+      ${!fresh && !Mila.myCircles().length ? `<div class="card pastel-pink clickable tight" onclick="App.inviteFlow({ kind: 'compete' })"><div style="display:flex;align-items:center;gap:12px"><span class="tile pink">${icon('users')}</span><div style="flex:1"><div class="bold">נראה אותך עומדת בזה יותר ממני</div><div class="small muted">הזמיני חברה. מתחרות על התמדה.</div></div>${icon('chev', 20)}</div></div>` : ''}
     `;
   };
 
