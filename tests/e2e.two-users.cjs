@@ -93,7 +93,7 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
 
   console.log('5. ב רואה את המילה (דרך רענון) ומאמצת');
   await sync(b);
-  await b.page.evaluate(() => App.tab('circles')); await b.page.waitForSelector('text=מילים שמחכות לך', { timeout: 20000 }); await shot(b, '05-b-circles');
+  await b.page.evaluate(() => App.tab('circles')); await b.page.waitForSelector('text=אתגרים שמחכים לך', { timeout: 20000 }); await shot(b, '05-b-circles');
   await b.page.evaluate((id) => App.go('groupWord', { id }), defId);
   await b.page.click('button:has-text("אני בפנים")'); await b.page.click('text=חותמת על זה');
   await b.page.waitForSelector('text=דיווח עד 10:00 למחרת', { timeout: 20000 });

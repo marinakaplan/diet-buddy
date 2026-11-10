@@ -379,14 +379,14 @@ const Mila = (() => {
     const circle = state.circles[circleId];
     if (!circle) throw err('קבוצה לא נמצאה');
     if (!isMember(circleId)) throw err('את לא חברה בקבוצה הזו');
-    if (circle.whoCanPropose === 'admins' && !isAdmin(circleId)) throw err('בקבוצה הזו רק מנהלות מציעות מילים');
+    if (circle.whoCanPropose === 'admins' && !isAdmin(circleId)) throw err('בקבוצה הזו רק מנהלות פותחות אתגר משותף');
     validateWordInput({ title, rule });
     if (!startDate) startDate = today();
     const def = { id: uid('w'), kind: 'group', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility, version: 1, startDate, endDate: addDays(startDate, RULES.ROUND_DAYS - 1), status: 'proposed', createdAt: nowISO() };
     state.wordDefs[def.id] = def;
     addEvent(circleId, state.me, 'group_word_proposed', { defId: def.id, title: def.title });
     // התראה לחברות
-    for (const m of activeMemberships(circleId)) if (m.userId !== state.me) notify(m.userId, 'group_word', `באה איתי? · ${circle.name}`, `${me().name} נתנה מילה: ${def.title}`, { defId: def.id, circleId });
+    for (const m of activeMemberships(circleId)) if (m.userId !== state.me) notify(m.userId, 'group_word', `באה איתי? · ${circle.name}`, `${me().name} פתחה אתגר משותף: ${def.title}`, { defId: def.id, circleId });
     save();
     return def;
   }

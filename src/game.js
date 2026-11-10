@@ -121,7 +121,7 @@ export async function proposeGroupWord(env, user, b) {
   const c = await first(env, `select * from circles where id = ? and status = 'active'`, b.circleId);
   if (!c) throw err('NOT_FOUND', 'קבוצה לא נמצאה', 404);
   if (!(await isMember(env, c.id, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
-  if (c.who_can_propose === 'admins' && !(await isAdmin(env, c.id, user.id))) throw err('FORBIDDEN', 'בקבוצה הזו רק מנהלות מציעות מילים', 403);
+  if (c.who_can_propose === 'admins' && !(await isAdmin(env, c.id, user.id))) throw err('FORBIDDEN', 'בקבוצה הזו רק מנהלות פותחות אתגר משותף', 403);
   const { title, rule } = validateWord(b.title, b.rule);
   const today = localDate(user.timezone);
   const start = isValidDate(b.startDate) ? b.startDate : today;
@@ -131,7 +131,7 @@ export async function proposeGroupWord(env, user, b) {
   const batch = [
     S(env, `insert into word_definitions(id, kind, circle_id, owner_id, title, rule, icon, visibility, start_date, end_date, status) values (?,?,?,?,?,?,?,?,?,?,'proposed')`, did, 'group', c.id, user.id, title, rule, icon(b.icon), vis, start, addDays(start, ROUND_DAYS - 1)),
     eventStmt(env, c.id, user.id, 'group_word_proposed', { defId: did, title }),
-    ...members.map(m => notifyStmt(env, m.user_id, 'group_word', `באה איתי? · ${c.name}`, `${user.display_name} נתנה מילה: ${title}`, { defId: did, circleId: c.id }, today)),
+    ...members.map(m => notifyStmt(env, m.user_id, 'group_word', `באה איתי? · ${c.name}`, `${user.display_name} פתחה אתגר משותף: ${title}`, { defId: did, circleId: c.id }, today)),
   ];
   await runBatch(env, batch);
   return { defId: did };

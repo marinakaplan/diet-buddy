@@ -88,7 +88,7 @@ const MilaDemo = (() => {
     S.notifications = [];
     Mila.notify(meUser.id, 'invite', 'מאיה: באה איתי?', 'הבנות של מאיה · בלי סוכר', { token: c4.invite.token });
     Mila.notify(meUser.id, 'encouragement', 'יעל שלחה לך מילה טובה', 'על הליכה 30 דקות', { circleId: c1.id });
-    Mila.notify(meUser.id, 'group_word', 'באה איתי? · הבנות מהמשרד', 'דנה נתנה מילה: בלי משלוחים', { defId: delivery.id, circleId: c2.id });
+    Mila.notify(meUser.id, 'group_word', 'באה איתי? · הבנות מהמשרד', 'דנה פתחה אתגר משותף: בלי משלוחים', { defId: delivery.id, circleId: c2.id });
     S.notifications.forEach((n, i) => { n.createdAt = iso(i === 0 ? today : Mila.addDays(today, -1), 9 + i); });
 
     // סדר כרונולוגי לפיד: אירועי דמו קיבלו זמן אמיתי, נדגום להם זמנים מפוזרים
