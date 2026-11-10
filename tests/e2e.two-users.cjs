@@ -59,7 +59,7 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   await a.page.click('text=פותחת ומזמינה');
   // זרימת ההזמנה: 1) מה היא תעשה 2) ההודעה 3) נשלח, עם קישור וקוד
   await a.page.waitForSelector('text=מה את רוצה שהיא תעשה?', { timeout: 20000 }); await shot(a, '03a-a-invite-step1');
-  await a.page.click('text=שתראה אותי עומדת בזה'); await a.page.click('#inv-next');
+  await a.page.click('text=שתראה אותי עומדת במילה שלי'); await a.page.click('#inv-next');
   await a.page.waitForSelector('#inv-msg', { timeout: 10000 }); await shot(a, '03b-a-invite-step2');
   await a.page.click('button:has-text("העתקה")');
   await a.page.waitForSelector('text=ההזמנה יצאה', { timeout: 20000 }); await shot(a, '03c-a-invite-step3');
@@ -71,7 +71,7 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
 
   console.log('3. ב פותחת את הקישור בטלפון שלה, נרשמת, רואה תצוגה מקדימה ומצטרפת');
   await signUpViaUi(b, B, `${BASE}/?invite=${token}`);
-  await b.page.waitForSelector('text=תראי אם אני עומדת בזה', { timeout: 20000 });
+  await b.page.waitForSelector('text=תראי אם אני עומדת במילה שלי', { timeout: 20000 });
   await b.page.waitForSelector('text=מה קורה כשלוחצים', { timeout: 10000 });
   await shot(b, '04-b-invite-preview');
   await b.page.click('#screen button.btn.primary:has-text("אני בפנים")');
