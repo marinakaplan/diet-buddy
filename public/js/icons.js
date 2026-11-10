@@ -92,9 +92,10 @@ function avatar(user, size = 36) {
   return `<span class="avatar" style="width:${size}px;height:${size}px" title="${user && user.name ? user.name : ''}"><svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true"><circle cx="24" cy="24" r="23" fill="${fill}"/>${eyes}${mouth}</svg></span>`;
 }
 function avatarStack(users, size = 30, max = 4) {
-  const shown = users.slice(0, max);
+  // תמיד לכל היותר max עיגולים: אם יש יותר, העיגול האחרון הוא ״+N״ (כך כל הכרטיסים באותו רוחב)
+  const shown = users.length > max ? users.slice(0, max - 1) : users;
   const extra = users.length - shown.length;
-  return `<span class="avatar-stack">${shown.map(u => avatar(u, size)).join('')}${extra > 0 ? `<span class="avatar avatar-more" style="width:${size}px;height:${size}px">+${extra}</span>` : ''}</span>`;
+  return `<span class="avatar-stack">${shown.map(u => avatar(u, size)).join('')}${extra > 0 ? `<span class="avatar avatar-more" dir="ltr" style="width:${size}px;height:${size}px">+${extra}</span>` : ''}</span>`;
 }
 
 /* לוגו חי: עצבני בזמן שהתירוצים נמחקים, מחייך כשהחותמת נוחתת, ממצמץ,
