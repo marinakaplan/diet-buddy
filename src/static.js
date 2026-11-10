@@ -11,6 +11,7 @@ async function etagFor(path, body) {
 export async function serveStatic(req) {
   const url = new URL(req.url);
   let path = decodeURIComponent(url.pathname);
+  if (!FILES[path] && FILES[path + '.html']) path += '.html'; // /privacy, /terms
   if (path === '/' || !FILES[path]) path = FILES[path] ? path : '/index.html';
   const f = FILES[path];
   // index.html: כתובות מוחלטות לתמונת השיתוף (og:image) לפי הדומיין שממנו נטען הדף

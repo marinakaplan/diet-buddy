@@ -289,7 +289,7 @@ const App = (() => {
       <p><b>שליטה.</b> אפשר לייצא את הנתונים ולמחוק את החשבון מההגדרות בכל רגע. לאחר מחיקה הפרופיל הופך לאנונימי; ההיסטוריה של הקבוצות נשמרת ללא זיהוי.</p>
       <p><b>התנהגות.</b> בלי הטרדה, לחץ או תוכן פוגעני. אפשר לחסום ולדווח מכל קבוצה. אנחנו רשאיות להסיר תוכן או חשבון שמפר את זה.</p>
       <p><b>בטא.</b> השירות ניתן כפי שהוא, ללא התחייבות לזמינות. הוא רץ על תשתית חינמית; ייתכנו הגבלות שימוש.</p>
-      </div><button class="btn soft mt" onclick="App.closeSheet()">סגירה</button>`);
+      </div><div class="small" style="margin-top:8px"><a href="/terms" target="_blank" rel="noopener">תנאי השימוש המלאים</a> · <a href="/privacy" target="_blank" rel="noopener">מדיניות פרטיות</a></div><button class="btn soft mt" onclick="App.closeSheet()">סגירה</button>`);
   }
   async function completeProfile() {
     if (busy) return;
