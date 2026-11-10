@@ -89,10 +89,10 @@ const App = (() => {
     toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
   }
   /* חותמת: האינטראקציה המזוהה של מילה — מופיעה אחרי חתימה על התחייבות */
-  function stamp(text) {
-    const el = document.createElement('div'); el.className = 'stamp'; el.innerHTML = `<span>${esc(text)}</span>`;
+  function stamp(text, sub = '') {
+    const el = document.createElement('div'); el.className = sub ? 'stamp with-sub' : 'stamp'; el.innerHTML = `<span>${esc(text)}</span>${sub ? `<p class="stamp-sub">${esc(sub)}</p>` : ''}`;
     document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, 1600);
+    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, sub ? 2600 : 1600);
   }
   function fail(e) { toast(e.userMessage || e.message || 'משהו השתבש'); if (!e.userMessage) console.error(e); }
   function confirmSheet({ title, sub, okText = 'אישור', okClass = 'dark', onOk, cancelText = 'ביטול' }) {
@@ -322,9 +322,9 @@ const App = (() => {
       for (const id of ob.picks) await Store().createPersonalWord({ libraryId: id, startDate: Mila.today(), circleId, visibility: 'status', reward: '', shareSensitive: false });
       const n = ob.picks.length; const friend = ob.friend; ob = null; busy = false;
       stack = [{ name: 'today', params: {} }]; render();
-      stamp(n === 1 ? 'נתתי מילה.' : `${n} אתגרים. נתתי מילה.`);
+      stamp(n === 1 ? 'נתתי מילה.' : `${n} אתגרים. נתתי מילה.`, '14 יום. כל ערב רק מסמנת אם עמדת בזה.');
       // ישר להודעה המוכנה לחברה (בלי שלב הבחירות): ״תראי אם אני עומדת במילה שלי״
-      if (friend && circleId) setTimeout(() => { inviteFlow({ circleId, kind: 'follow' }); inv.step = 2; render(); }, 1700);
+      if (friend && circleId) setTimeout(() => { inviteFlow({ circleId, kind: 'follow' }); inv.step = 2; render(); }, 2700);
       else afterFirstCommit();
     } catch (e) { busy = false; render(); fail(e); }
   }
