@@ -62,6 +62,7 @@ export async function googleCallback(req, env) {
   if (!claims || claims.aud !== env.GOOGLE_CLIENT_ID || !/^(https:\/\/)?accounts\.google\.com$/.test(claims.iss) || !claims.sub) return redirect(`/?auth_error=claims`, clear);
   if (claims.email && claims.email_verified === false) return redirect(`/?auth_error=email`, clear);
   const user = await upsertGoogleUser(env, claims);
+  await grantAdminIfOwner(env, user.id, claims.email);
   const session = await createSession(env, user.id, req);
   const headers = new Headers({ location: saved.next || '/' });
   headers.append('set-cookie', clear); headers.append('set-cookie', session);
@@ -97,6 +98,7 @@ export async function testLogin(req, env) {
     await env.DB.prepare(`insert into users(id, email, display_name, color, status) values (?,?,?,?,'pending')`).bind(id, email, name, pickColor(name)).run();
     u = await env.DB.prepare(`select * from users where id = ?`).bind(id).first();
   }
+  await grantAdminIfOwner(env, u.id, u.email);
   const session = await createSession(env, u.id, req);
   return json({ ok: true, userId: u.id, status: u.status }, 200, { 'set-cookie': session });
 }
@@ -110,6 +112,7 @@ export async function completeProfile(user, body, env) {
   if (!body.termsAccepted) throw err('VALIDATION', 'צריך לאשר את תנאי השימוש');
   const tz = isValidTz(body.timezone) ? body.timezone : 'Asia/Jerusalem';
   await env.DB.prepare(`update users set display_name = ?, age_confirmed = 1, terms_accepted_at = coalesce(terms_accepted_at, ?), timezone = ?, status = 'active' where id = ?`).bind(name, nowISO(), tz, user.id).run();
+  if (body.inviteToken) { const { attributeSignup } = await import('./game.js'); await attributeSignup(env, user, body.inviteToken); }
 }
 
 const COLORS = ['lime', 'pink', 'lavender', 'mint', 'peach', 'sky'];
@@ -119,3 +122,11 @@ function decodeJwt(t) { try { const p = t.split('.')[1].replace(/-/g, '+').repla
 function safeJson(s) { try { return s ? JSON.parse(s) : null; } catch { return null; } }
 function sanitizeNext(n) { return n && /^\/[^/\\]/.test(n) ? n.slice(0, 200) : '/'; }
 function redirect(to, setCookie) { return new Response(null, { status: 302, headers: { location: to, 'set-cookie': setCookie } }); }
+
+/* מנהלת מערכת: מזוהה בכניסה לפי SHA-256 של האימייל (ADMIN_EMAIL_SHA256). האימייל לא שמור בקוד. */
+export async function grantAdminIfOwner(env, userId, email) {
+  try {
+    if (!env.ADMIN_EMAIL_SHA256 || !email) return;
+    if ((await sha256hex(String(email).trim().toLowerCase())) === env.ADMIN_EMAIL_SHA256) await env.DB.prepare(`update users set is_admin = 1 where id = ? and is_admin = 0`).bind(userId).run();
+  } catch (e) { /* לא חוסם כניסה */ }
+}

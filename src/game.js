@@ -212,36 +212,6 @@ async function afterSuccess(env, user, o, d) {
   await env.DB.batch(stmts);
 }
 
-/* ---------- דירוג בקבוצה (לאיתור ״המהפך״) ---------- */
-const MIN_RANKED = 3;
-async function circleRank(env, circleId) {
-  const c = await first(env, `select round_start from circles where id = ?`, circleId);
-  if (!c) return [];
-  const today = localDate('UTC'); const i = Math.floor(diffDays(c.round_start, today) / ROUND_DAYS); const rs = addDays(c.round_start, i * ROUND_DAYS); const re = addDays(rs, ROUND_DAYS - 1);
-  const rows = await all(env, `select o.user_id, sum(case when o.outcome = 'success' then 1 else 0 end) as s, sum(case when o.outcome = 'miss' then 1 else 0 end) as m
-    from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id join circle_memberships cm on cm.circle_id = d.circle_id and cm.user_id = o.user_id and cm.left_at is null
-    where d.circle_id = ? and o.status <> 'cancelled' and k.status <> 'cancelled' and o.local_date between ? and ? group by o.user_id`, circleId, rs, re);
-  const hidden = new Set((await all(env, `select u.id from users u join circle_memberships cm on cm.user_id = u.id and cm.circle_id = ? and cm.left_at is null where u.settings like '%"hideFromLeaderboard":true%'`, circleId)).map(r => r.id));
-  return rows.map(r => ({ userId: r.user_id, success: r.s, resolved: r.s + r.m, rate: r.s + r.m ? r.s / (r.s + r.m) : 0, ranked: r.s + r.m >= MIN_RANKED && !hidden.has(r.user_id) }))
-    .filter(r => r.ranked).sort((a, b) => b.rate - a.rate || b.success - a.success);
-}
-async function afterOvertake(env, user, before, d) {
-  const after = await circleRank(env, d.circle_id);
-  const myAfter = after.findIndex(r => r.userId === user.id); if (myAfter < 0) return;
-  const myBefore = before.findIndex(r => r.userId === user.id);
-  const passed = after.filter((r, i) => r.userId !== user.id && i > myAfter && (myBefore < 0 ? before.some(x => x.userId === r.userId) : before.findIndex(x => x.userId === r.userId) < myBefore));
-  if (!passed.length) return;
-  const names = await all(env, `select id, display_name from users where id in (${passed.map(() => '?').join(',')})`, ...passed.map(r => r.userId));
-  const nameOf = (id) => (names.find(n => n.id === id) || {}).display_name || 'חברה';
-  const day = localDate(user.timezone); const stmts = [];
-  for (const r of passed) {
-    stmts.push(eventStmt(env, d.circle_id, user.id, 'overtake', { passedUserId: r.userId, title: d.title }));
-    stmts.push(notifyStmt(env, user.id, 'overtake', `עקפת את ${nameOf(r.userId)}.`, 'עכשיו נראה אם היא תיתן לך להישאר שם.', { circleId: d.circle_id }, day + r.userId));
-    stmts.push(notifyStmt(env, r.userId, 'overtake', `${user.display_name} עקפה אותך.`, 'עוד הצלחה אחת ואת חוזרת.', { circleId: d.circle_id }, day + user.id));
-  }
-  await env.DB.batch(stmts);
-}
-
 export async function report(env, user, b) {
   const outcome = b.outcome;
   if (!['success', 'miss', 'excused'].includes(outcome)) throw err('VALIDATION', 'תוצאה לא תקינה');
@@ -260,13 +230,29 @@ export async function report(env, user, b) {
     if (used.n >= MAX_EXCUSES) throw err('VALIDATION', `כבר השתמשת ב-${MAX_EXCUSES} החרגות בסבב הזה`);
   }
   const at = nowISO();
-  const rankBefore = d.circle_id && outcome === 'success' ? await circleRank(env, d.circle_id) : null;
   try { await runBatch(env, resolveStmts(env, o, d, outcome, 'self_report', user.id, at, b.note ? String(b.note).slice(0, 60) : null)); }
   catch (e) { if (e.code === 'CONFLICT') { const cur = await first(env, `select outcome from daily_obligations where id = ?`, o.id); return { duplicate: true, outcome: cur.outcome }; } throw e; }
   const after = await first(env, `select resolved_at, outcome from daily_obligations where id = ?`, o.id);
   if (after.resolved_at !== at) return { duplicate: true, outcome: after.outcome };   // מישהי הקדימה אותנו (בקשה מקבילה)
-  if (outcome === 'success') { await afterSuccess(env, user, o, d); if (rankBefore) await afterOvertake(env, user, rankBefore, d); }
+  if (outcome === 'success') await afterSuccess(env, user, o, d);
   return { duplicate: false, outcome };
+}
+
+/* ״המהפך״: הטלפון מחשב את הדירוג (כבר יש לו את הנתונים) ומדווח עקיפה.
+   השרת מוודא חברות בקבוצה והצלחה טרייה, ושומר אירוע אחד והתראה לחברה שנעקפה. */
+export async function overtake(env, user, b) {
+  const cid = String(b.circleId || ''), other = String(b.passedUserId || '');
+  if (!cid || !other || other === user.id || !(await isMember(env, cid, user.id)) || !(await isMember(env, cid, other))) throw err('FORBIDDEN', 'אין הרשאה', 403);
+  const today = localDate(user.timezone);
+  const fresh = await first(env, `select 1 as x from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id where o.user_id = ? and o.local_date >= ? and o.outcome = 'success' and d.circle_id = ? limit 1`, user.id, addDays(today, -1), cid);
+  if (!fresh) throw err('VALIDATION', 'אין דיווח חדש');
+  const dup = await first(env, `select 1 as x from social_events where circle_id = ? and created_at > ? and actor_id = ? and type = 'overtake' and payload like ? limit 1`, cid, new Date(Date.now() - 20 * 3600000).toISOString(), user.id, `%${other}%`);
+  if (dup) return { ok: true, duplicate: true };
+  await env.DB.batch([
+    eventStmt(env, cid, user.id, 'overtake', { passedUserId: other }),
+    notifyStmt(env, other, 'overtake', `${user.display_name} עקפה אותך.`, 'עוד הצלחה אחת ואת חוזרת.', { circleId: cid }, today + user.id),
+  ]);
+  return { ok: true };
 }
 
 export async function correct(env, user, b) {
@@ -390,6 +376,8 @@ export async function acceptInvite(env, user, b) {
       // ההצטרפות מותנית בכך שהקבוצה עדיין לא מלא (בקשות מקבילות)
       S(env, `insert into circle_memberships(id, circle_id, user_id, role) select ?, ?, ?, 'member' where (select count(*) from circle_memberships where circle_id = ? and left_at is null) < ?`, uid(), cid, user.id, cid, p.maxMembers),
       S(env, `update circle_invites set uses = uses + 1 where token_hash = ?`, hash),
+      S(env, `update circle_memberships set via_invite = ? where circle_id = ? and user_id = ? and left_at is null and via_invite is null`, hash, cid, user.id),
+      S(env, `update users set invited_by = ?, invited_via = ? where id = ? and invited_by is null and id <> ?`, p.inviter.id, hash, user.id, p.inviter.id),
       eventStmt(env, cid, user.id, 'member_joined', {}), ...grantStmts(env, user.id, 'first_circle', cid),
       // ההזמנה עבדה: עדכון למי ששלחה אותה
       notifyStmt(env, p.inviter.id, 'invite', `${user.display_name} הצטרפה ל${p.circle.name} 🎉`, 'ההזמנה שלך עבדה.', { circleId: cid }, localDate(user.timezone)),
@@ -502,4 +490,22 @@ export async function exportData(env, user) {
     all(env, `select * from word_commitments where user_id = ?`, user.id), all(env, `select * from daily_obligations where user_id = ?`, user.id),
     all(env, `select * from virtual_ledger where user_id = ?`, user.id), all(env, `select * from achievements where user_id = ?`, user.id)]);
   return { user: { id: user.id, name: user.display_name, email: user.email, timezone: user.timezone, createdAt: user.created_at }, commitments, obligations, ledger, achievements };
+}
+
+/* פתיחת קישור הזמנה (גם בלי חשבון): מבקרת ייחודית לכל קישור. 2 קריאות, כתיבה אחת לכל היותר. */
+export async function trackInviteOpen(env, b) {
+  const tok = String(b.token || '').toUpperCase().trim(); const vis = String(b.visitor || '');
+  if (!/^[A-Z0-9]{6}$/.test(tok) || !/^[a-z0-9-]{8,40}$/.test(vis)) return { ok: false };
+  const hash = await sha256hex(tok);
+  const inv = await first(env, `select token_hash, inviter_id, circle_id, kind from circle_invites where token_hash = ?`, hash);
+  if (!inv) return { ok: false };
+  await S(env, `insert or ignore into invite_opens(token_hash, visitor_id, inviter_id, circle_id, kind) values (?,?,?,?,?)`, hash, vis, inv.inviter_id, inv.circle_id, inv.kind || 'follow').run();
+  return { ok: true };
+}
+/* ייחוס בהרשמה: מי הביאה אותה (אם הגיעה מהזמנה) */
+export async function attributeSignup(env, user, token) {
+  const tok = String(token || '').toUpperCase().trim(); if (!/^[A-Z0-9]{6}$/.test(tok)) return;
+  const hash = await sha256hex(tok);
+  const inv = await first(env, `select inviter_id from circle_invites where token_hash = ?`, hash);
+  if (inv && inv.inviter_id !== user.id) await S(env, `update users set invited_by = ?, invited_via = ? where id = ? and invited_by is null`, inv.inviter_id, hash, user.id).run();
 }

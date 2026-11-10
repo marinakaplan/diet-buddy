@@ -12,6 +12,8 @@
     "db:migrate:local": "wrangler d1 migrations apply mila-db --local",
     "db:migrate": "wrangler d1 migrations apply mila-db --remote",
     "db:migrate:prod": "wrangler d1 migrations apply mila-db-prod --remote --env production",
+    "backup:prod": "wrangler d1 export mila-db-prod --remote --env production --output backup-prod.sql",
+    "test:load": "node tests/load.cjs",
     "test:engine": "node tests/engine.test.cjs",
     "test:api": "node tests/api.test.cjs",
     "test:e2e": "node tests/e2e.two-users.cjs"

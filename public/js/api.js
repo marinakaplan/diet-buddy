@@ -42,8 +42,8 @@ const Api = (() => {
   function hasSession() { return enabled && !!me; }
   function userId() { return me ? me.id : null; }
   function googleUrl(next) { return `/api/auth/google${next ? `?next=${encodeURIComponent(next)}` : ''}`; }
-  async function completeProfile({ name, ageConfirmed, termsAccepted }) {
-    await call('profile', { method: 'POST', body: { name, ageConfirmed, termsAccepted, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+  async function completeProfile({ name, ageConfirmed, termsAccepted, inviteToken }) {
+    await call('profile', { method: 'POST', body: { name, ageConfirmed, termsAccepted, inviteToken: inviteToken || undefined, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
     await init(); await sync();
   }
   async function signOut() {
@@ -53,9 +53,15 @@ const Api = (() => {
     Mila.setState(Object.assign(Mila.emptyState(), { meta: { createdAt: new Date().toISOString(), demo: false, cloud: false } }));
   }
 
+  /* מבקרת אנונימית (לספירת פתיחות קישור הזמנה ייחודיות) */
+  function visitorId() { try { let v = localStorage.getItem('mila.visitor'); if (!v) { v = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).toLowerCase(); localStorage.setItem('mila.visitor', v); } return v; } catch (e) { return 'anon-' + Math.random().toString(36).slice(2, 12); } }
+  function trackInviteOpen(token) { if (!enabled || !token) return; call('invite/open', { method: 'POST', body: { token, visitor: visitorId() } }).catch(() => {}); }
+  const adminStats = () => call('admin/stats');
+
   /* ---------- סנכרון ---------- */
   async function sync() {
     if (!isCloud()) return null;
+    lastFull = Date.now();
     const s = await call('state');
     const prev = Mila.getState();
     const next = Object.assign(Mila.emptyState(), s, { drafts: (prev && prev.drafts) || {}, meta: { createdAt: s.serverNow, demo: false, cloud: true, serverNow: s.serverNow, syncedAt: new Date().toISOString() } });
@@ -68,7 +74,20 @@ const Api = (() => {
   function loadCache() { try { const s = sessionStorage.getItem('mila.cache'); if (s) { const st = JSON.parse(s); st.meta.offline = true; Mila.setState(st); return true; } } catch (e) { /* ignore */ } return false; }
   function onSync(fn) { listeners.add(fn); return () => listeners.delete(fn); }
   function notify() { listeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); }
-  function startAutoSync(ms = 45000) { stopAutoSync(); syncTimer = setInterval(() => { if (document.visibilityState === 'visible') sync().catch(() => {}); }, ms); }
+  /* ריענון קל: כל 45 שניות בודקות חותמת זולה (/api/ping). טוענות מצב מלא רק כשמשהו השתנה,
+     או אחת ל-10 דקות. כך המכסה החינמית מחזיקה הרבה יותר משתמשות. */
+  let lastPing = null, lastFull = 0;
+  function startAutoSync(ms = 45000) {
+    stopAutoSync(); lastFull = Date.now();
+    syncTimer = setInterval(async () => {
+      if (document.visibilityState !== 'visible' || !isCloud()) return;
+      try {
+        const { v } = await call('ping');
+        const changed = lastPing !== null && v !== lastPing; lastPing = v;
+        if (changed || Date.now() - lastFull > 10 * 60000) { lastFull = Date.now(); await sync(); }
+      } catch (e) { /* בלי רשת: ננסה בפעם הבאה */ }
+    }, ms);
+  }
   function stopAutoSync() { if (syncTimer) clearInterval(syncTimer); syncTimer = null; }
 
   /* ---------- פעולות (כולן בשרת) ---------- */
@@ -86,6 +105,7 @@ const Api = (() => {
     acceptInvite: async (token) => { const r = await action('acceptInvite', { token }); await sync(); return Mila.getState().circles[r.circleId]; },
     leaveCircle: (circleId) => after(action('leaveCircle', { circleId })),
     removeMember: (circleId, userId) => after(action('removeMember', { circleId, userId })),
+    overtake: (circleId, passedUserId) => action('overtake', { circleId, passedUserId }),
     setMemberRole: (circleId, userId, role) => after(action('setMemberRole', { circleId, userId, role })),
     deleteCircle: (circleId) => after(action('deleteCircle', { circleId })),
     createPersonalWord: async (o) => { const r = await action('createPersonalWord', o); await sync(); const S = Mila.getState(); delete S.drafts.word; return { def: S.wordDefs[r.defId], commitment: S.commitments[r.commitmentId] }; },
@@ -107,5 +127,5 @@ const Api = (() => {
     exportData: () => action('exportData'),
   };
 
-  return { enabled, init, isCloud, hasSession, userId, googleUrl, completeProfile, signOut, sync, loadCache, onSync, startAutoSync, stopAutoSync, cloud, call, get me() { return me; }, get config() { return config; } };
+  return { enabled, init, isCloud, hasSession, userId, googleUrl, completeProfile, signOut, sync, trackInviteOpen, adminStats, loadCache, onSync, startAutoSync, stopAutoSync, cloud, call, get me() { return me; }, get config() { return config; } };
 })();

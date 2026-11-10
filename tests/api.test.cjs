@@ -89,8 +89,8 @@ const invariants = async (c) => {
     const miss = (s, u) => s.ledger.filter(t => t.userId === u && t.type === 'MISS_TO_CIRCLE').length;
     assert.strictEqual(earn(sA, sA.me), 0); assert.strictEqual(miss(sA, sA.me), 1);
     assert.strictEqual(earn(sB, sB.me), 1); assert.strictEqual(miss(sB, sB.me), 0);
-    assert.strictEqual(sA.ledger.filter(t => t.type === 'MISS_TO_CIRCLE' && t.circleId === circleId).length, 1, 'קופה אצל א');
-    assert.strictEqual(sB.ledger.filter(t => t.type === 'MISS_TO_CIRCLE' && t.circleId === circleId).length, 1, 'קופה אצל ב');
+    assert.strictEqual(sA.ledger.filter(t => t.type === 'MISS_TO_CIRCLE' && t.circleId === circleId).length, 1, 'הפספוס של א ביומן שלה');
+    assert.ok(sB.ledger.every(t => t.userId === sB.me), 'כל אחת מקבלת רק את היומן שלה (אין יותר קופה משותפת במסך)');
     assert.ok(!sA.ledger.some(t => t.userId === sB.me && t.type === 'EARN'), 'EARN של ב לא דולף ל-א');
     const bOb = Object.values(sA.obligations).find(o => o.id === obB); assert.strictEqual(bOb.outcome, 'success'); assert.strictEqual(bOb.resolveReason, null);
     assert.ok(sA.socialEvents.some(e => e.type === 'day_success' && e.actorId === sB.me)); assert.ok(sB.socialEvents.some(e => e.type === 'day_miss' && e.actorId === sA.me));
@@ -111,7 +111,8 @@ const invariants = async (c) => {
     await B.ok('correct', { obligationId: obB, outcome: 'miss', reason: 'לחצתי בטעות' });
     const s = await invariants(B); const rows = s.ledger.filter(t => t.obligationId === obB);
     assert.strictEqual(rows.length, 3); assert.strictEqual(rows.filter(t => t.type === 'REVERSE').length, 1);
-    assert.strictEqual(s.ledger.filter(t => t.type === 'MISS_TO_CIRCLE' && t.circleId === circleId && !s.ledger.some(r => r.reversalOf === t.id)).length, 2, 'הקופה עכשיו 2');
+    assert.strictEqual(s.ledger.filter(t => t.type === 'MISS_TO_CIRCLE' && t.circleId === circleId && !s.ledger.some(r => r.reversalOf === t.id)).length, 1, 'אצל ב: פספוס פעיל אחד (התיקון)');
+    assert.strictEqual(s.ledger.filter(t => t.type === 'EARN' && !s.ledger.some(r => r.reversalOf === t.id)).length, 0, 'הנקודה בוטלה');
   });
   await test('תקרה: 3 מילים ביום; הרביעית נחסמת, גם במקביל (AT-03)', async () => {
     await B.ok('createPersonalWord', { title: 'קריאה', rule: '10 עמודים', icon: 'book', startDate: today() });
@@ -204,15 +205,31 @@ const invariants = async (c) => {
     obsD = Object.values(sD.obligations).filter(o => o.userId === sD.me && o.localDate === today()).map(o => o.id);
     assert.strictEqual(obsC.length, 3); assert.strictEqual(obsD.length, 3);
   });
-  await test('״המהפך״: עקיפה בדירוג → התראה לעוקפת ולנעקפת ואירוע בקבוצה', async () => {
-    await D.ok('report', { obligationId: obsD[0], outcome: 'success' }); await D.ok('report', { obligationId: obsD[1], outcome: 'miss' }); await D.ok('report', { obligationId: obsD[2], outcome: 'miss' });   // מ: 33%
-    await C.ok('report', { obligationId: obsC[0], outcome: 'miss' }); await C.ok('report', { obligationId: obsC[1], outcome: 'success' });
-    let sC = await C.state(); assert.ok(!sC.notifications.some(n => n.type === 'overtake'), 'עם 2 דיווחים עדיין לא בדירוג');
-    await C.ok('report', { obligationId: obsC[2], outcome: 'success' });   // ד: 67% > 33%
-    sC = await invariants(C); const sD = await invariants(D);
-    assert.ok(sC.notifications.some(n => n.type === 'overtake' && /עקפת את מאיה/.test(n.title)), JSON.stringify(sC.notifications.map(n => n.title)));
+  await test('״המהפך״: הטלפון מדווח עקיפה; השרת דורש הצלחה טרייה, רושם אירוע והתראה פעם אחת', async () => {
+    await D.ok('report', { obligationId: obsD[0], outcome: 'success' }); await D.ok('report', { obligationId: obsD[1], outcome: 'miss' }); await D.ok('report', { obligationId: obsD[2], outcome: 'miss' });
+    const dId = (await D.state()).me;
+    await C.fail('overtake', { circleId: c2, passedUserId: dId }, 'VALIDATION');   // עוד אין הצלחה היום
+    await C.ok('report', { obligationId: obsC[0], outcome: 'miss' }); await C.ok('report', { obligationId: obsC[1], outcome: 'success' }); await C.ok('report', { obligationId: obsC[2], outcome: 'success' });
+    await Z.fail('overtake', { circleId: c2, passedUserId: dId }, 'FORBIDDEN');     // לא בקבוצה
+    assert.ok(!(await C.ok('overtake', { circleId: c2, passedUserId: dId })).duplicate);
+    assert.ok((await C.ok('overtake', { circleId: c2, passedUserId: dId })).duplicate, 'פעם אחת ביום');
+    const sC = await invariants(C); const sD = await invariants(D);
     assert.ok(sD.notifications.some(n => n.type === 'overtake' && /דנה עקפה אותך/.test(n.title)));
-    assert.ok(sD.socialEvents.some(e => e.type === 'overtake' && e.actorId === sC.me && e.payload.passedUserId === sD.me));
+    assert.strictEqual(sD.socialEvents.filter(e => e.type === 'overtake' && e.actorId === sC.me).length, 1);
+  });
+  await test('ריענון קל: /api/ping משתנה רק כשיש חדש; פתיחת קישור נספרת פעם אחת למבקרת; ייחוס בהרשמה', async () => {
+    const v1 = (await C.req('/api/ping')).data.v; const v2 = (await C.req('/api/ping')).data.v;
+    assert.strictEqual(v1, v2, 'בלי שינוי אותה חותמת');
+    await D.ok('sendEncouragement', { circleId: c2, toUserId: (await C.state()).me, reaction: 'heart' });
+    assert.notStrictEqual((await C.req('/api/ping')).data.v, v1, 'אירוע חדש משנה חותמת');
+    const t = (await C.ok('createInvite', { circleId: c2, kind: 'follow' })).token;
+    const anon = new Client('anon');
+    for (let i = 0; i < 3; i++) assert.strictEqual((await anon.req('/api/invite/open', { method: 'POST', body: { token: t, visitor: `visitor-${stamp}` } })).data.ok, true);
+    assert.strictEqual((await anon.req('/api/invite/open', { method: 'POST', body: { token: 'ZZZZZZ', visitor: `visitor-${stamp}` } })).data.ok, false);
+    const F = new Client('F'); await F.login(`f.${stamp}@test.mila`, 'שירה');
+    await F.req('/api/profile', { method: 'POST', body: { name: 'שירה', ageConfirmed: true, termsAccepted: true, timezone: 'Asia/Jerusalem', inviteToken: t } });
+    await F.ok('acceptInvite', { token: t });
+    const r = await C.req('/api/admin/stats'); assert.strictEqual(r.status, 403, 'פאנל ניהול רק למנהלת מערכת');
   });
   await test('קבוצות: מנהלת נוספת, הסרה עוצרת אתגרים, סגירת קבוצה (רק מנהלת) מוציאה את כולן ושומרת נקודות', async () => {
     await D.fail('setMemberRole', { circleId: c2, userId: (await C.state()).me, role: 'member' }, 'FORBIDDEN');

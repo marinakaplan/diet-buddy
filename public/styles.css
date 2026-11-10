@@ -661,3 +661,30 @@ a.btn.treat-go { display: flex; align-items: center; justify-content: center; te
 .rank-place.first { background: var(--lime); }
 .row-card .t .chip { vertical-align: middle; margin-inline-start: 4px; }
 .danger-zone { border-color: #FFD0DA; background: #FFF7F9; }
+
+/* ---------- פאנל ניהול ---------- */
+.admin-entry { background: var(--lime-soft); border-color: #E6F3B3; }
+.ad-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.ad-tile { background: var(--card); border: 1px solid var(--line); padding: 10px 12px; }
+.ad-tile.lime { background: var(--lime-soft); } .ad-tile.lav { background: var(--lav-soft); } .ad-tile.pink { background: var(--pink-soft); }
+.ad-tile .v { font-size: 1.5rem; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.ad-tile .l { font-size: .8rem; font-weight: 600; }
+.ad-tile .s { font-size: .72rem; color: var(--ink-2); margin-top: 2px; }
+.ad-chart { background: var(--card); border: 1px solid var(--line); padding: 10px 12px; margin-bottom: 10px; }
+.ad-ct { display: flex; justify-content: space-between; font-size: .8rem; color: var(--ink-2); margin-bottom: 6px; }
+.ad-ct b { color: var(--ink); }
+.ad-bars { display: flex; align-items: flex-end; gap: 3px; height: 64px; direction: ltr; }
+.ad-bars i { flex: 1; background: var(--lime-deep); min-height: 2px; }
+.ad-bars i.lav { background: #B9A8F3; } .ad-bars i.pink { background: #F6A3C4; }
+.ad-axis { display: flex; justify-content: space-between; direction: ltr; font-size: .68rem; color: var(--ink-3); margin-top: 4px; }
+.ad-funnel { display: flex; align-items: stretch; gap: 4px; margin-bottom: 6px; }
+.ad-funnel div { flex: 1; background: var(--card); border: 1px solid var(--line); padding: 8px 4px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.ad-funnel b { font-size: 1.15rem; font-weight: 800; }
+.ad-funnel span { font-size: .66rem; color: var(--ink-2); line-height: 1.2; }
+.ad-funnel i { align-self: center; font-style: normal; color: var(--ink-3); }
+.ad-table { font-size: .82rem; }
+.ad-row { display: grid; grid-template-columns: 1fr 52px 52px 52px; gap: 6px; padding: 7px 0; border-bottom: 1px solid var(--line); align-items: center; }
+.ad-row:last-child { border-bottom: 0; }
+.ad-row span:not(:first-child) { text-align: center; font-variant-numeric: tabular-nums; }
+.ad-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-row.h { font-size: .7rem; color: var(--ink-3); font-weight: 600; }

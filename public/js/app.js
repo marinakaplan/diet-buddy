@@ -284,7 +284,7 @@ const App = (() => {
     if (!authForm.age) return toast('בגרסת הבטא המשחק פתוח לבנות 18 ומעלה');
     if (!authForm.terms) return toast('צריך לאשר את תנאי השימוש');
     busy = true; render();
-    try { await Api.completeProfile({ name, ageConfirmed: true, termsAccepted: true }); afterAuth(); }
+    try { await Api.completeProfile({ name, ageConfirmed: true, termsAccepted: true, inviteToken: pendingInviteToken }); afterAuth(); }
     catch (e) { busy = false; fail(e); render(); }
   }
   async function signOut() { try { await Api.signOut(); } catch (e) { /* ignore */ } stack = []; pendingInviteToken = null; go('welcome', {}, { reset: true }); }
@@ -405,7 +405,20 @@ const App = (() => {
   }
   async function doReport(id, outcome, note = '') {
     try {
+      // ״המהפך״ בענן: הדירוג מחושב בטלפון (לפני ואחרי), והשרת רק רושם את העקיפה
+      const ob0 = Mila.getState().obligations[id]; const k0 = ob0 && Mila.commitment(ob0.commitmentId); const d0 = k0 && Mila.wordDef(k0.defId);
+      const cid = isCloud() && outcome === 'success' && d0 && d0.circleId ? d0.circleId : null;
+      const before = cid ? Mila.leaderboard(cid).rows.filter(r => r.ranked).map(r => r.user.id) : null;
       const { obligation, duplicate } = await Store().report(id, outcome, { note });
+      if (cid && !duplicate) {
+        const after = Mila.leaderboard(cid).rows.filter(r => r.ranked).map(r => r.user.id);
+        const meId = Mila.me().id; const myAfter = after.indexOf(meId); const myBefore = before.indexOf(meId);
+        if (myAfter >= 0) {
+          const passed = after.filter((u, i) => u !== meId && i > myAfter && (myBefore < 0 ? before.includes(u) : before.indexOf(u) >= 0 && before.indexOf(u) < myBefore));
+          passed.forEach(u => Api.cloud.overtake(cid, u).catch(() => {}));
+          if (passed.length) setTimeout(() => toast(`עקפת את ${Mila.user(passed[0]).name}. עכשיו נראה אם היא תיתן לך להישאר שם 😏`, 'lime'), 1600);
+        }
+      }
       closeSheet(true);
       if (duplicate) toast('כבר נשמר');
       else if (outcome === 'success') toast('אמרת ועשית. +1 נקודה', 'lime');
@@ -1199,6 +1212,7 @@ const App = (() => {
     const blocked = Mila.blockedUsers();
     const tog = (k, t, m) => `<div class="toggle-row"><div><div class="t">${t}</div><div class="m">${m}</div></div><button class="switch ${s[k] ? 'on' : ''}" role="switch" aria-checked="${!!s[k]}" onclick="App.setSetting('${k}', ${!s[k]})"></button></div>`;
     return `${topbar({ title: 'הגדרות' })}
+      ${isCloud() && Api.me && Api.me.isAdmin ? `<div class="card tight clickable admin-entry" onclick="App.go('admin')"><div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('chart', 22)}</span><div style="flex:1"><div class="bold">פאנל ניהול</div><div class="small muted">משתמשות, קבוצות, הזמנות, מי הביאה את מי</div></div>${icon('chev', 20)}</div></div>` : ''}
       <div class="card tight clickable treat-entry" onclick="App.go('treat')"><div style="display:flex;align-items:center;gap:12px">${treatArt('espresso', 46)}<div style="flex:1"><div class="bold">להזמין את מרינה לקפה ☕</div><div class="small muted">האפליקציה נבנתה באהבה. פרגון קטן?</div></div>${icon('chev', 20)}</div></div>
       <div class="card tight"><div class="field" style="margin:6px 0 10px"><label>שם תצוגה</label><input class="input" value="${esc(u.name)}" maxlength="30" onchange="App.rename(this.value)"></div>
         <div class="kv"><span class="k">${icon('clock', 18)} אזור זמן</span><span class="v">${esc(u.timezone)}</span></div>
@@ -1218,6 +1232,48 @@ const App = (() => {
   async function exportData() { const data = isCloud() ? JSON.stringify(await Api.cloud.exportData(), null, 2) : Mila.exportData(); const blob = new Blob([data], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mila-export.json'; a.click(); URL.revokeObjectURL(a.href); toast('הקובץ ירד'); }
   function resetDemo() { confirmSheet({ title: 'לאפס את הדוגמה?', sub: 'חוזרות למסך הפתיחה.', okText: 'איפוס', okClass: 'pink', onOk: () => { Mila.reset(); closeSheet(true); go('welcome', {}, { reset: true }); } }); }
   function deleteAccount() { confirmSheet({ title: 'למחוק את החשבון?', sub: 'סופי. האתגרים, הדיווחים וההישגים נמחקים. בקבוצות נשאר רישום אנונימי.', okText: 'למחוק', okClass: 'danger', onOk: async () => { await Store().deleteAccount(); closeSheet(true); go('welcome', {}, { reset: true }); toast('נמחק.'); } }); }
+
+  /* ============================================================
+     פאנל ניהול (מנהלת המערכת בלבד; השרת בודק הרשאה)
+     ============================================================ */
+  let adminData = null, adminErr = null, adminLoading = false;
+  async function loadAdmin() { adminLoading = true; adminErr = null; render(); try { adminData = await Api.adminStats(); } catch (e) { adminErr = e.userMessage || 'לא נטען'; } adminLoading = false; render(); }
+  SCREENS.admin = () => {
+    if (!adminData && !adminLoading && !adminErr) setTimeout(loadAdmin, 0);
+    const head = topbar({ title: 'פאנל ניהול', end: `<button class="icon-btn" aria-label="רענון" onclick="App.loadAdmin()">${icon('repeat', 20)}</button>` });
+    if (adminErr) return `${head}<div class="card empty"><div class="t">${esc(adminErr)}</div></div>`;
+    if (!adminData) return `${head}<div class="empty"><div class="muted small">טוענות…</div></div>`;
+    const d = adminData; const n = (x) => (x == null ? 0 : Number(x)).toLocaleString('he-IL');
+    const tile = (label, val, sub = '', tone = '') => `<div class="ad-tile ${tone}"><div class="v">${val}</div><div class="l">${label}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+    const bars = (title, key, tone) => { const vals = d.series.days.map(x => Number(d.series[key][x] || 0)); const max = Math.max(1, ...vals); return `<div class="ad-chart"><div class="ad-ct"><span>${title}</span><b>${n(vals.reduce((a, b) => a + b, 0))}</b></div><div class="ad-bars">${vals.map((v, i) => `<i class="${tone}" style="height:${Math.max(3, Math.round((v / max) * 100))}%" title="${d.series.days[i]}: ${v}"></i>`).join('')}</div><div class="ad-axis"><span>${Mila.fmtDate(d.series.days[0])}</span><span>היום</span></div></div>`; };
+    const conv = (a, b) => (b && a <= b ? `${Math.round((100 * a) / b)}%` : '–');
+    const inv = d.invites;
+    return `${head}
+      <div class="tiny muted mb">נתונים אמיתיים, מצטברים · עודכן ${Mila.fmtTime(d.generatedAt)}</div>
+      <div class="section-title" style="margin-top:4px">משתמשות</div>
+      <div class="ad-grid">${tile('רשומות', n(d.users.active), `+${n(d.users.new7)} השבוע`, 'lime')}${tile('פעילות היום', n(d.activity.dau), `${n(d.activity.wau)} השבוע · ${n(d.activity.mau)} בחודש`)}${tile('חדשות היום', n(d.users.new1), `${n(d.users.new30)} בחודש`)}${tile('חזרו אחרי שבוע', d.retention.cohort ? conv(d.retention.back || 0, d.retention.cohort) : '–', `מתוך ${n(d.retention.cohort)} שנרשמו לפני 7–14 יום`)}</div>
+      ${bars('הרשמות ביום', 'signups', 'lime')}${bars('פעילות ביום', 'active', 'lav')}
+      <div class="section-title">הזמנות: מי הביאה את מי</div>
+      <div class="ad-funnel"><div><b>${n(inv.created)}</b><span>הזמנות נשלחו</span></div><i>›</i><div><b>${n(inv.opens)}</b><span>בנות פתחו קישור</span></div><i>›</i><div><b>${n(inv.signups)}</b><span>נרשמו</span></div><i>›</i><div><b>${n(inv.joins)}</b><span>הצטרפו לקבוצה</span></div></div>
+      <div class="tiny muted mb">מפתיחה להרשמה: ${conv(inv.signups, inv.opens)} · ${n(d.users.viaInvite)} מכל הרשומות הגיעו מהזמנה (${conv(d.users.viaInvite, d.users.active)})</div>
+      ${bars('פתיחות קישור ביום', 'opens', 'pink')}
+      <div class="card tight"><div class="card-title">המזמינות המובילות</div>
+        ${d.referrers.length ? `<div class="ad-table"><div class="ad-row h"><span>מזמינה</span><span>נחשפו</span><span>נרשמו</span><span>הצטרפו</span></div>${d.referrers.map((r, i) => `<div class="ad-row"><span>${i < 3 ? ['🥇', '🥈', '🥉'][i] + ' ' : ''}${esc(r.name || 'ללא שם')}</span><span>${n(r.opens)}</span><span>${n(r.signups)}</span><span>${n(r.joins)}</span></div>`).join('')}</div><div class="tiny muted mt">נחשפו = מבקרות ייחודיות שפתחו קישור שהיא שלחה. ${n(d.invitersTotal)} שלחו הזמנה בסך הכול.</div>` : '<div class="small muted">עוד אף אחת לא פתחה הזמנה.</div>'}
+        ${d.inviteKinds.length ? `<div class="chips mt">${d.inviteKinds.map(k => `<span class="chip">${{ follow: '👀 לעקוב', compete: '🏁 להתחרות', same: '🤝 אותו אתגר' }[k.kind] || k.kind}: ${n(k.n)}</span>`).join('')}</div>` : ''}
+      </div>
+      <div class="section-title">קבוצות</div>
+      <div class="ad-grid">${tile('פעילות', n(d.groups.active), `+${n(d.groups.new7)} השבוע`, 'lav')}${tile('גודל ממוצע', d.groups.avgSize || 0, 'חברות בקבוצה')}${tile('נסגרו', n(d.groups.closed))}${tile('חברויות', n(d.groups.memberships))}</div>
+      ${bars('קבוצות חדשות ביום', 'groups', 'lav')}
+      ${d.groupSizes.length ? `<div class="card tight"><div class="card-title">כמה חברות בקבוצה</div><div class="chips">${d.groupSizes.map(x => `<span class="chip">${x.size} חברות: ${n(x.groups)}</span>`).join('')}</div></div>` : ''}
+      ${d.topGroups.length ? `<div class="card tight"><div class="card-title">הקבוצות הגדולות</div><div class="ad-table"><div class="ad-row h"><span>קבוצה</span><span>חברות</span><span>אתגרים</span><span>נפתחה</span></div>${d.topGroups.map(g => `<div class="ad-row"><span>${esc(g.name)}</span><span>${n(g.members)}</span><span>${n(g.challenges)}</span><span>${Mila.fmtDate(g.created)}</span></div>`).join('')}</div></div>` : ''}
+      <div class="section-title">אתגרים ודיווחים</div>
+      <div class="ad-grid">${tile('אתגרים פעילים', n(d.challenges.active), `+${n(d.challenges.new7)} השבוע`, 'lime')}${tile('דיווחים היום', n(d.reports.r1), `${n(d.reports.r7)} השבוע`)}${tile('הצלחה השבוע', d.successRate7 == null ? '–' : d.successRate7 + '%', 'מכל הימים שדווחו')}${tile('סבבים שהושלמו', n(d.challenges.completed))}</div>
+      ${bars('דיווחים ביום', 'reports', 'lime')}
+      ${d.topChallenges.length ? `<div class="card tight"><div class="card-title">האתגרים הפופולריים</div><div class="ad-table"><div class="ad-row h"><span>אתגר</span><span>בחרו</span><span>פעילים</span><span></span></div>${d.topChallenges.map(c => `<div class="ad-row"><span>${esc(c.title)}</span><span>${n(c.n)}</span><span>${n(c.active)}</span><span></span></div>`).join('')}</div></div>` : ''}
+      ${d.categories.length ? `<div class="card tight"><div class="card-title">לפי קטגוריה</div><div class="chips">${d.categories.map(c => `<span class="chip">${esc(c.name)}: ${n(c.n)}</span>`).join('')}</div></div>` : ''}
+      <div class="section-title">בטיחות</div>
+      <div class="ad-grid">${tile('דיווחים על משתמשות', n(d.abuseReports7), 'ב-7 הימים האחרונים', d.abuseReports7 ? 'pink' : '')}${tile('נרשמו ולא השלימו', n(d.users.pending), 'בלי שם/אישורים')}</div>`;
+  };
 
   /* ============================================================
      פרגון — ״להזמין את מרינה לקפה״
@@ -1307,7 +1363,7 @@ const App = (() => {
     $('#nav-ic-today').innerHTML = ICONS.home(22); $('#nav-ic-circles').innerHTML = ICONS.users(22); $('#nav-ic-me').innerHTML = ICONS.user(22);
     const params = new URLSearchParams(location.search);
     const token = params.get('invite');
-    if (token) { history.replaceState(null, '', location.pathname); }
+    if (token) { history.replaceState(null, '', location.pathname); Api.trackInviteOpen(token); }
     const authError = params.get('auth_error');
     if (authError) { history.replaceState(null, '', location.pathname); setTimeout(() => toast('הכניסה לא הושלמה. נסי שוב.'), 300); }
     if (Api.enabled) {
@@ -1347,6 +1403,6 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
-    bankFilter: setBankFilter, treatPick, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
+    bankFilter: setBankFilter, treatPick, loadAdmin, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();

@@ -4,3 +4,4 @@ node_modules
 *.log
 shots-e2e
 src/assets.generated.js
+backup-*.sql

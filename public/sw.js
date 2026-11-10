@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mila-v17';
+const CACHE_NAME = 'mila-v19';
 const ASSETS = ['/', '/index.html', '/styles.css', '/js/library.js', '/js/engine.js', '/js/icons.js', '/js/demo.js', '/js/app.js', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -11,9 +11,16 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
-// רשת קודם, ואם אין – מהמטמון. כך תמיד מקבלים גרסה עדכנית כשיש חיבור.
+// קבצים עם גרסה (?v=) – מהמטמון קודם (לא נשלחת בקשה לשרת בכל פתיחה).
+// דף ה-HTML ושאר הבקשות – רשת קודם, ואם אין רשת – מהמטמון.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
+  const url = new URL(e.request.url);
+  if (url.pathname.startsWith('/api/')) return;
+  if (url.searchParams.has('v')) {
+    e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request).then(res => { const clone = res.clone(); caches.open(CACHE_NAME).then(c => c.put(e.request, clone)); return res; })));
+    return;
+  }
   e.respondWith(
     fetch(e.request).then(res => { const clone = res.clone(); caches.open(CACHE_NAME).then(c => c.put(e.request, clone)); return res; })
       .catch(() => caches.match(e.request).then(r => r || caches.match('/index.html')))

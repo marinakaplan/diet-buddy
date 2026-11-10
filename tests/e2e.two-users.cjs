@@ -141,13 +141,15 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   }
   await shot(a, '06-a-today'); await shot(b, '06-b-today');
 
-  console.log('7. בנק, קופה ועדכונים אצל שתיהן');
+  console.log('7. נקודות, דירוג ועדכונים אצל שתיהן');
   await sync(a); await sync(b);
   const bankA = await a.page.evaluate(() => Mila.bankSummary()); const bankB = await b.page.evaluate(() => Mila.bankSummary());
   assert.strictEqual(bankA.earnedTotal, 1); assert.strictEqual(bankA.missedTotal, 0);
   assert.strictEqual(bankB.earnedTotal, 0); assert.strictEqual(bankB.missedTotal, 1, 'רק הפספוס שדווח; אתגרי הספרייה של היום עדיין פתוחים');
-  assert.strictEqual(await a.page.evaluate((id) => Mila.circlePool(id), circleId), 1);
-  assert.strictEqual(await b.page.evaluate((id) => Mila.circlePool(id), circleId), 1);
+  // הדירוג אצל כל אחת משקף את הדיווח של השנייה
+  const rowOf = (p, name) => p.page.evaluate(({ id, name }) => { const r = Mila.leaderboard(id).rows.find(x => x.user.name === name); return r ? { s: r.success, m: r.miss } : null; }, { id: circleId, name });
+  assert.deepStrictEqual(await rowOf(a, 'נועה'), { s: 0, m: 1 }, 'א רואה את הפספוס של ב בדירוג');
+  assert.deepStrictEqual(await rowOf(b, 'יעל'), { s: 1, m: 0 }, 'ב רואה את ההצלחה של א בדירוג');
   const feedA = await a.page.evaluate((id) => Mila.feed(id).map(e => e.type + ':' + e.actor.name), circleId);
   const feedB = await b.page.evaluate((id) => Mila.feed(id).map(e => e.type + ':' + e.actor.name), circleId);
   assert.ok(feedA.includes('day_miss:נועה'), 'א רואה את ב: ' + feedA); assert.ok(feedB.includes('day_success:יעל'), 'ב רואה את א: ' + feedB);
