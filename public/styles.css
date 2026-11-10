@@ -847,3 +847,9 @@ body.wide #screen { padding-inline: 24px; }
 .tier.other { border-style: dashed; }
 .tier.other .tier-emo { background: var(--bg); }
 .treat-sheet .th-heart { display: block; margin: 0 auto 6px; animation: thbeat 1.6s ease-in-out infinite; }
+/* היום: שלושה מספרים במקום קשת */
+.stat-strip { display: grid; grid-template-columns: repeat(3, 1fr); padding: 14px 6px; }
+.stat-strip > div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.stat-strip > div + div { border-inline-start: 1px solid var(--line); }
+.stat-strip b { font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+.stat-strip span { font-size: .78rem; color: var(--ink-2); }

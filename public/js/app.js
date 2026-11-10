@@ -310,10 +310,10 @@ const App = (() => {
       ${Mila.getState().meta.demo ? `<div class="demo-banner">זו דוגמה עם חברות מומצאות. <a href="#" onclick="event.preventDefault(); App.resetDemo()">להתחיל באמת</a></div>` : ''}
       <div class="greeting"><div><div class="hello">${greet}, ${esc(u.name)} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${fresh ? 'בואי נתחיל.' : todaySubtitle(cards)}</div></div></div>
 
-      ${main ? `<div class="card ring-card">
-          ${ring(main.st.dayIndex, Mila.RULES.ROUND_DAYS, `<div class="label">יום</div><div class="big"><b>${main.st.dayIndex}</b></div>`)}
-          <div class="ring-dots">${active.slice(0, 3).map((c, i) => `<i class="${c.id === main.c.id ? 'on' : ''}"></i>`).join('')}</div>
-          <div class="ring-meta"><span>הצלחות <b>${bank.earnedCurrentRound}</b></span><span>רצף <b>${bestStreak}</b></span>${rankCircle && rankCircle.ri.place ? `<span>מקום <b>${rankCircle.ri.place}</b> מתוך ${rankCircle.ri.total}</span>` : `<span>היום <b>${done}/${cards.length}</b></span>`}</div>
+      ${main ? `<div class="card tight stat-strip">
+          <div><b>${main.st.dayIndex}</b><span>יום</span></div>
+          <div><b>${bank.earnedCurrentRound}</b><span>הצלחות</span></div>
+          <div><b>${bestStreak}</b><span>ימים ברצף</span></div>
         </div>` : ''}
 
       ${(rankCircle ? [rankCircle] : []).map(({ c, ri }) => `<div class="card tight clickable pastel-lav rank-card" onclick="App.go('circle',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px">${ri.place ? `<span class="rank-place ${ri.place === 1 ? 'first' : ''}">${ri.place}</span>` : `<span class="tile lav">${icon('trophy')}</span>`}<div style="flex:1;min-width:0"><div class="bold">${esc(ri.text)}</div><div class="small muted">${esc(c.name)} · יום ${Mila.circleRound(c.id).dayIndex}</div></div>${icon('chev', 20)}</div></div>`).join('')}
