@@ -351,7 +351,7 @@ const App = (() => {
           <ol class="start-steps">
             <li><b>1</b><span>בוחרת עד 3 אתגרים</span></li>
             <li><b>2</b><span>כל ערב מסמנת אם עמדת בהם</span></li>
-            <li><b>3</b><span>מזמינה חברות ורואה מי מתמידה יותר</span></li>
+            <li><b>3</b><span>מזמינה חברות שיעזרו לך לעמוד במילה שלך</span></li>
           </ol>
           <button class="btn primary" onclick="App.openPick()">בוחרת אתגרים</button>
         </div>` : `<div class="section-title">האתגרים שלי להיום ${cards.length ? `<small>${done}/${cards.length}</small>` : ''}</div>
