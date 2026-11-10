@@ -970,3 +970,22 @@ body.wide #screen { padding-inline: 24px; }
 .how-why p { margin: 0; font-size: .92rem; line-height: 1.55; }
 .demo-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .demo-banner .btn.sm { flex: none; }
+.created-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--lime-soft); border: 1px solid #E6F2B5; padding: 12px 14px; margin: 0 0 16px; font-size: .9rem; line-height: 1.45; animation: w2up .35s ease both; }
+.created-note .btn { flex: none; color: var(--ink-2); }
+
+/* ---------- רספונסיביות: בלי זום אוטומטי ובלי תזוזה לצדדים ---------- */
+/* אייפון מגדיל את הדף כששדה טקסט קטן מ-16px — וזה מה שגרם לדף ״לזוז לצדדים״ */
+input, textarea, select, .input, textarea.input, .wa-bubble textarea { font-size: 16px !important; }
+.ob-input { font-size: 1.15rem !important; }
+html, body { overflow-x: hidden; }
+@supports (overflow: clip) { html, body { overflow-x: clip; } }
+#app, #screen { max-width: 100%; }
+#screen { overflow-wrap: break-word; }
+img, svg, video { max-width: 100%; }
+@media (max-width: 360px) {
+  #screen { padding-inline: 14px; }
+  .ob-title { font-size: 1.6rem; } .ob-title-sm { font-size: 1.4rem; } .w2-h { font-size: 1.9rem; }
+  .ob-grid { gap: 8px; } .ob-pick { padding: 12px; min-height: 96px; }
+  .stat-strip b { font-size: 1.35rem; }
+  .icon-picker { gap: 6px; }
+}
