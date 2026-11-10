@@ -874,3 +874,13 @@ body.wide #screen { padding-inline: 24px; }
 .wt-state.miss .wt-badge { background: var(--pink-ink); }
 .wt-state.excused .wt-badge { background: var(--lav-ink); }
 .wt-badge svg { width: 11px; height: 11px; }
+/* היום: שורה לכל קבוצה — שם, מקום, מי לפנייך */
+.my-ranks { padding-block: 6px; }
+.my-ranks .card-title { margin: 8px 0 2px; }
+.rk-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.my-ranks .card-title + .rk-row { border-top: 0; }
+.rk-body { flex: 1; min-width: 0; }
+.rk-name { font-weight: 700; font-size: .98rem; }
+.rk-line { font-size: .84rem; color: var(--ink-2); margin-top: 3px; }
+.rk-place { color: var(--ink); font-weight: 800; padding: 1px 6px; background: var(--line); }
+.rk-place.first { background: var(--lime); }
