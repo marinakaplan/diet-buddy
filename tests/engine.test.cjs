@@ -249,13 +249,13 @@ test('ולידציה: ניסוח מסוכן נחסם; כלל הצלחה חובה
   assert.throws(() => Mila.createPersonalWord({ title: 'משהו', rule: '', startDate: today }), /הצלחה/);
 });
 
-test('דמו: מצומצם (קבוצה אחת, 2 אתגרים) ועובר את כל האינווריאנטים', () => {
+test('דמו: מצומצם (קבוצה אחת, 3 אתגרים) ועובר את כל האינווריאנטים', () => {
   Mila.setClock(null);
   Mila.reset();
   const u = MilaDemo.seed('דניאלה');
   const S = Mila.getState();
   assert.strictEqual(S.me, u.id);
-  assert.strictEqual(Mila.todayCards().length, 2);
+  assert.strictEqual(Mila.todayCards().length, 3);
   assert.strictEqual(Mila.myCircles().length, 1);
   assert.ok(Mila.bankSummary().earnedTotal > 5, 'יש נקודות');
   assert.strictEqual(Mila.pendingSummaries().length, 0, 'אין סיכומי סבב שמחכים');

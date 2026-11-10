@@ -24,28 +24,30 @@ const MilaDemo = (() => {
     const friends = FRIENDS.map(f => Mila.createUser({ name: f.name, ageConfirmed: true, color: f.color }));
     const [yael, noa, maya] = friends;
 
-    // דוגמה מצומצמת: קבוצה אחת, שלוש חברות, שני אתגרים. מספיק כדי להבין, בלי עומס.
+    // דוגמה מצומצמת: קבוצה אחת, שלוש חברות, שלושה אתגרים יומיומיים. מספיק כדי להבין, בלי עומס.
     const roundStart = Mila.addDays(today, -7);
     const c1 = Mila.createCircle({ name: 'חברות קרובות', description: 'הבנות מהתיכון.', color: 'pink', roundStart: Mila.addDays(roundStart, 0) }).circle;
     addMembers(c1.id, [yael, noa, maya], Mila.addDays(roundStart, -14));
 
-    // אתגר משותף: 8,000 צעדים
-    const steps = asUser(yael.id, () => Mila.proposeGroupWord(c1.id, { title: '8,000 צעדים ביום', rule: 'מונה הצעדים מראה 8,000 או יותר עד סוף היום', icon: 'run', startDate: roundStart }));
-    steps.createdAt = iso(Mila.addDays(roundStart, -2));
+    // אתגר משותף: עד 3 קפה ביום (יעל פתחה, כולן בפנים)
+    const coffee = asUser(yael.id, () => Mila.proposeGroupWord(c1.id, { title: 'שותה רק 3 קפה ביום', rule: 'עד 3 כוסות קפה ביום, כולל בעבודה.', icon: 'coffee', startDate: roundStart }));
+    coffee.createdAt = iso(Mila.addDays(roundStart, -2));
     for (const u of [meUser, yael, noa, maya]) {
-      const k = adoptBackdated(steps, u.id, roundStart, iso);
+      const k = adoptBackdated(coffee, u.id, roundStart, iso);
       simulate(k.id, u.id === meUser.id ? 0.86 : 0.55 + rand() * 0.35, rand, iso);
     }
-    // אתגר אישי בתוך הקבוצה
-    const walk = asUser(meUser.id, () => Mila.createPersonalWord({ title: 'הליכה 30 דקות', rule: 'לפחות 30 דקות הליכה רצופה ביום', icon: 'walk', startDate: roundStart, circleId: c1.id, visibility: 'status' }));
-    simulate(walk.commitment.id, 0.9, rand, iso);
+    // אתגרים אישיים בתוך הקבוצה
+    const voice = asUser(meUser.id, () => Mila.createPersonalWord({ title: 'לא מרימה את הקול על הילדים אחרי 18:00', rule: 'מ-18:00 ועד שהם נרדמים, בלי צעקות.', icon: 'home', startDate: roundStart, circleId: c1.id, visibility: 'status' }));
+    simulate(voice.commitment.id, 0.8, rand, iso);
+    const plate = asUser(meUser.id, () => Mila.createPersonalWord({ title: 'אוכלת קודם ירקות ואח״כ את החלבון ומפחיתה פחמימה', rule: 'בכל ארוחה: קודם הירקות, אחר כך החלבון, והפחמימה בסוף ובקטן.', icon: 'leaf', startDate: roundStart, circleId: c1.id, visibility: 'status' }));
+    simulate(plate.commitment.id, 0.9, rand, iso);
 
     // מילה טובה מיעל
     const ev = S.socialEvents.filter(e => e.circleId === c1.id && e.actorId === meUser.id && e.type === 'day_success').slice(-1)[0];
     if (ev) S.encouragements.push({ id: Mila.uid('r'), eventId: ev.id, userId: yael.id, reaction: 'clap', createdAt: Mila.nowISO() });
     S.socialEvents.push({ id: Mila.uid('e'), circleId: c1.id, actorId: yael.id, type: 'encouragement', payload: { toUserId: meUser.id, reaction: 'clap' }, createdAt: iso(today, 8) });
     S.notifications = [];
-    Mila.notify(meUser.id, 'encouragement', 'יעל שלחה לך מילה טובה', 'על הליכה 30 דקות', { circleId: c1.id });
+    Mila.notify(meUser.id, 'encouragement', 'יעל שלחה לך מילה טובה', 'על הקפה 😉', { circleId: c1.id });
 
     // סדר כרונולוגי לפיד: אירועי דמו קיבלו זמן אמיתי, נדגום להם זמנים מפוזרים
     S.socialEvents.forEach(e => { if (e.payload && e.payload.date) e.createdAt = iso(e.payload.date, 18 + Math.floor(rand() * 5)); });
