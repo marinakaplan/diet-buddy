@@ -657,7 +657,8 @@ a.btn.treat-go { display: flex; align-items: center; justify-content: center; te
 
 /* ---------- ניהול קבוצות ---------- */
 .rank-card { margin-bottom: 8px; }
-.rank-place { width: 34px; height: 34px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.05rem; background: #fff; border: 2px solid var(--ink); }
+.rank-place { min-width: 46px; height: 46px; padding: 0 4px; flex-shrink: 0; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 900; font-size: 1.25rem; line-height: 1; background: #fff; border: 2px solid var(--ink); }
+.rank-place small { font-size: .62rem; font-weight: 600; color: var(--ink-2); margin-bottom: 2px; }
 .rank-place.first { background: var(--lime); }
 .row-card .t .chip { vertical-align: middle; margin-inline-start: 4px; }
 .danger-zone { border-color: #FFD0DA; background: #FFF7F9; }

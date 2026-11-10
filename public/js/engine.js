@@ -528,11 +528,11 @@ const Mila = (() => {
     if (!above) {
       if (!below) return { place: mine.place, total: ranked.length, text: 'את מובילה. בינתיים לבד.' };
       const gap = pct(mine.rate) - pct(below.rate);
-      return { place: mine.place, total: ranked.length, text: gap > 0 ? `את מובילה. ${below.user.name} ${gap} נקודות אחוז מאחורייך.` : `את מובילה, ו${below.user.name} צמודה אלייך.` };
+      return { place: mine.place, total: ranked.length, text: gap > 0 ? `את מובילה. ${below.user.name} אחרייך.` : `את מובילה, ו${below.user.name} צמודה אלייך.` };
     }
     const gap = pct(above.rate) - pct(mine.rate);
     const next = (mine.success + 1) / (mine.resolved + 1);
-    const text = gap <= 0 ? `את צמודה ל${above.user.name}. עוד הצלחה אחת ואת עוקפת.` : next >= above.rate ? `${above.user.name} מובילה עלייך ב-${gap} נקודות אחוז. עוד הצלחה אחת ואת עוקפת אותה.` : `${above.user.name} מובילה עלייך ב-${gap} נקודות אחוז. עוד הצלחה אחת ואת מצמצמת את הפער.`;
+    const text = gap <= 0 ? `את צמודה ל${above.user.name}. עוד הצלחה אחת ואת עוקפת.` : next >= above.rate ? `${above.user.name} לפנייך. עוד הצלחה אחת ואת עוקפת אותה.` : `${above.user.name} לפנייך. כל הצלחה מקרבת אותך.`;
     return { place: mine.place, total: ranked.length, above: above.user, gap, text };
   }
 

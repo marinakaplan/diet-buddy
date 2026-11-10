@@ -312,7 +312,7 @@ test('״המהפך״: עקיפה בדירוג יוצרת אירוע והתראה
   setOutcome(kf.id, Mila.addDays(start, 1), 'success');
   setOutcome(km.id, start, 'success');
   let ri = Mila.rankInsight(c.id);
-  assert.strictEqual(ri.place, 2, JSON.stringify(ri)); assert.ok(/נועה מובילה עלייך ב-8 נקודות אחוז. עוד הצלחה אחת ואת עוקפת אותה/.test(ri.text), ri.text);
+  assert.strictEqual(ri.place, 2, JSON.stringify(ri)); assert.ok(/נועה לפנייך. עוד הצלחה אחת ואת עוקפת אותה/.test(ri.text), ri.text);
   const todayOb = Mila.obligationsOf(km.id).find(x => x.localDate === today);
   const before = Mila.getState().socialEvents.filter(e => e.type === 'overtake').length;
   Mila.report(todayOb.id, 'success');                                                                     // אני 2/5 = 40% > 33% → עקפתי
