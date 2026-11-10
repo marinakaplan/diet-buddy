@@ -6,6 +6,9 @@ main = "src/index.js"
 compatibility_date = "2025-10-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
+# משתנים וסודות שהוגדרו בלוח הבקרה של Cloudflare נשמרים בפריסה (לא נמחקים).
+# סודות (כמו GOOGLE_CLIENT_SECRET) לעולם לא נכתבים בקובץ הזה.
+keep_vars = true
 
 # הקבצים הסטטיים מוטמעים ב-Worker (scripts/embed-assets.mjs). ראו README על Static Assets.
 

@@ -269,7 +269,7 @@ const App = (() => {
     sheet(`<div class="sheet-title">תנאי שימוש (בטא)</div>
       <div class="small muted" style="line-height:1.7">
       <p><b>מה זה.</b> מילה היא משחק חברתי של התחייבויות ל-14 יום. הדיווח הוא עצמי ומבוסס אמון.</p>
-      <p><b>נקודות.</b> יחידת משחק בלבד: נקודה על כל יום שעמדת בו. אין להן ערך כספי, אי אפשר לקנות, למכור, להעביר או להמיר אותן, ואין בהן הימור או פרס. אין תשלומים ואין תרומות באפליקציה.</p>
+      <p><b>נקודות.</b> יחידת משחק בלבד: נקודה על כל יום שעמדת בו. אין להן ערך כספי, אי אפשר לקנות, למכור, להעביר או להמיר אותן, ואין בהן הימור או פרס. המשחק חינמי. אפשר, אם רוצים, לפרגן ליוצרת דרך ביט, מחוץ לאפליקציה. הפרגון לא משפיע על המשחק, על הנקודות או על הדירוג.</p>
       <p><b>גיל.</b> השימוש מותר מגיל 18.</p>
       <p><b>מידע.</b> נשמרים: שם תצוגה, אימייל (לכניסה בלבד), אזור זמן, המילים והדיווחים שלך. חברות בקבוצה רואות את מה שבחרת לחשוף. אין גישה לאנשי קשר, אין מכירת מידע.</p>
       <p><b>שליטה.</b> אפשר לייצא את הנתונים ולמחוק את החשבון מההגדרות בכל רגע. לאחר מחיקה הפרופיל הופך לאנונימי; ההיסטוריה של הקבוצות נשמרת ללא זיהוי.</p>
@@ -1112,6 +1112,7 @@ const App = (() => {
     const blocked = Mila.blockedUsers();
     const tog = (k, t, m) => `<div class="toggle-row"><div><div class="t">${t}</div><div class="m">${m}</div></div><button class="switch ${s[k] ? 'on' : ''}" role="switch" aria-checked="${!!s[k]}" onclick="App.setSetting('${k}', ${!s[k]})"></button></div>`;
     return `${topbar({ title: 'הגדרות' })}
+      <div class="card tight clickable treat-entry" onclick="App.go('treat')"><div style="display:flex;align-items:center;gap:12px">${treatArt('espresso', 46)}<div style="flex:1"><div class="bold">להזמין את מרינה לקפה ☕</div><div class="small muted">האפליקציה נבנתה באהבה. פרגון קטן?</div></div>${icon('chev', 20)}</div></div>
       <div class="card tight"><div class="field" style="margin:6px 0 10px"><label>שם תצוגה</label><input class="input" value="${esc(u.name)}" maxlength="30" onchange="App.rename(this.value)"></div>
         <div class="kv"><span class="k">${icon('clock', 18)} אזור זמן</span><span class="v">${esc(u.timezone)}</span></div>
         <div class="kv"><span class="k">${icon('bell', 18)} שעת תזכורת</span><input class="input ltr" type="time" value="${s.reminderTime}" style="width:auto;padding:8px 12px" onchange="App.setSetting('reminderTime', this.value)"></div></div>
@@ -1130,6 +1131,73 @@ const App = (() => {
   async function exportData() { const data = isCloud() ? JSON.stringify(await Api.cloud.exportData(), null, 2) : Mila.exportData(); const blob = new Blob([data], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mila-export.json'; a.click(); URL.revokeObjectURL(a.href); toast('הקובץ ירד'); }
   function resetDemo() { confirmSheet({ title: 'לאפס את הדוגמה?', sub: 'חוזרות למסך הפתיחה.', okText: 'איפוס', okClass: 'pink', onOk: () => { Mila.reset(); closeSheet(true); go('welcome', {}, { reset: true }); } }); }
   function deleteAccount() { confirmSheet({ title: 'למחוק את החשבון?', sub: 'סופי. האתגרים, הדיווחים וההישגים נמחקים. בקבוצות נשאר רישום אנונימי.', okText: 'למחוק', okClass: 'danger', onOk: async () => { await Store().deleteAccount(); closeSheet(true); go('welcome', {}, { reset: true }); toast('נמחק.'); } }); }
+
+  /* ============================================================
+     פרגון — ״להזמין את מרינה לקפה״
+     הקישור האישי מביט (אפליקציית ביט ← קוד QR אישי ← שיתוף). הסכום מוקלד בביט.
+     ============================================================ */
+  const BIT_LINK = '';
+  const TREATS = {
+    cookie: { name: 'עוגיית כדור שוקולד עם פצפוצים', sub: 'קטנה, מתוקה, ומתפצפצת.', price: 4, tint: 'peach' },
+    espresso: { name: 'אספרסו', sub: 'קצר וחזק. כמו מילה שעומדים בה.', price: 10, tint: 'pink' },
+    latte: { name: 'קפה הפוך', sub: 'הגדול. עם הרבה קצף ולב.', price: 15, tint: 'lav' },
+  };
+  /* פצפוצים: מיקומים קבועים על הכדור (x, y, סיבוב, צבע) */
+  const CRISPIES = [[49, 42, -68, 0], [65, 90, -26, 0], [34, 59, -19, 0], [63, 36, 64, 0], [89, 72, 69, 0], [65, 57, -24, 0], [55, 67, 66, 1], [64, 76, -54, 0], [41, 76, 29, 1], [33, 51, 46, 1], [75, 50, -62, 0], [50, 92, 27, 0], [73, 36, -1, 2], [46, 57, 8, 0], [88, 55, 76, 0], [60, 46, -7, 0], [87, 64, -38, 2], [81, 44, -8, 0], [37, 66, 76, 1], [84, 83, 20, 2], [45, 85, -39, 0], [51, 76, -74, 1], [77, 66, 48, 1], [40, 47, 22, 0], [30, 70, 39, 0], [59, 82, 63, 0], [67, 64, 51, 0], [45, 68, -29, 2], [71, 82, -41, 1], [55, 37, -76, 0], [74, 90, -6, 1], [76, 58, 25, 0], [48, 50, -80, 0], [68, 46, 14, 1]];
+  function treatArt(kind, size = 84) {
+    const ink = '#1C1A1F';
+    const steam = (x0) => `<g class="steam">${[0, 1, 2].map(i => `<path style="--s:${i}" d="M${x0 + i * 12} 30c-4-5 4-9 0-14s4-9 0-13" stroke="#B9B2BE" stroke-width="2.4" stroke-linecap="round" fill="none"/>`).join('')}</g>`;
+    if (kind === 'cookie') return `<svg class="tr-art tr-cookie" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true">
+      <ellipse cx="60" cy="106" rx="30" ry="5" fill="rgba(28,26,31,.1)" class="tr-shadow"/>
+      <g class="ball"><circle cx="60" cy="64" r="36" fill="#6B3F2A"/><circle cx="60" cy="64" r="36" fill="none" stroke="#4E2C1C" stroke-width="2"/>
+      ${CRISPIES.map(([x, y, r, c]) => `<ellipse class="crisp" style="--k:${(x + y) % 7}" cx="${x}" cy="${y}" rx="3.8" ry="2.4" transform="rotate(${r} ${x} ${y})" fill="${['#F4E4C4', '#EAD0A2', '#FFF6E6'][c]}"/>`).join('')}
+      <ellipse cx="46" cy="46" rx="11" ry="6" transform="rotate(-35 46 46)" fill="#fff" opacity=".18"/></g>
+    </svg>`;
+    if (kind === 'espresso') return `<svg class="tr-art tr-espresso" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true">
+      ${steam(46)}
+      <ellipse cx="60" cy="100" rx="42" ry="8" fill="#fff" stroke="${ink}" stroke-width="2.5"/>
+      <path d="M88 62c13 0 13 20-2 20" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M32 56h56l-6 36q-1 6-7 6H45q-6 0-7-6z" fill="#fff" stroke="${ink}" stroke-width="2.5" stroke-linejoin="round"/>
+      <ellipse cx="60" cy="56" rx="28" ry="5.5" fill="#5A3420" stroke="${ink}" stroke-width="2.5"/>
+      <ellipse class="crema" cx="60" cy="56" rx="19" ry="3.4" fill="#C88A4E"/>
+    </svg>`;
+    return `<svg class="tr-art tr-latte" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true">
+      ${steam(44)}
+      <ellipse cx="60" cy="104" rx="46" ry="8" fill="#fff" stroke="${ink}" stroke-width="2.5"/>
+      <path d="M92 56c16 0 16 26-3 26" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M24 48h72l-8 46q-1 7-8 7H40q-7 0-8-7z" fill="#fff" stroke="${ink}" stroke-width="2.5" stroke-linejoin="round"/>
+      <ellipse cx="60" cy="48" rx="36" ry="7.5" fill="#C99A6B" stroke="${ink}" stroke-width="2.5"/>
+      <ellipse cx="60" cy="48" rx="28" ry="5.2" fill="#F6E7D2"/>
+      <path class="heart" d="M60 52c-7-4.5-9-7.5-6.4-9.6 2.2-1.7 4.8-.6 6.4 1.6 1.6-2.2 4.2-3.3 6.4-1.6 2.6 2.1.6 5.1-6.4 9.6z" fill="#C99A6B"/>
+    </svg>`;
+  }
+  SCREENS.treat = () => `${topbar({ title: 'פרגון' })}
+    <div class="treat-hero">
+      <div class="th-hearts" aria-hidden="true">${['💛', '💚', '💜', '🧡', '💗'].map((h, i) => `<span style="--i:${i}">${h}</span>`).join('')}</div>
+      <svg class="th-heart" width="64" height="64" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 42C9 32 4 24 6.5 16.5 9 9.5 18 8 24 15c6-7 15-5.5 17.5 1.5C44 24 39 32 24 42z" fill="#FFC3DF" stroke="#1C1A1F" stroke-width="2.4" stroke-linejoin="round"/><path d="M17 23c1.4-2.3 4-2.3 5.4 0M26 23c1.4-2.3 4-2.3 5.4 0M19.5 29c2.6 2.6 6.4 2.6 9 0" stroke="#1C1A1F" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg>
+      <div class="th-title">האפליקציה הזו נוצרה באהבה<br>על ידי מרינה.</div>
+      <p>אם את נהנית ממנה, אם היא מועילה לך, ואם הצלחת לשנות הרגלים, אני שמחה!</p>
+      <p class="bold">בא לך להזמין אותי לעוגייה, אספרסו או קפה הפוך? אשמח לפרגון.</p>
+    </div>
+    ${Object.entries(TREATS).map(([k, t], i) => `<button class="treat-card ${t.tint}" style="--i:${i}" onclick="App.treatPick('${k}', this)">
+      <span class="tc-art">${treatArt(k, 84)}</span>
+      <span class="tc-body"><span class="tc-name">${t.name}</span><span class="tc-sub">${t.sub}</span></span>
+      <span class="tc-price">${t.price} ₪</span>
+    </button>`).join('')}
+    <div class="tiny muted center mt">הפרגון מגיע ישירות למרינה דרך ביט. הוא לא משפיע על המשחק, על הנקודות או על הדירוג.</div>`;
+  function treatPick(kind, el) {
+    const t = TREATS[kind];
+    if (el) {
+      el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+      const burst = document.createElement('span'); burst.className = 'tc-burst'; burst.setAttribute('aria-hidden', 'true');
+      burst.innerHTML = ['💛', '✨', kind === 'cookie' ? '🍪' : '☕', '💗', '✨', '💜'].map((e, i) => `<i style="--a:${-70 + i * 28}deg">${e}</i>`).join('');
+      el.querySelector('.tc-art').appendChild(burst); setTimeout(() => burst.remove(), 1100);
+    }
+    setTimeout(() => sheet(`<div class="sheet-hero treat-sheet">${treatArt(kind, 120)}<div class="sheet-title">תודה! זה ממש משמח 💛</div><div class="sheet-sub">${t.name}</div></div>
+      <div class="treat-amount"><span>בביט מקלידים</span><b>${t.price} ₪</b></div>
+      ${BIT_LINK ? `<a class="btn primary treat-go" href="${esc(BIT_LINK)}" target="_blank" rel="noopener" onclick="App.closeSheet()">לפתוח את ביט · ${t.price} ₪</a>` : `<button class="btn primary" disabled>הקישור לביט יתווסף בקרוב</button>`}
+      <button class="btn text mt" onclick="App.closeSheet()">אולי אחר כך</button>`), el ? 420 : 0);
+  }
 
   /* ============================================================
      S19 — בטיחות: חסימה ודיווח
@@ -1192,6 +1260,6 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteKind, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
-    bankFilter: setBankFilter, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
+    bankFilter: setBankFilter, treatPick, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();
