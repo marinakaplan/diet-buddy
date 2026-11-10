@@ -482,7 +482,34 @@ textarea.input { min-height: 84px; resize: vertical; }
 @keyframes hdrift { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-34px, 42px) scale(1.12); } 100% { transform: translate(22px, -18px) scale(.94); } }
 
 .hero-top { display: flex; align-items: center; gap: 8px; }
-.hero-top .brand { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
+.hero-top { gap: 6px; }
+.hero-top .brand { font-size: 1.12rem; font-weight: 800; letter-spacing: -.02em; }
+.hero-top .beta { font-size: .64rem; padding: 2px 7px; }
+
+/* הלוגו החי. מצב מנוחה = חיוך, עיניים פתוחות (כך גם עם הפחתת תנועה). */
+.live-logo { display: block; flex-shrink: 0; transform-origin: 50% 80%; animation: llgrr .42s ease-in-out .7s 2, lljoy .55s cubic-bezier(.2, 1.7, .4, 1) 1.85s, llidle 9s ease-in-out 5s infinite; }
+.live-logo * { transform-box: view-box; }
+.ll-brows { opacity: 0; animation: llbrows 1.9s linear both, llside-b 9s ease 5s infinite; }
+.ll-frown { opacity: 0; animation: llfrown 1.9s linear both; }
+.ll-smile { opacity: 1; transform-origin: 24px 30px; animation: llsmile 1.9s linear both, llsmirk 9s ease 5s infinite; }
+.ll-eyes-narrow { transform-origin: 24px 22.5px; animation: llnarrow 1.9s linear both, llside-n 9s ease 5s infinite; }
+.ll-eyes-blink { transform-origin: 24px 22.5px; animation: llblink 3.6s ease 2.4s infinite; }
+.ll-pupils { animation: lllook 9s ease 5s infinite; }
+/* שלב העצבים (0–1.9 שנ׳): גבות, עיניים מצומצמות, פה עקום; ואז חיוך */
+@keyframes llbrows { 0%, 94% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes llfrown { 0%, 94% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes llsmile { 0%, 94% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes llnarrow { 0%, 94% { transform: scaleY(.5); } 100% { transform: scaleY(1); } }
+@keyframes llgrr { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-9deg); } 75% { transform: rotate(9deg); } }
+@keyframes lljoy { 0% { transform: scale(1); } 45% { transform: scale(1.28) rotate(-6deg); } 100% { transform: scale(1); } }
+/* מצמוץ */
+@keyframes llblink { 0%, 90%, 100% { transform: scaleY(1); } 94% { transform: scaleY(.08); } }
+/* מבט צד חשדני כל 9 שניות: אישונים זזים, גבה מורמת, חיוך עקום, הטיית ראש */
+@keyframes lllook { 0%, 70%, 100% { transform: translateX(0); } 74%, 88% { transform: translateX(-3px); } 92% { transform: translateX(0); } }
+@keyframes llside-b { 0%, 72%, 96%, 100% { opacity: 0; } 76%, 90% { opacity: 1; } }
+@keyframes llside-n { 0%, 72%, 96%, 100% { transform: scaleY(1); } 76%, 90% { transform: scaleY(.62); } }
+@keyframes llsmirk { 0%, 72%, 96%, 100% { transform: rotate(0) scaleX(1); } 76%, 90% { transform: rotate(-9deg) scaleX(.82); } }
+@keyframes llidle { 0%, 72%, 100% { transform: rotate(0); } 78%, 88% { transform: rotate(-7deg); } }
 .hero-top .beta { margin-inline-start: auto; font-size: .7rem; font-weight: 600; padding: 3px 8px; border: 1px solid var(--line-2); color: var(--ink-2); background: rgba(255,255,255,.6); }
 
 .hero-stage { position: relative; margin: 20px 0 22px; padding: 16px 18px 18px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 14px 34px rgba(28,26,31,.07); transform: rotate(-1.4deg); animation: hshake .35s ease-in-out 1.85s; }
@@ -512,8 +539,13 @@ textarea.input { min-height: 84px; resize: vertical; }
 .race { background: rgba(255,255,255,.88); border: 1px solid var(--line); padding: 12px 14px 10px; animation: hup .45s ease 2.3s both; }
 .race-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; font-size: .92rem; }
 .race-chips { display: flex; gap: 5px; }
+/* הבטחה מתחלפת: 6 שורות, 3 שניות לכל אחת. מצב מנוחה (בלי תנועה) = השורה הראשונה. */
+.promise-rot { position: relative; flex-basis: 100%; height: 2.7em; font-weight: 700; font-size: .98rem; line-height: 1.35; overflow: hidden; }
+.promise-rot span { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; animation: hrot 18s ease calc(2.4s + var(--i) * 3s) infinite backwards; }
+.promise-rot span:first-child { opacity: 1; }
+@keyframes hrot { 0% { opacity: 0; transform: translateY(70%); } 2.5%, 14.5% { opacity: 1; transform: translateY(0); } 16.6%, 100% { opacity: 0; transform: translateY(-70%); } }
 .race-chips span { font-size: .72rem; font-weight: 600; padding: 3px 8px; background: var(--lime-soft); color: var(--lime-ink); animation: hpop .4s cubic-bezier(.2, 1.5, .4, 1) var(--d) both; }
-.race-body { display: flex; gap: 10px; margin-top: 30px; }
+.race-body { display: flex; gap: 10px; margin-top: 34px; }
 .race-places { display: grid; grid-template-rows: repeat(3, 42px); align-items: center; }
 .race-places span { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; background: #F3F0F2; font-size: .74rem; font-weight: 700; color: var(--ink-2); }
 .race-places span.first { background: var(--lime); color: var(--ink); }

@@ -152,6 +152,15 @@ const App = (() => {
   const SCREENS = {};
   const POST = {};
 
+  /* הבטחות מתחלפות במסך הפתיחה: יומיומיות, בגוף ראשון */
+  const PROMISES = [
+    'יאללה, מהיום אני לא נוגעת בטלפון כשאני עם הילדים.',
+    'יאללה, מהיום אני לא מזמינה משלוחים.',
+    'יאללה, מהיום אני במיטה עד 23:00.',
+    'יאללה, מהיום 8,000 צעדים ביום.',
+    'יאללה, מהיום בלי מתוק אחרי ארוחת ערב.',
+    'יאללה, מהיום אני לא צועקת על הילדים.',
+  ];
   SCREENS.welcome = () => {
     const ppl = { noa: { name: 'נועה', color: 'lavender' }, me: { name: 'את', color: 'lime' }, dana: { name: 'דנה', color: 'mint' } };
     const burst = [[-70, -46], [-34, -70], [12, -64], [52, -40], [-62, 14], [60, 10], [-20, 40], [30, 44]];
@@ -159,7 +168,7 @@ const App = (() => {
     return `
     <div class="hero">
       <div class="hero-blobs" aria-hidden="true"><i></i><i></i><i></i></div>
-      <div class="hero-top">${logoMark(34)}<span class="brand">מילה.</span><span class="beta">בטא</span></div>
+      <div class="hero-top">${liveLogo(26)}<span class="brand">מילה.</span><span class="beta">בטא</span></div>
 
       <div class="hero-stage">
         <div class="eyebrow">מכירה את זה?</div>
@@ -174,7 +183,7 @@ const App = (() => {
       <h1 class="hero-h"><span>כולנו מבטיחות.</span><span>בואי נראה מי <mark>מקיימת</mark>.</span></h1>
 
       <div class="race">
-        <div class="race-head"><b>בואי נעשה מזה משחק.</b><div class="race-chips"><span style="--d:2.5s">3 אתגרים</span><span style="--d:2.6s">14 ימים</span><span style="--d:2.7s">חברות</span></div></div>
+        <div class="race-head"><div class="promise-rot" aria-live="off">${PROMISES.map((t, i) => `<span style="--i:${i}">${t}</span>`).join('')}</div><div class="race-chips"><span style="--d:2.5s">3 אתגרים</span><span style="--d:2.6s">14 ימים</span><span style="--d:2.7s">חברות</span></div></div>
         <div class="race-body">
           <div class="race-places"><span class="first">1</span><span>2</span><span>3</span></div>
           <div class="race-rows">

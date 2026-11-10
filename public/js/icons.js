@@ -96,3 +96,16 @@ function avatarStack(users, size = 30, max = 4) {
   const extra = users.length - shown.length;
   return `<span class="avatar-stack">${shown.map(u => avatar(u, size)).join('')}${extra > 0 ? `<span class="avatar avatar-more" style="width:${size}px;height:${size}px">+${extra}</span>` : ''}</span>`;
 }
+
+/* לוגו חי: עצבני בזמן שהתירוצים נמחקים, מחייך כשהחותמת נוחתת, ממצמץ,
+   ומדי פעם מציץ הצידה עם גבות מורמות וחיוך עקום ("נראה אם תעמדי בזה"). */
+function liveLogo(size = 26) {
+  const ink = '#1B1B1F';
+  return `<svg class="live-logo" width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">
+    <rect x="2" y="2" width="44" height="44" rx="14" fill="#D9F565"/>
+    <g class="ll-brows" stroke="${ink}" stroke-width="2.8" stroke-linecap="round"><path d="M11 14.5l8 3.2"/><path d="M37 14.5l-8 3.2"/></g>
+    <g class="ll-eyes-narrow"><g class="ll-eyes-blink"><g class="ll-pupils" fill="${ink}"><circle cx="16.5" cy="22.5" r="2.8"/><circle cx="31.5" cy="22.5" r="2.8"/></g></g></g>
+    <path class="ll-frown" d="M17.5 33c3.5-3 9.5-3 13 0" stroke="${ink}" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+    <path class="ll-smile" d="M16.5 29c3.8 4.4 11.2 4.4 15 0" stroke="${ink}" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+  </svg>`;
+}
