@@ -403,7 +403,8 @@ const App = (() => {
     const upcoming = Mila.upcomingWords();
     // סבב "ראשי" להצגה בטבעת: ההתחייבות הפעילה עם הכי הרבה ימים שעברו
     const main = active.map(c => ({ c, st: Mila.commitmentStats(c.id) })).sort((a, b) => b.st.dayIndex - a.st.dayIndex)[0];
-    const done = cards.filter(x => x.outcome).length;
+    // ימים פתוחים מאתמול מוצגים בנפרד, בכותרת משלהם (ולא עם תווית על כל שורה)
+    const lateCards = cards.filter(x => x.late && !x.outcome); const nowCards = cards.filter(x => !(x.late && !x.outcome));
     const fresh = !active.length && !upcoming.length; // עוד לא בחרה אף אתגר
     const bestStreak = Math.max(0, ...active.map(c => Mila.streak(c.id).current));
     const rankAll = Mila.myCircles().map(c => ({ c, ri: Mila.rankInsight(c.id) })).filter(x => x.ri);
@@ -433,8 +434,9 @@ const App = (() => {
             <li><b>3</b><span>מזמינה חברות שיעזרו לך לעמוד במילה שלך</span></li>
           </ol>
           <button class="btn primary" onclick="App.openPick()">בוחרת אתגרים</button>
-        </div>` : `<div class="section-title">האתגרים שלי להיום ${cards.length ? `<small>${done}/${cards.length}</small>` : ''}</div>
-      ${cards.length ? cards.map(todayRow).join('') : `<div class="card tight muted small">אין לך אתגר היום.</div>`}`}
+        </div>` : `${lateCards.length ? `<div class="section-title">עוד לא דיווחת על אתמול <small>אפשר עד ${Mila.RULES.GRACE_HOUR}:00</small></div>${lateCards.map(todayRow).join('')}` : ''}
+      ${nowCards.length || !lateCards.length ? `<div class="section-title">האתגרים שלי להיום ${nowCards.length ? `<small>${nowCards.filter(x => x.outcome).length}/${nowCards.length}</small>` : ''}</div>
+      ${nowCards.length ? nowCards.map(todayRow).join('') : `<div class="card tight muted small">אין לך אתגר היום.</div>`}` : ''}`}
       ${cards.length && active.length < Mila.RULES.DAILY_CAP ? `<button class="btn ghost mt" onclick="App.openPick()">${icon('plus', 20)} עוד אתגר</button>` : ''}
       ${rankAll.length ? `<div class="card tight my-ranks"><div class="card-title">${rankAll.length === 1 ? 'הקבוצה שלך' : 'הקבוצות שלך'}</div>${rankAll.map(({ c, ri }) => {
         const hasWord = active.some(k => (Mila.wordDef(k.defId) || {}).circleId === c.id);
@@ -452,21 +454,21 @@ const App = (() => {
 
   function todaySubtitle(cards) {
     if (!cards.length) return 'אין לך אתגר היום';
+    const late = cards.filter(x => x.late && !x.outcome).length;
+    if (late) return late === 1 ? 'נשאר לדווח על אתגר אחד מאתמול' : `נשאר לדווח על ${late} אתגרים מאתמול`;
     const left = cards.filter(x => !x.outcome).length;
     const kept = cards.filter(x => x.outcome === 'success').length;
     if (left === 0) return kept === cards.length ? 'עמדת בכל האתגרים היום 🎉' : 'דיווחת על הכול. מחר עוד יום.';
     if (left === cards.length) return cards.length === 1 ? 'יש לך אתגר אחד היום' : `יש לך ${cards.length} אתגרים היום`;
     return left === 1 ? 'נשאר לדווח על אחד' : `נשאר לדווח על ${left}`;
   }
+  /* שורת אתגר: אייקון ושם בלבד. האייקון נצבע לפי מצב היום; תווית רק כשיש מה לומר (פספוס / יום חריג) */
   function todayRow(x) {
-    const st = x.outcome === 'success' ? 'done' : x.outcome === 'miss' ? 'miss' : x.outcome === 'excused' ? 'excused' : x.late ? 'late' : '';
-    const mark = x.outcome === 'success' ? icon('check', 18) : x.outcome === 'miss' ? icon('x', 16) : x.outcome === 'excused' ? icon('minus', 16) : '';
-    const meta = x.outcome === 'success' ? '' : x.outcome === 'miss' ? `<span class="chip pink">פספוס</span>` : x.outcome === 'excused' ? '<span class="chip lav">יום חריג</span>' : x.late ? `<span class="chip peach">${icon('clock', 13)} מאתמול · לדווח עד 10:00</span>` : '';
-    const streak = x.stats.current >= 2 ? `<span class="chip">${icon('flame', 13)} ${x.stats.current} ימים ברצף</span>` : '';
-    // בלי עיגול נפרד: האייקון של האתגר הוא כפתור הדיווח ומראה את מצב היום
+    const st = x.outcome === 'success' ? 'done' : x.outcome === 'miss' ? 'miss' : x.outcome === 'excused' ? 'excused' : '';
+    const meta = x.outcome === 'miss' ? `<span class="chip pink">פספוס</span>` : x.outcome === 'excused' ? '<span class="chip lav">יום חריג</span>' : '';
     return `<div class="word-row tap ${st}" data-ob="${x.id}" onclick="App.reportSheet('${x.id}')">
       <span class="wt-state ${st}">${wordTile(x.def)}</span>
-      <div class="body"><div class="name">${esc(x.def.title)}</div><div class="meta">${meta}${streak}${x.circle ? `<span class="chip outline">${esc(x.circle.name)}</span>` : ''}</div></div>
+      <div class="body"><div class="name">${esc(x.def.title)}</div>${meta ? `<div class="meta">${meta}</div>` : ''}</div>
     </div>`;
   }
 
@@ -483,7 +485,7 @@ const App = (() => {
     }
     if (!o.open) return toast(o.localDate > Mila.today() ? 'עוד לא הגיע היום הזה' : 'היום הזה נסגר');
     const excusesLeft = Mila.RULES.MAX_EXCUSES_PER_ROUND - Mila.excusesUsed(o.commitmentId);
-    sheet(`<div class="sheet-hero">${wordTile(o.def, 'lg')}<div class="sheet-title">${esc(o.def.title)}</div><div class="sheet-sub">${esc(o.def.rule)}</div></div>
+    sheet(`<div class="sheet-hero">${wordTile(o.def, 'lg')}<div class="sheet-title">${esc(o.def.title)}</div><div class="sheet-sub">${esc(o.def.rule)}</div>${o.localDate < Mila.today() ? `<div class="chip peach" style="margin-top:8px">איך היה אתמול?</div>` : ''}</div>
       <div class="outcome-btns">
         <button class="btn primary" onclick="App.doReport('${o.id}','success')">${icon('check', 26)}עמדתי בזה<small>+1 נקודה</small></button>
         <button class="btn pink" onclick="App.confirmMiss('${o.id}')">${icon('x', 24)}פספסתי<small>הרצף מתאפס</small></button>

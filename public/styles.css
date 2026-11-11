@@ -735,7 +735,6 @@ body.wide #screen { padding-inline: 24px; }
 .wt-state.done .tile { background: var(--lime); color: var(--ink); }
 .wt-state.miss .tile { background: var(--pink); }
 .wt-state.excused .tile { background: var(--lav); }
-.wt-state.late .tile { outline: 1.5px dashed var(--peach-ink); outline-offset: 2px; }
 
 /* היום: שורה לכל קבוצה — שם ומקום, בלי יותר */
 .my-ranks { padding-block: 6px; }
