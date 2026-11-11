@@ -84,7 +84,7 @@
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       const p = document.getElementById('a11y-panel'); if (p && p.classList.contains('open')) return close();
-      if (window.App && document.getElementById('sheet') && document.getElementById('sheet').classList.contains('open')) App.closeSheet();
+      if (typeof App !== 'undefined' && document.getElementById('sheet') && document.getElementById('sheet').classList.contains('open')) App.closeSheet();
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

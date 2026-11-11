@@ -395,7 +395,10 @@ const App = (() => {
     if (!u) return SCREENS.welcome();
     const hour = new Date().getHours();
     const greet = hour < 5 ? 'לילה טוב' : hour < 12 ? 'בוקר טוב' : hour < 17 ? 'צהריים טובים' : hour < 21 ? 'ערב טוב' : 'לילה טוב';
-    const cards = Mila.todayCards();
+    const allCards = Mila.todayCards();
+    const byK = new Map();
+    for (const x of allCards) { const cur = byK.get(x.commitmentId); const pending = x.late && !x.outcome; if (!cur || (pending && !(cur.late && !cur.outcome))) byK.set(x.commitmentId, x); }
+    const cards = [...byK.values()];
     const active = Mila.activeCommitments();
     const bank = Mila.bankSummary();
     const unread = Mila.unreadCount();
@@ -418,20 +421,11 @@ const App = (() => {
           <button class="th-me" aria-label="הפרופיל שלי" onclick="App.tab('me')">${esc(((u.name || '').trim()[0]) || '?')}</button>
         </div>
       </div>
-      <div class="greeting"><div><div class="hello">${greet}, ${esc((u.name || '').split(' ')[0])} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${fresh ? 'בואי נתחיל.' : todaySubtitle(cards)}</div></div></div>
+      <div class="greeting"><div><div class="hello">${greet}, ${esc((u.name || '').split(' ')[0])} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${fresh ? 'בואי נתחיל.' : todaySubtitle(cards)}</div>${main ? `<div class="stats-line"><span>יום <b>${main.st.dayIndex}</b></span><span><b>${bank.earnedCurrentRound}</b> נקודות</span><span><b>${bestStreak}</b> ימים ברצף</span></div>` : ''}</div></div>
       ${installCard()}
       ${Mila.getState().meta.demo ? `<div class="demo-banner"><span>זו דוגמה עם חברות מומצאות.</span><button class="btn dark sm" onclick="App.exitDemo()">יציאה מהדוגמה</button></div>` : ''}
 
-      ${main ? `<div class="card tight stat-strip">
-          <div><b>${main.st.dayIndex}</b><span>יום</span></div>
-          <div><b>${bank.earnedCurrentRound}</b><span>נקודות</span></div>
-          <div><b>${bestStreak}</b><span>ימים ברצף</span></div>
-        </div>` : ''}
 
-      ${rankAll.length ? `<div class="card tight my-ranks"><div class="card-title">${rankAll.length === 1 ? 'הקבוצה שלך' : 'הקבוצות שלך'}</div>${rankAll.map(({ c, ri }) => {
-        const hasWord = active.some(k => (Mila.wordDef(k.defId) || {}).circleId === c.id);
-        const status = ri.place ? `מקום ${ri.place} מתוך ${ri.total}` : !hasWord ? 'אין לך אתגר כאן' : 'עוד לא בדירוג';
-        return `<div class="rk-row" onclick="App.go('circle',{id:'${c.id}'})"><span class="rk-name">${esc(c.name)}</span><span class="rk-status">${status}</span>${icon('chev', 16)}</div>`; }).join('')}</div>` : ''}
 
       ${pendingSum.length ? pendingSum.slice(0, 1).map(c => `<div class="card pastel-lav clickable tight" onclick="App.go('summary',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">הסבב נגמר: ${esc(Mila.wordDef(c.defId).title)}</div><div class="small muted">איך הלך?</div></div>${icon('chev', 20)}</div></div>`).join('') : ''}
 
@@ -446,7 +440,10 @@ const App = (() => {
         </div>` : `<div class="section-title">האתגרים שלי להיום ${cards.length ? `<small>${done}/${cards.length}</small>` : ''}</div>
       ${cards.length ? cards.map(todayRow).join('') : `<div class="card tight muted small">אין לך אתגר היום.</div>`}`}
       ${cards.length && active.length < Mila.RULES.DAILY_CAP ? `<button class="btn ghost mt" onclick="App.openPick()">${icon('plus', 20)} עוד אתגר</button>` : ''}
-      ${cards.length && active.length >= Mila.RULES.DAILY_CAP ? `<div class="note">${icon('info', 18)}<span>3 אתגרים. זה המקסימום.</span></div>` : ''}
+      ${rankAll.length ? `<div class="card tight my-ranks"><div class="card-title">${rankAll.length === 1 ? 'הקבוצה שלך' : 'הקבוצות שלך'}</div>${rankAll.map(({ c, ri }) => {
+        const hasWord = active.some(k => (Mila.wordDef(k.defId) || {}).circleId === c.id);
+        const status = ri.place ? `מקום ${ri.place} מתוך ${ri.total}` : !hasWord ? 'אין לך אתגר כאן' : 'עוד לא בדירוג';
+        return `<div class="rk-row" onclick="App.go('circle',{id:'${c.id}'})"><span class="rk-name">${esc(c.name)}</span><span class="rk-status">${status}</span>${icon('chev', 16)}</div>`; }).join('')}</div>` : ''}
 
       ${upcoming.length ? `<div class="section-title">אתגרים שמתחילים בקרוב</div>${upcoming.map(c => `<div class="word-row" onclick="App.go('word',{id:'${c.id}'})">${wordTile(c.def, 'sm')}<div class="body"><div class="name">${esc(c.def.title)}</div><div class="meta">מתחילה ${Mila.relDay(c.startDate)}</div></div>${icon('chev', 18)}</div>`).join('')}` : ''}
 

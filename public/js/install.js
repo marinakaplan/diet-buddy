@@ -6,11 +6,13 @@
 (function (root) {
   'use strict';
   const nav = root.navigator || {}; const ua = nav.userAgent || '';
+  // Api מוגדר ב-api.js כ-const גלובלי (לא window.Api), לכן ניגשות אליו כך:
+  const A = () => (typeof Api !== 'undefined' ? Api : null);
   let deferred = null; // אירוע beforeinstallprompt (אנדרואיד/מחשב בכרום ואדג׳)
   const listeners = new Set();
   const changed = () => listeners.forEach(f => { try { f(); } catch (e) { } });
   root.addEventListener && root.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; changed(); });
-  root.addEventListener && root.addEventListener('appinstalled', () => { deferred = null; mark('installed'); root.Api && Api.track('installed'); changed(); });
+  root.addEventListener && root.addEventListener('appinstalled', () => { deferred = null; mark('installed'); A() && A().track('installed'); changed(); });
 
   /* ---------- זיהוי ---------- */
   function detect() {
@@ -38,7 +40,7 @@
   /* ---------- התקנה ---------- */
   async function prompt() {
     if (!deferred) return 'none';
-    root.Api && Api.track('install_prompt');
+    A() && A().track('install_prompt');
     deferred.prompt();
     let r = 'dismissed'; try { r = (await deferred.userChoice).outcome; } catch (e) { }
     deferred = null; changed();
@@ -61,7 +63,7 @@
     if (!d.pushApi || permission() !== 'granted') { pushState = { checked: true, on: false }; changed(); return pushState; }
     const sub = await subscription();
     let on = !!sub;
-    if (sub && root.Api && Api.isCloud()) { try { on = (await Api.call('push/status', { method: 'POST', body: { endpoint: sub.endpoint } })).subscribed; if (!on) on = await save(sub); } catch (e) { } }
+    if (sub && A() && A().isCloud()) { try { on = (await Api.call('push/status', { method: 'POST', body: { endpoint: sub.endpoint } })).subscribed; if (!on) on = await save(sub); } catch (e) { } }
     pushState = { checked: true, on }; changed(); return pushState;
   }
   async function save(sub) {
@@ -73,7 +75,7 @@
   async function enablePush() {
     const d = detect();
     if (!d.pushApi) throw Object.assign(new Error('unsupported'), { userMessage: d.pushNeedsInstall ? 'באייפון, קודם מוסיפה את מילה למסך הבית ופותחת משם.' : 'הדפדפן הזה לא תומך בהתראות.' });
-    if (!(root.Api && Api.isCloud())) throw Object.assign(new Error('auth'), { userMessage: 'התראות עובדות אחרי כניסה עם חשבון.' });
+    if (!(A() && A().isCloud())) throw Object.assign(new Error('auth'), { userMessage: 'התראות עובדות אחרי כניסה עם חשבון.' });
     const p = permission() === 'granted' ? 'granted' : await Notification.requestPermission();
     if (p !== 'granted') { Api.track('push_denied'); changed(); throw Object.assign(new Error('denied'), { code: 'DENIED', userMessage: 'ההתראות חסומות. אפשר לפתוח אותן בהגדרות.' }); }
     const reg = await registration(true); if (!reg) throw Object.assign(new Error('sw'), { userMessage: 'משהו לא נטען. רענני ונסי שוב.' });
