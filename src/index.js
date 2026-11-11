@@ -63,7 +63,7 @@ export default {
       if (e instanceof AppError) return json({ error: e.code, hint: e.hint, ...e.extra }, e.status);
       const msg = String(e && e.message || e);
       console.error('API error', url.pathname, msg);
-      if (/limit|quota|exceeded|too many/i.test(msg)) return json({ error: 'QUOTA', hint: 'הגענו למכסת השימוש היומית של השרת החינמי. נסי שוב מאוחר יותר.' }, 503);
+      if (/limit|quota|exceeded|too many/i.test(msg)) return json({ error: 'QUOTA', hint: 'יש עומס כרגע. נסי שוב קצת יותר מאוחר.' }, 503);   // למשתמשת לא מספרים על מכסות ושרתים
       return json({ error: 'INTERNAL', hint: 'משהו השתבש בשרת. נסי שוב בעוד רגע.', ...(env.APP_ENV === 'staging' ? { detail: msg.slice(0, 300) } : {}) }, 500);
     }
   },
