@@ -925,7 +925,7 @@ const App = (() => {
       const doneN = items.filter(x => x.o.outcome === 'success').length;
       const list = items.length ? items.map(({ o, d }) => { const [cls, txt] = stateOf(o); const label = mine ? txt.replace('עמדה', 'עמדת').replace('פספסה', 'פספסת').replace('עוד לא דיווחה', 'לדווח') : txt; return `<button class="tg-item ${cls}" ${mine ? `onclick="App.reportSheet('${o.id}')"` : 'disabled'}><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${label}</span></button>`; }).join('')
         : `<div class="tg-none">${mine ? `אין לך אתגר בקבוצה. <a href="#" onclick="event.preventDefault(); App.openPick([], { circleId: '${id}' })">להוסיף</a>` : 'עוד אין לה אתגר בקבוצה'}</div>`;
-      return `<div class="tg-row ${mine ? 'me' : ''}">${avatar(u, 36)}<div class="tg-body"><div class="tg-name">${mine ? 'את' : esc(u.name)}${items.length ? `<span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</div>${list}</div></div>`;
+      return `<div class="tg-row ${mine ? 'me' : ''}">${avatar(u, 36, items.length && doneN === items.length ? 'happy' : '')}<div class="tg-body"><div class="tg-name">${mine ? 'את' : esc(u.name)}${items.length ? `<span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</div>${list}</div></div>`;
     }).join('');
     // דירוג פשוט
     const { rows } = Mila.leaderboard(id);

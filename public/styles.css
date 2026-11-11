@@ -982,3 +982,30 @@ body:has(#sheet.open) #a11y-btn { display: none; }
 .inv-what { margin-top: 10px; font-size: .92rem; color: var(--ink-2); }
 @media (prefers-reduced-motion: reduce) { .w2-invite { animation-name: w2fade !important; } }
 @media (max-height: 700px) { .inv-h { font-size: 1.6rem; } }
+
+/* ---------- פרצופים חיים ---------- */
+.avatar svg { display: block; }
+.av-eyes, .av-mouth, .av-face { transform-box: fill-box; transform-origin: center; }
+/* מצמוץ: רוב הזמן פתוח, סגירה קצרה; פעם בכמה מחזורים מצמוץ כפול */
+.av-eyes { animation: avblink 5.2s infinite; animation-delay: var(--avd, 0s); }
+@keyframes avblink { 0%, 44%, 50%, 92%, 96%, 100% { transform: scaleY(1); } 47% { transform: scaleY(.12); } 94% { transform: scaleY(.12); } }
+/* חיוך שמתרחב לרגע */
+.av-mouth { animation: avsmile 6.4s ease-in-out infinite; animation-delay: calc(var(--avd, 0s) + 1.2s); }
+@keyframes avsmile { 0%, 62%, 82%, 100% { transform: scale(1); } 72% { transform: scale(1.16, 1.25) translateY(.4px); } }
+/* הפנים זזות קצת, כאילו מסתכלות סביב */
+.av-face { animation: avlook 9s ease-in-out infinite; animation-delay: var(--avd, 0s); }
+@keyframes avlook { 0%, 30%, 55%, 100% { transform: translate(0, 0); } 36%, 48% { transform: translate(1.6px, -.4px); } 70%, 84% { transform: translate(-1.4px, .3px); } }
+/* פרצוף גדול (הזמנה, פרופיל): נכנס בקפיצה ואז מרחף בעדינות */
+.avatar.av-big { animation: avpop .65s cubic-bezier(.2, 1.7, .4, 1) both, avfloat 3.6s ease-in-out .7s infinite; }
+@keyframes avpop { from { transform: scale(.4) rotate(-14deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes avfloat { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(3deg); } }
+/* עמדה בכל האתגרים היום: קופצת משמחה */
+.avatar.av-happy { animation: avjoy 2.4s cubic-bezier(.3, 1.6, .5, 1) infinite; animation-delay: var(--avd, 0s); }
+.avatar.av-happy .av-mouth { animation: avgrin 2.4s ease-in-out infinite; animation-delay: var(--avd, 0s); }
+@keyframes avjoy { 0%, 60%, 100% { transform: translateY(0) rotate(0); } 70% { transform: translateY(-5px) rotate(-8deg); } 82% { transform: translateY(0) rotate(6deg); } 92% { transform: rotate(-3deg); } }
+@keyframes avgrin { 0%, 55%, 100% { transform: scale(1); } 70%, 88% { transform: scale(1.25, 1.5) translateY(.6px); } }
+/* נגיעה בפרצוף: צחקוק קטן */
+.avatar:active { animation: avwiggle .45s ease; }
+@keyframes avwiggle { 0%, 100% { transform: rotate(0) scale(1); } 25% { transform: rotate(-12deg) scale(1.12); } 60% { transform: rotate(10deg) scale(1.08); } }
+.avatar-stack .avatar { transition: transform .2s; }
+@media (prefers-reduced-motion: reduce) { .avatar, .av-eyes, .av-mouth, .av-face { animation: none !important; } }
