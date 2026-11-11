@@ -1098,3 +1098,6 @@ html { overscroll-behavior-y: contain; }   /* בלי הרענון המובנה �
 .tg-item .tg-h { flex: none; display: inline-flex; align-items: center; gap: 2px; font-size: .74rem; font-weight: 700; color: var(--pink-ink); } .tg-item .tg-h svg { fill: currentColor; }
 .heart-pop { animation: heart-pop .4s cubic-bezier(.22,1.6,.36,1); }
 @keyframes heart-pop { 0% { transform: scale(.5); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+
+/* ---------- קבוצה: פרצוף קטן ליד השם, השורות ברוחב מלא ---------- */
+.tg-who { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }

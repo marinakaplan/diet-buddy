@@ -1133,7 +1133,8 @@ const App = (() => {
         return `<button class="tg-item ${cls} ${loved ? 'loved' : ''}" ${loved ? 'disabled' : ''} aria-label="${loved ? 'פירגנת' : `לפרגן ל${esc(u.name)} על ${esc(d.title)}`}" onclick="App.cheer('${id}','${u.id}','${o.id}')"><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${txt}</span><span class="tg-a">${icon('heart', 16)}</span></button>`;
       }).join('')
         : `<div class="tg-none">${mine ? `עוד אין לך אתגר. <a href="#" onclick="event.preventDefault(); App.openPick([], { circleId: '${id}' })">לבחור</a>` : 'עוד אין לה אתגר'}</div>`;
-      return `<div class="tg-row ${mine ? 'me' : ''}">${avatar(u, 36, items.length && doneN === items.length ? 'happy' : '')}<div class="tg-body"><div class="tg-name"><span>${mine ? 'את' : esc(u.name)}</span>${items.length ? `<span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</div>${list}</div></div>`;
+      // הפרצוף קטן ויושב ליד השם, כדי שהשורות של האתגרים יקבלו את כל הרוחב
+      return `<div class="tg-row ${mine ? 'me' : ''}"><div class="tg-body"><div class="tg-name"><span class="tg-who">${avatar(u, 22, items.length && doneN === items.length ? 'happy' : '')}${mine ? 'את' : esc(u.name)}</span>${items.length ? `<span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</div>${list}</div></div>`;
     }).join('');
     // דירוג פשוט
     const { rows } = Mila.leaderboard(id);
