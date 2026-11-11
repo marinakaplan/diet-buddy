@@ -131,7 +131,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     assert.strictEqual(states, 0, 'משיכה קצרה לא מרעננת');
     await drag(180, 420);
     await A.page.waitForFunction(() => document.querySelector('#ptr').classList.contains('spin'), null, { timeout: 5000 });
-    await A.page.waitForFunction(() => !document.querySelector('#ptr').classList.contains('spin') && document.querySelector('#ptr').style.opacity === '0', null, { timeout: 15000 });
+    await A.page.waitForFunction(() => !document.querySelector('#ptr').classList.contains('spin') && !document.querySelector('#ptr').classList.contains('on'), null, { timeout: 15000 });
     assert.strictEqual(states, 1, 'משיכה מלאה טוענת את המצב פעם אחת');
     assert.ok(await A.page.$('.today-head'), 'נשארות באותו מסך');
     A.page.off('request', onReq); await cdp.detach();
