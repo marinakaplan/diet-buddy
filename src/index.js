@@ -10,7 +10,7 @@ import * as push from './push.js';
 
 const ACTIONS = {
   createPersonalWord: game.createPersonalWord, proposeGroupWord: game.proposeGroupWord, adoptGroupWord: game.adoptGroupWord, cancelProposal: game.cancelProposal,
-  endCommitment: game.endCommitment, setVisibility: game.setVisibility, report: game.report, correct: game.correct,
+  endCommitment: game.endCommitment, report: game.report, correct: game.correct,
   createCircle: game.createCircle, updateCircle: game.updateCircle, createInvite: game.createInvite, revokeCircleInvites: game.revokeCircleInvites,
   previewInvite: game.previewInvite, acceptInvite: game.acceptInvite, leaveCircle: game.leaveCircle, removeMember: game.removeMember, setMemberRole: game.setMemberRole, deleteCircle: game.deleteCircle, overtake: game.overtake,
   encourage: game.encourage, sendEncouragement: game.sendEncouragement, block: game.block, unblock: game.unblock, reportAbuse: game.reportAbuse,
@@ -47,9 +47,14 @@ export default {
     const h = new Headers(res.headers); h.set('x-d1-read', String(c.read)); h.set('x-d1-write', String(c.write));
     return new Response(res.body, { status: res.status, headers: h });
   },
-  /* Cron (כל 5 דקות): תזכורות דיווח למי שעוד לא דיווחה */
+  /* Cron (כל 5 דקות): סגירת ימים שלא דווחו אצל כולן, תזכורות דיווח, ופעם ביום ניקוי נתונים ישנים */
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(push.runReminders(env).then(r => { if (r.due) console.log('reminders', JSON.stringify(r)); }).catch(e => console.error('reminders', e.message)));
+    const at = new Date(event.scheduledTime || Date.now());
+    ctx.waitUntil((async () => {
+      try { const r = await game.settleAll(env); if (r.closed) console.log('settled', r.closed); } catch (e) { console.error('settle', e.message); }
+      try { const r = await push.runReminders(env); if (r.due) console.log('reminders', JSON.stringify(r)); } catch (e) { console.error('reminders', e.message); }
+      if (at.getUTCHours() === 1 && at.getUTCMinutes() < 5) { try { await game.cleanup(env); } catch (e) { console.error('cleanup', e.message); } }
+    })());
   },
   async api(req, env, ctx, url) {
     try {
@@ -64,6 +69,23 @@ export default {
   },
 };
 
+/* ---------- הגבלת קצב ----------
+   הכתיבה ל-D1 מוגבלת ל-100K שורות ביום בחשבון החינמי, ונתיבים פתוחים (בלי חשבון) כותבים שורות.
+   1. לכל כתובת IP / משתמשת: Rate Limiting של Cloudflare אם הוגדר ב-wrangler.toml (בלי כתיבות למסד), ואחרת מונה בזיכרון.
+   2. תקרה יומית לכתיבות אנונימיות לכל מופע של ה-Worker. */
+const mem = new Map();
+async function limited(env, binding, key, max) {
+  const rl = env[binding];
+  if (rl && typeof rl.limit === 'function') { try { return !(await rl.limit({ key })).success; } catch (e) { /* נופלים למונה בזיכרון */ } }
+  const now = Date.now(); const k = binding + '|' + key; const e = mem.get(k);
+  if (!e || now - e.t > 60000) { if (mem.size > 5000) mem.clear(); mem.set(k, { t: now, n: 1 }); return false; }
+  return ++e.n > max;
+}
+const anon = { day: '', n: 0 };
+const ANON_DAILY = 4000;
+function anonBudget() { const d = new Date().toISOString().slice(0, 10); if (anon.day !== d) { anon.day = d; anon.n = 0; } return ++anon.n <= ANON_DAILY; }
+const tooMany = () => json({ error: 'RATE_LIMITED', hint: 'יותר מדי בקשות. נסי שוב בעוד דקה.' }, 429, { 'retry-after': '60' });
+
 async function handleApi(req, env, ctx, url) {
   const path = url.pathname.replace(/^\/api\//, '');
   // CSRF: פעולות משנות רק מאותו מקור
@@ -75,9 +97,10 @@ async function handleApi(req, env, ctx, url) {
   if (path === 'auth/google' && req.method === 'GET') return auth.googleStart(req, env);
   if (path === 'auth/google/callback' && req.method === 'GET') return auth.googleCallback(req, env);
   if (path === 'auth/logout' && req.method === 'POST') return auth.logout(req, env);
-  if (path === 'auth/test-login' && req.method === 'POST') return auth.testLogin(req, env);
-  if (path === 'track' && req.method === 'POST') return json(await track(env, await body(req)));
-  if (path === 'invite/open' && req.method === 'POST') return json(await game.trackInviteOpen(env, await body(req)));
+  const ip = req.headers.get('cf-connecting-ip') || 'unknown';
+  if (path === 'auth/test-login' && req.method === 'POST') { if (await limited(env, 'RL_PUBLIC', 'login|' + ip, 60)) return tooMany(); return auth.testLogin(req, env); }
+  if (path === 'track' && req.method === 'POST') { if (await limited(env, 'RL_PUBLIC', 'track|' + ip, 30) || !anonBudget()) return json({ ok: false }); return json(await track(env, await body(req))); }
+  if (path === 'invite/open' && req.method === 'POST') { if (await limited(env, 'RL_PUBLIC', 'open|' + ip, 30) || !anonBudget()) return json({ ok: false }); return json(await game.trackInviteOpen(env, await body(req))); }
   if (path === 'push/key' && req.method === 'GET') return json(await push.publicKey(env));
   if (path === 'auth/config') return json({ google: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET), testLogin: env.ALLOW_TEST_LOGIN === 'true', env: env.APP_ENV });
 
@@ -94,6 +117,7 @@ async function handleApi(req, env, ctx, url) {
     if (!user.is_admin) return json({ error: 'FORBIDDEN', hint: 'רק מנהלת המערכת' }, 403);
     return json(await adminStats(env, url.searchParams.get('days')));
   }
+  if (req.method === 'POST' && await limited(env, 'RL_USER', user.id, 120)) return tooMany();
   if (path === 'push/subscribe' && req.method === 'POST') return json(await push.subscribe(env, user, await body(req)));
   if (path === 'push/unsubscribe' && req.method === 'POST') return json(await push.unsubscribe(env, user, await body(req)));
   if (path === 'push/status' && req.method === 'POST') return json(await push.status(env, user, (await body(req)).endpoint));

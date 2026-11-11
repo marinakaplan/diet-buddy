@@ -3,7 +3,7 @@
    תקרת 3 ביום נבדקת כאן ונאכפת שוב בטריגר בתוך אותו batch. */
 import '../public/js/library.js';   // קובע globalThis.MilaLibrary (UMD; הקובץ משותף עם הדפדפן)
 const MilaLibrary = globalThis.MilaLibrary;
-import { err, uid, nowISO, localDate, addDays, diffDays, isValidDate, windowOf, ROUND_DAYS, DAILY_CAP, MAX_EXCUSES, CORRECTION_MS, sha256hex, inviteCode } from './util.js';
+import { err, uid, nowISO, localDate, addDays, diffDays, isValidDate, windowOf, ROUND_DAYS, DAILY_CAP, MAX_EXCUSES, CORRECTION_MS, sha256hex, inviteCode, cleanName } from './util.js';
 
 const ACH = {
   first_word: ['נתתי מילה', 'בחרת את האתגר הראשון שלך'],
@@ -96,14 +96,15 @@ export async function createPersonalWord(env, user, b) {
   if (b.libraryId) { lib = MilaLibrary.get(String(b.libraryId)); if (!lib) throw err('VALIDATION', 'האתגר לא נמצא בספרייה'); }
   const { title, rule } = validateWord(lib ? lib.title : b.title, lib ? lib.rule : b.rule);
   const today = localDate(user.timezone);
-  const start = isValidDate(b.startDate) ? b.startDate : today;
+  if (b.startDate != null && !isValidDate(b.startDate)) throw err('VALIDATION', 'תאריך ההתחלה לא תקין');
+  const start = b.startDate || today;
   if (start < today) throw err('VALIDATION', 'אי אפשר להתחיל בתאריך שעבר');
   if (diffDays(today, start) > 60) throw err('VALIDATION', 'אפשר לתכנן עד 60 יום קדימה');
   let circleId = b.circleId || null;
   // אתגר רגיש: פרטי כברירת מחדל; שיתוף עם קבוצה רק בבחירה מפורשת
   if (lib && MilaLibrary.isSensitive(lib.id) && b.shareSensitive !== true) circleId = null;
   if (circleId && !(await isMember(env, circleId, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
-  const vis = circleId ? (['status', 'summary'].includes(b.visibility) ? b.visibility : 'status') : 'private';
+  const vis = circleId ? 'status' : 'private';   // בקבוצה כולן רואות הכול; בלי קבוצה – רק אני
   const reward = String(b.reward || '').trim().slice(0, 80) || null;
   const rewardShared = reward && b.rewardShared === true ? 1 : 0;
   const cap = await capInfo(env, user.id, start);
@@ -125,9 +126,10 @@ export async function proposeGroupWord(env, user, b) {
   if (c.who_can_propose === 'admins' && !(await isAdmin(env, c.id, user.id))) throw err('FORBIDDEN', 'בקבוצה הזו רק מנהלות פותחות אתגר משותף', 403);
   const { title, rule } = validateWord(b.title, b.rule);
   const today = localDate(user.timezone);
-  const start = isValidDate(b.startDate) ? b.startDate : today;
+  if (b.startDate != null && !isValidDate(b.startDate)) throw err('VALIDATION', 'תאריך ההתחלה לא תקין');
+  const start = b.startDate || today;
   if (start < today) throw err('VALIDATION', 'אי אפשר להתחיל בתאריך שעבר');
-  const did = uid(); const vis = ['status', 'summary'].includes(b.visibility) ? b.visibility : 'status';
+  const did = uid(); const vis = 'status';
   const members = await all(env, `select user_id from circle_memberships where circle_id = ? and left_at is null and user_id <> ?`, c.id, user.id);
   const batch = [
     S(env, `insert into word_definitions(id, kind, circle_id, owner_id, title, rule, icon, visibility, start_date, end_date, status) values (?,?,?,?,?,?,?,?,?,?,'proposed')`, did, 'group', c.id, user.id, title, rule, icon(b.icon), vis, start, addDays(start, ROUND_DAYS - 1)),
@@ -160,7 +162,7 @@ export async function adoptGroupWord(env, user, b) {
 export async function cancelProposal(env, user, b) {
   const d = await first(env, `select * from word_definitions where id = ?`, b.defId);
   if (!d) throw err('NOT_FOUND', 'לא נמצא', 404);
-  if (d.owner_id !== user.id && !(await isAdmin(env, d.circle_id, user.id))) throw err('FORBIDDEN', 'אין הרשאה', 403);
+  if (!d.circle_id || !(await isMember(env, d.circle_id, user.id)) || (d.owner_id !== user.id && !(await isAdmin(env, d.circle_id, user.id)))) throw err('FORBIDDEN', 'אין הרשאה', 403);
   if (await first(env, `select 1 as x from word_commitments where definition_id = ? and status <> 'cancelled'`, d.id)) throw err('VALIDATION', 'חברות כבר הצטרפו לאתגר, אז אי אפשר לבטל אותו. אפשר לעצור את האתגר שלך.');
   await S(env, `update word_definitions set status = 'cancelled' where id = ?`, d.id).run();
 }
@@ -176,13 +178,6 @@ export async function endCommitment(env, user, b) {
   if (!k) throw err('FORBIDDEN', 'אין הרשאה', 403);
   await runBatch(env, endCommitmentStmts(env, k.id, user.id, 'ended_by_user'));
 }
-export async function setVisibility(env, user, b) {
-  const d = await first(env, `select visibility from word_definitions where id = ? and owner_id = ?`, b.defId, user.id);
-  if (!d) throw err('FORBIDDEN', 'אין הרשאה', 403);
-  const ok = (d.visibility === 'status' && ['summary', 'private'].includes(b.visibility)) || (d.visibility === 'summary' && b.visibility === 'private');
-  if (!ok) throw err('VALIDATION', 'אי אפשר לחשוף יותר אחרי שהאתגר התחיל');
-  await S(env, `update word_definitions set visibility = ? where id = ?`, b.visibility, b.defId).run();
-}
 
 /* ---------- הכרעה ---------- */
 const statusOf = (o) => (o === 'success' ? 'confirmed_success' : o === 'miss' ? 'confirmed_miss' : 'excused');
@@ -195,7 +190,7 @@ function resolveStmts(env, o, d, outcome, reason, actorId, at, note) {
     S(env, `insert into resolution_history(id, obligation_id, from_state, to_state, reason, actor_id, created_at) select ?, id, ?, ?, ?, ?, ? from daily_obligations where id = ? and resolved_at = ?`, uid(), o.status, statusOf(outcome), reason, actorId, at, o.id, at),
   ];
   if (outcome !== 'excused') stmts.push(S(env, `insert into virtual_ledger(id, obligation_id, user_id, definition_id, circle_id, transaction_type, amount, resolution_no, local_date, created_at) select ?, id, user_id, ?, ?, ?, 1, resolution_no, local_date, ? from daily_obligations where id = ? and resolved_at = ?`, uid(), d.id, d.circle_id, ledgerType(outcome, d.circle_id), at, o.id, at));
-  if (d.circle_id && d.visibility === 'status' && reason === 'self_report') stmts.push(S(env, `insert into social_events(id, circle_id, actor_id, type, payload) select ?, ?, ?, ?, ? from daily_obligations where id = ? and resolved_at = ?`, uid(), d.circle_id, o.user_id, outcome === 'success' ? 'day_success' : outcome === 'miss' ? 'day_miss' : 'day_excused', JSON.stringify({ title: d.title, defId: d.id, date: o.local_date }), o.id, at));
+  if (d.circle_id && d.visibility !== 'private' && reason === 'self_report') stmts.push(S(env, `insert into social_events(id, circle_id, actor_id, type, payload) select ?, ?, ?, ?, ? from daily_obligations where id = ? and resolved_at = ?`, uid(), d.circle_id, o.user_id, outcome === 'success' ? 'day_success' : outcome === 'miss' ? 'day_miss' : 'day_excused', JSON.stringify({ title: d.title, defId: d.id, date: o.local_date }), o.id, at));
   return stmts;
 }
 
@@ -209,7 +204,7 @@ async function afterSuccess(env, user, o, d) {
   const s = await streakOf(env, o.commitment_id);
   if (s >= 7) stmts.push(...grantStmts(env, user.id, 'streak_7', o.commitment_id));
   if (s >= 14) stmts.push(...grantStmts(env, user.id, 'streak_14', o.commitment_id));
-  if (d.circle_id && d.visibility === 'status' && [3, 7, 14].includes(s)) stmts.push(eventStmt(env, d.circle_id, user.id, 'streak', { title: d.title, streak: s, defId: d.id }));
+  if (d.circle_id && d.visibility !== 'private' && [3, 7, 14].includes(s)) stmts.push(eventStmt(env, d.circle_id, user.id, 'streak', { title: d.title, streak: s, defId: d.id }));
   await env.DB.batch(stmts);
 }
 
@@ -263,7 +258,10 @@ export async function correct(env, user, b) {
   const o = await first(env, `select * from daily_obligations where id = ?`, b.obligationId);
   if (!o || o.user_id !== user.id) throw err('FORBIDDEN', 'אין הרשאה', 403);
   if (!o.outcome) throw err('VALIDATION', 'עוד אין דיווח לתקן');
-  if (Date.now() - Date.parse(o.resolved_at) >= CORRECTION_MS) throw err('VALIDATION', 'חלון התיקון (24 שעות) נסגר');
+  if (o.resolve_reason === 'auto_unreported') throw err('VALIDATION', 'היום הזה נסגר בלי דיווח (אפשר לדווח עד 10:00 למחרת), ואי אפשר לשנות אותו.');
+  // 24 שעות נמדדות מהדיווח הראשון, לא מהתיקון האחרון (אחרת החלון מתגלגל בלי סוף)
+  const firstAt = (await first(env, `select min(created_at) as t from resolution_history where obligation_id = ?`, o.id)).t || o.resolved_at;
+  if (Date.now() - Date.parse(firstAt) >= CORRECTION_MS) throw err('VALIDATION', 'חלון התיקון (24 שעות) נסגר');
   if (o.outcome === outcome) return { changed: false };
   const k = await first(env, `select * from word_commitments where id = ?`, o.commitment_id);
   const d = await first(env, `select * from word_definitions where id = ?`, k.definition_id);
@@ -298,7 +296,7 @@ export async function settle(env, user) {
       stmts.push(...resolveStmts(env, o, defCache[o.definition_id], 'miss', 'auto_unreported', null, w.closes.toISOString(), null));
     } else if (now >= w.opens && o.status === 'scheduled') stmts.push(S(env, `update daily_obligations set status = 'open' where id = ? and status = 'scheduled'`, o.id));
   }
-  if (stmts.length) await runBatch(env, stmts);
+  if (stmts.length) { try { await runBatch(env, stmts); } catch (e) { if (e.code !== 'CONFLICT') throw e; } }   // CONFLICT = בקשה מקבילה (או ה-cron) כבר סגרה את אותם ימים
   // סיום התחייבויות שכל ימיהן הוכרעו
   const done = await all(env, `select k.id from word_commitments k where k.user_id = ? and k.status = 'active' and k.end_date < ? and not exists (select 1 from daily_obligations o where o.commitment_id = k.id and o.outcome is null and o.status <> 'cancelled')`, user.id, localDate(user.timezone));
   if (done.length) {
@@ -309,7 +307,39 @@ export async function settle(env, user) {
   }
 }
 
+/* Cron: סגירת ימים שלא דווחו אצל כל המשתמשות, כדי שהדירוג בקבוצה יהיה הוגן גם כשמישהי לא פותחת את האפליקציה.
+   שאילתה אחת + batch אחד; עד limit ימים בכל ריצה (השאר בריצה הבאה, 5 דקות אחר כך). */
+export async function settleAll(env, now = new Date(), limit = 60) {
+  const maxDate = addDays(localDate('UTC', now), -1) > addDays(localDate('Pacific/Kiritimati', now), -1) ? addDays(localDate('UTC', now), -1) : addDays(localDate('Pacific/Kiritimati', now), -1);
+  const rows = await all(env, `select o.id, o.status, o.user_id, o.local_date, k.timezone, d.id as def_id, d.circle_id, d.visibility, d.title
+    from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id
+    where o.outcome is null and o.status in ('scheduled','open') and k.status = 'active' and o.local_date <= ? order by o.local_date limit ?`, maxDate, limit);
+  const stmts = []; let n = 0;
+  for (const o of rows) {
+    const w = windowOf(o.local_date, o.timezone);
+    if (now < w.closes) continue;
+    stmts.push(...resolveStmts(env, o, { id: o.def_id, circle_id: o.circle_id, visibility: o.visibility, title: o.title }, 'miss', 'auto_unreported', null, w.closes.toISOString(), null)); n++;
+  }
+  if (stmts.length) { try { await runBatch(env, stmts); } catch (e) { if (e.code !== 'CONFLICT') throw e; n = 0; } }
+  return { closed: n };
+}
+/* Cron (פעם ביום): ניקוי נתונים ישנים שאין בהם עוד צורך — עדכונים, sessions שפג תוקפם, אירועי מעקב */
+export async function cleanup(env, now = new Date()) {
+  const iso = (days) => new Date(now.getTime() - days * 86400000).toISOString();
+  await env.DB.batch([
+    S(env, `delete from sessions where expires_at < ?`, now.toISOString()),
+    S(env, `delete from notifications where created_at < ?`, iso(60)),
+    S(env, `delete from track_events where day < ?`, addDays(localDate('Asia/Jerusalem', now), -400)),
+    S(env, `delete from invite_opens where created_at < ?`, iso(400)),
+  ]);
+}
+
 /* ---------- קבוצות ---------- */
+const MAX_CIRCLES_PER_USER = 20;
+async function assertCircleRoom(env, userId) {
+  const n = (await first(env, `select count(*) as n from circle_memberships where user_id = ? and left_at is null`, userId)).n;
+  if (n >= MAX_CIRCLES_PER_USER) throw err('VALIDATION', `אפשר להיות בעד ${MAX_CIRCLES_PER_USER} קבוצות. כדי להצטרף לחדשה צריך לעזוב אחת.`);
+}
 const INVITE_KINDS = new Set(['follow', 'compete', 'same']);
 async function newInviteStmt(env, circleId, userId, o = {}) {
   const tok = inviteCode();
@@ -321,6 +351,7 @@ async function newInviteStmt(env, circleId, userId, o = {}) {
 }
 export async function createCircle(env, user, b) {
   const name = String(b.name || '').trim(); if (!name) throw err('VALIDATION', 'שם הקבוצה לא יכול להיות ריק'); if (name.length > 50) throw err('VALIDATION', 'שם הקבוצה ארוך מדי (עד 50 תווים)');
+  await assertCircleRoom(env, user.id);
   const cid = uid(); const today = localDate(user.timezone);
   const roundStart = isValidDate(b.roundStart) ? b.roundStart : today;
   const maxMembers = Math.min(50, Math.max(2, Number(b.maxMembers) || 8));
@@ -340,7 +371,7 @@ export async function updateCircle(env, user, b) {
   await S(env, `update circles set name = ?, description = ?, color = ?, who_can_propose = ?, max_members = ? where id = ?`, name, p.description !== undefined ? String(p.description).slice(0, 120) : c.description, COLORS.has(p.color) ? p.color : c.color, p.whoCanPropose === 'admins' || p.whoCanPropose === 'all' ? p.whoCanPropose : c.who_can_propose, p.maxMembers ? Math.min(50, Math.max(2, Number(p.maxMembers))) : c.max_members, c.id).run();
 }
 export async function createInvite(env, user, b) {
-  if (!(await isMember(env, b.circleId, user.id))) throw err('FORBIDDEN', 'אין הרשאה', 403);
+  if (!b.circleId || !(await isMember(env, String(b.circleId), user.id))) throw err('FORBIDDEN', 'אין הרשאה', 403);
   const inv = await newInviteStmt(env, b.circleId, user.id, b); await inv.stmt.run(); return { token: inv.tok };
 }
 export async function revokeCircleInvites(env, user, b) {
@@ -370,19 +401,25 @@ export async function acceptInvite(env, user, b) {
   if (!p.ok) throw err('INVITE_INVALID', { not_found: 'הקישור לא נמצא. אולי הוא הועתק לא נכון?', revoked: 'הקישור בוטל על ידי הקבוצה. אפשר לבקש קישור חדש.', expired: 'תוקף הקישור פג. אפשר לבקש הזמנה חדשה.', full: 'הקישור הזה כבר נוצל במלואו.' }[p.reason]);
   const cid = p.circle.id;
   if (p.alreadyMember) return { circleId: cid };
+  // מי שמנהלת הסירה מהקבוצה לא חוזרת עם קישור שנוצר לפני ההסרה (צריך הזמנה חדשה מחברה בקבוצה)
+  const removed = await first(env, `select max(left_at) as t from circle_memberships where circle_id = ? and user_id = ? and removed_by is not null`, cid, user.id);
+  if (removed && removed.t) { const row = await first(env, `select created_at, inviter_id from circle_invites where token_hash = ?`, await sha256hex(p.inv.token)); if (!row || row.created_at <= removed.t || row.inviter_id === user.id) throw err('INVITE_INVALID', 'הקישור הזה כבר לא פעיל. אפשר לבקש הזמנה חדשה מחברה בקבוצה.'); }
+  await assertCircleRoom(env, user.id);
   if (p.memberCount >= p.maxMembers) throw err('CIRCLE_FULL', 'הקבוצה מלאה. אפשר לבקש ממנהלת הקבוצה להגדיל את מספר המקומות.', 409);
-  const hash = await sha256hex(p.inv.token);
+  const hash = await sha256hex(p.inv.token); const mid = uid();
+  const joined = `exists (select 1 from circle_memberships where id = '${mid}')`;   // כל השאר קורה רק אם ההצטרפות עצמה הצליחה
   try {
     await runBatch(env, [
       // ההצטרפות מותנית בכך שהקבוצה עדיין לא מלא (בקשות מקבילות)
-      S(env, `insert into circle_memberships(id, circle_id, user_id, role) select ?, ?, ?, 'member' where (select count(*) from circle_memberships where circle_id = ? and left_at is null) < ?`, uid(), cid, user.id, cid, p.maxMembers),
-      S(env, `update circle_invites set uses = uses + 1 where token_hash = ?`, hash),
+      S(env, `insert into circle_memberships(id, circle_id, user_id, role) select ?, ?, ?, 'member' where (select count(*) from circle_memberships where circle_id = ? and left_at is null) < ?`, mid, cid, user.id, cid, p.maxMembers),
+      S(env, `update circle_invites set uses = uses + 1 where token_hash = ? and ${joined}`, hash),
       S(env, `update circle_memberships set via_invite = ? where circle_id = ? and user_id = ? and left_at is null and via_invite is null`, hash, cid, user.id),
-      S(env, `update users set invited_by = ?, invited_via = ? where id = ? and invited_by is null and id <> ?`, p.inviter.id, hash, user.id, p.inviter.id),
-      eventStmt(env, cid, user.id, 'member_joined', {}), ...grantStmts(env, user.id, 'first_circle', cid),
+      S(env, `update users set invited_by = ?, invited_via = ? where id = ? and invited_by is null and id <> ? and ${joined}`, p.inviter.id, hash, user.id, p.inviter.id),
+      S(env, `insert into social_events(id, circle_id, actor_id, type, payload) select ?, ?, ?, 'member_joined', '{}' where ${joined}`, uid(), cid, user.id), ...grantStmts(env, user.id, 'first_circle', cid),
       // ההזמנה עבדה: עדכון למי ששלחה אותה
-      notifyStmt(env, p.inviter.id, 'invite', `${user.display_name} הצטרפה ל${p.circle.name} 🎉`, 'ההזמנה שלך עבדה.', { circleId: cid }, localDate(user.timezone)),
+      S(env, `insert or ignore into notifications(id, user_id, type, title, body, ref, dedupe_key) select ?, ?, 'invite', ?, 'ההזמנה שלך עבדה.', ?, ? where ${joined}`, uid(), p.inviter.id, `${user.display_name} הצטרפה ל${p.circle.name} 🎉`, JSON.stringify({ circleId: cid }), `invite|${user.id}|${cid}|${localDate(user.timezone)}`),
     ]);
+    (env.__notified || (env.__notified = new Set())).add(p.inviter.id);
   } catch (e) { if (e.code !== 'CONFLICT') throw e; }
   if (!(await isMember(env, cid, user.id))) throw err('CIRCLE_FULL', 'הקבוצה התמלאה בדיוק עכשיו.', 409);
   return { circleId: cid };
@@ -405,7 +442,8 @@ export async function leaveCircle(env, user, b) {
 export async function removeMember(env, user, b) {
   if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת הקבוצה יכולה להסיר חברות', 403);
   if (b.userId === user.id) throw err('VALIDATION', 'כדי לצאת בעצמך השתמשי ב״לעזוב את הקבוצה״');
-  const stmts = [S(env, `update circle_memberships set left_at = ?, removed_by = ? where circle_id = ? and user_id = ? and left_at is null`, nowISO(), user.id, b.circleId, b.userId), eventStmt(env, b.circleId, user.id, 'member_removed', { userId: b.userId })];
+  const stmts = [S(env, `update circle_memberships set left_at = ?, removed_by = ? where circle_id = ? and user_id = ? and left_at is null`, nowISO(), user.id, b.circleId, b.userId), eventStmt(env, b.circleId, user.id, 'member_removed', { userId: b.userId }),
+    S(env, `update circle_invites set status = 'revoked' where circle_id = ? and inviter_id = ? and status = 'active'`, b.circleId, b.userId)];
   // האתגרים שלה בקבוצה הזו נעצרים (הנקודות נשארות שלה)
   const ks = await all(env, `select k.id from word_commitments k join word_definitions d on d.id = k.definition_id where k.user_id = ? and k.status = 'active' and d.circle_id = ?`, b.userId, b.circleId);
   for (const k of ks) stmts.push(...endCommitmentStmts(env, k.id, b.userId, 'removed_from_circle'));
@@ -462,6 +500,8 @@ export async function sendEncouragement(env, user, b) {
   if (!REACTIONS.has(b.reaction)) throw err('VALIDATION', 'תגובה לא נתמכת');
   if (!(await isMember(env, b.circleId, user.id)) || !(await isMember(env, b.circleId, b.toUserId))) throw err('FORBIDDEN', 'אין הרשאה', 403);
   if (await isBlocked(env, b.toUserId, user.id)) return;
+  const sentToday = (await first(env, `select count(*) as n from social_events where circle_id = ? and actor_id = ? and type = 'encouragement' and created_at > ? and payload like ?`, b.circleId, user.id, new Date(Date.now() - 12 * 3600000).toISOString(), `%${String(b.toUserId)}%`)).n;
+  if (sentToday >= 5) return;   // מספיק מילים טובות לחצי יום: בלי הצפה
   await env.DB.batch([eventStmt(env, b.circleId, user.id, 'encouragement', { toUserId: b.toUserId, reaction: b.reaction }), notifyStmt(env, b.toUserId, 'encouragement', `${user.display_name} שלחה לך מילה טובה`, '', { circleId: b.circleId }, localDate(user.timezone)), ...grantStmts(env, user.id, 'first_encouragement', b.circleId)]);
 }
 export async function block(env, user, b) { if (b.userId !== user.id) await S(env, `insert or ignore into user_blocks(blocker_id, blocked_id) values (?,?)`, user.id, b.userId).run(); }
@@ -474,17 +514,37 @@ export async function markNotificationsRead(env, user) { await S(env, `update no
 export async function markSummarySeen(env, user, b) { await S(env, `update word_commitments set summary_seen = 1 where id = ? and user_id = ?`, b.commitmentId, user.id).run(); }
 export async function updateSettings(env, user, b) {
   const allowed = ['reminderTime', 'pushReminders', 'socialDigest', 'hideFromLeaderboard', 'lockScreenPrivacy'];
-  const cur = JSON.parse(user.settings || '{}'); for (const k of allowed) if (b.patch && k in b.patch) cur[k] = b.patch[k];
+  let cur = {}; try { cur = JSON.parse(user.settings || '{}') || {}; } catch { cur = {}; }
+  const p = (b && b.patch && typeof b.patch === 'object') ? b.patch : {};
+  for (const k of allowed) {
+    if (!(k in p)) continue;
+    if (k === 'reminderTime') { const m = typeof p[k] === 'string' && /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(p[k]); if (!m) throw err('VALIDATION', 'שעת התזכורת לא תקינה'); cur[k] = `${m[1].padStart(2, '0')}:${m[2]}`; }
+    else { if (typeof p[k] !== 'boolean') throw err('VALIDATION', 'ערך לא תקין'); cur[k] = p[k]; }
+  }
   await S(env, `update users set settings = ? where id = ?`, JSON.stringify(cur), user.id).run();
 }
-export async function rename(env, user, b) { const n = String(b.name || '').trim(); if (!n || n.length > 30) throw err('VALIDATION', 'שם לא תקין'); await S(env, `update users set display_name = ? where id = ?`, n, user.id).run(); }
+export async function rename(env, user, b) { const n = cleanName(b.name); if (!n || n.length > 30) throw err('VALIDATION', 'שם לא תקין'); await S(env, `update users set display_name = ? where id = ?`, n, user.id).run(); }
 export async function deleteAccount(env, user) {
   for (const cid of await myCircleIds(env, user.id)) await leaveCircle(env, user, { circleId: cid });
-  // הפרופיל הופך לאנונימי; התנועות ההיסטוריות נשארות לתקינות הקופות
+  const likeName = String(user.display_name || '').replace(/[\\%_]/g, '\\$&') + ' %';
+  // הפרופיל הופך לאנונימי וכל טקסט חופשי שהיא כתבה נמחק; הספירות ההיסטוריות (נקודות, ימים) נשארות אנונימיות
   await env.DB.batch([
-    S(env, `update users set display_name = 'משתתפת שעזבה', email = null, google_sub = null, color = 'sky', status = 'deleted', settings = '{}' where id = ?`, user.id),
-    S(env, `delete from sessions where user_id = ?`, user.id), S(env, `delete from notifications where user_id = ?`, user.id), S(env, `delete from user_blocks where blocker_id = ?`, user.id),
+    S(env, `update word_commitments set status = 'ended_early', end_reason = 'account_deleted' where user_id = ? and status = 'active'`, user.id),
+    S(env, `update daily_obligations set status = 'cancelled' where user_id = ? and outcome is null and status in ('scheduled','open')`, user.id),
+    S(env, `update word_commitments set reward = null, reward_shared = 0 where user_id = ?`, user.id),
+    S(env, `update daily_obligations set note = null where user_id = ?`, user.id),
+    // אתגרים אישיים שהיא ניסחה בעצמה (לא מהספרייה): הניסוח נמחק
+    S(env, `update word_definitions set title = 'אתגר שנמחק', rule = 'נמחק', status = 'cancelled' where owner_id = ? and kind = 'personal' and library_id is null`, user.id),
+    S(env, `update circle_invites set status = 'revoked', message = null, word_title = null where inviter_id = ?`, user.id),
+    S(env, `update abuse_reports set details = null where reporter_id = ?`, user.id),
+    S(env, `update users set display_name = 'משתתפת שעזבה', email = null, google_sub = null, color = 'sky', status = 'deleted', settings = '{}', timezone = 'Asia/Jerusalem', invited_by = null, invited_via = null, last_seen_at = null, is_admin = 0, age_confirmed = 0, terms_accepted_at = null where id = ?`, user.id),
+    S(env, `delete from sessions where user_id = ?`, user.id), S(env, `delete from notifications where user_id = ?`, user.id),
+    // עדכונים אצל חברות שמזכירים אותה בשם (״X עקפה אותך״) נמחקים גם הם
+    S(env, `delete from notifications where (title like ? escape '\\' or body like ? escape '\\') and user_id <> ?`, likeName, likeName, user.id),
+    S(env, `delete from user_blocks where blocker_id = ? or blocked_id = ?`, user.id, user.id),
     S(env, `delete from push_subscriptions where user_id = ?`, user.id),
+    S(env, `delete from encouragements where user_id = ?`, user.id),
+    S(env, `delete from user_days where user_id = ?`, user.id),
   ]);
 }
 export async function exportData(env, user) {

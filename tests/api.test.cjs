@@ -147,7 +147,21 @@ const invariants = async (c) => {
     assert.strictEqual((await Z.ok('previewInvite', { token })).reason, 'revoked'); await Z.fail('acceptInvite', { token }, 'INVITE_INVALID');
     assert.ok((await Z.ok('previewInvite', { token: nt })).ok, 'קישור חדש תקף');
   });
-  await test('חשיפה רק מצטמצמת', async () => { await A.ok('setVisibility', { defId, visibility: 'summary' }); await A.fail('setVisibility', { defId, visibility: 'status' }, 'VALIDATION'); });
+  await test('קלט לא תקין נדחה: הגדרות, שם עם HTML, הזמנה בלי קבוצה; אין יותר שינוי חשיפה', async () => {
+    assert.strictEqual((await A.act('setVisibility', { defId, visibility: 'private' })).status, 404, 'הפעולה הוסרה');
+    await A.fail('updateSettings', { patch: { reminderTime: ['20:00'] } }, 'VALIDATION');
+    await A.fail('updateSettings', { patch: { reminderTime: '25:00' } }, 'VALIDATION');
+    await A.fail('updateSettings', { patch: { pushReminders: 'yes' } }, 'VALIDATION');
+    await A.ok('updateSettings', { patch: { reminderTime: '7:05', socialDigest: false } });
+    let s = await A.state(); assert.strictEqual(s.users[s.me].settings.reminderTime, '07:05'); assert.strictEqual(s.users[s.me].settings.socialDigest, false);
+    await A.ok('updateSettings', { patch: { reminderTime: '20:00', socialDigest: true } });
+    await A.ok('rename', { name: '"><img src=x onerror=alert(1)>' }); s = await A.state();
+    assert.ok(!/[<>"']/.test(s.users[s.me].name), 'שם בלי תווי HTML: ' + s.users[s.me].name);
+    await A.ok('rename', { name: 'יעל' });
+    await A.fail('rename', { name: '<<<>>>' }, 'VALIDATION');
+    await A.fail('createInvite', {}, 'FORBIDDEN');
+    await A.fail('createPersonalWord', { title: 'x', rule: 'y', startDate: '2020-02-30' }, 'VALIDATION');
+  });
   await test('חידוש סשן: עוגייה שמורה ממשיכה לעבוד; יציאה מבטלת', async () => {
     const C = new Client('A2'); C.cookie = A.cookie; const s = await C.state(); assert.strictEqual(s.users[s.me].name, 'יעל');
     const r = await C.req('/api/auth/logout', { method: 'POST', body: {} }); assert.strictEqual(r.status, 200);
@@ -265,6 +279,49 @@ const invariants = async (c) => {
     assert.strictEqual((await A.req('/api/push/unsubscribe', { method: 'POST', body: { endpoint } })).status, 200);
     assert.strictEqual((await A.req('/api/push/status', { method: 'POST', body: { endpoint } })).data.subscribed, false);
     assert.strictEqual((await A.req('/api/push/test', { method: 'POST', body: { endpoint } })).status, 400, 'בדיקה בלי מינוי נכשלת יפה');
+  });
+  await test('הסרה מקבוצה: הקישורים שלה מתבטלים, קישור ישן לא מחזיר אותה, הזמנה חדשה כן', async () => {
+    const G = new Client('G'); await G.login(`g.${stamp}@test.mila`, 'טל'); await G.profile('טל');
+    const g3 = (await E.ok('createCircle', { name: 'שלישייה' })).circleId;
+    const t1 = (await E.ok('createInvite', { circleId: g3 })).token;
+    await G.ok('acceptInvite', { token: t1 });
+    const gId = (await G.state()).me;
+    const tG = (await G.ok('createInvite', { circleId: g3 })).token;
+    await E.ok('removeMember', { circleId: g3, userId: gId });
+    await G.fail('acceptInvite', { token: t1 }, 'INVITE_INVALID');
+    assert.strictEqual((await G.ok('previewInvite', { token: tG })).reason, 'revoked', 'הקישור שהיא יצרה בוטל');
+    const t2 = (await E.ok('createInvite', { circleId: g3 })).token;
+    await G.ok('acceptInvite', { token: t2 });
+    assert.ok((await G.state()).circles[g3], 'חזרה עם הזמנה חדשה');
+    // מי שפתחה אתגר משותף ועזבה: לא רואה יותר את הדיווחים של מי שנשארה, ולא יכולה לבטל אותו
+    const gd = (await G.ok('proposeGroupWord', { circleId: g3, title: 'הליכה יחד', rule: '20 דקות', startDate: today() })).defId;
+    await E.ok('adoptGroupWord', { defId: gd });
+    const eId = (await E.state()).me;
+    assert.ok(Object.values((await G.state()).commitments).some(k => k.userId === eId), 'כשהיא בקבוצה היא רואה');
+    await G.ok('leaveCircle', { circleId: g3 });
+    const sG = await G.state();
+    assert.ok(!Object.values(sG.commitments).some(k => k.userId === eId), 'אחרי שעזבה היא לא רואה את האתגר של רות');
+    assert.ok(!Object.values(sG.obligations).some(o => o.userId === eId), 'ולא את הימים שלה');
+    await G.fail('cancelProposal', { defId: gd }, 'FORBIDDEN');
+    // פרטים של אחרות: בלי אזור זמן ובלי סיבת סיום
+    const sE = await E.state(); for (const k of Object.values(sE.commitments)) if (k.userId !== sE.me) { assert.strictEqual(k.timezone, null); assert.strictEqual(k.endReason, null); }
+  });
+  await test('מחיקת חשבון: אנונימית אצל החברות, ההזמנות שלה מתבטלות, והאימייל פנוי להרשמה חדשה', async () => {
+    const H = new Client('H'); await H.login(`h.${stamp}@test.mila`, 'גלית'); await H.profile('גלית');
+    const g4 = (await E.ok('createCircle', { name: 'זוג' })).circleId;
+    await H.ok('acceptInvite', { token: (await E.ok('createInvite', { circleId: g4 })).token });
+    const hId = (await H.state()).me;
+    const tH = (await H.ok('createInvite', { circleId: g4, message: 'בואי, זו גלית' })).token;
+    await H.ok('createPersonalWord', { title: 'סוד אישי של גלית', rule: 'כל יום', circleId: g4, startDate: today(), reward: 'משהו פרטי' });
+    await H.ok('sendEncouragement', { circleId: g4, toUserId: (await E.state()).me, reaction: 'heart' });
+    assert.ok((await E.state()).notifications.some(n => /^גלית /.test(n.title)));
+    await H.ok('deleteAccount'); assert.strictEqual((await H.req('/api/state')).status, 401);
+    const sE = await E.state();
+    assert.strictEqual(sE.users[hId].name, 'משתתפת שעזבה'); assert.strictEqual(sE.users[hId].deleted, true);
+    assert.ok(!sE.notifications.some(n => /גלית/.test(n.title + n.body)), 'העדכונים עם השם שלה נמחקו');
+    assert.ok(!Object.values(sE.wordDefs).some(d => /גלית/.test(d.title)), 'הניסוח האישי שלה לא נשאר אצל החברות');
+    assert.strictEqual((await E.ok('previewInvite', { token: tH })).reason, 'revoked');
+    const H2 = new Client('H2'); const again = await H2.login(`h.${stamp}@test.mila`, 'גלית'); assert.notStrictEqual(again.userId, hId, 'חשבון חדש לגמרי');
   });
   await test('ייצוא ומחיקת חשבון', async () => {
     const ex = await Z.ok('exportData'); assert.ok(ex.user && Array.isArray(ex.ledger));

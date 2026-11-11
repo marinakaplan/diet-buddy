@@ -2,7 +2,7 @@
    למה לא Better Auth: ברירת המחדל שלו ל-email/password היא scrypt, שחורגת בקלות מ-10ms CPU
    של Workers Free. אנחנו צריכות רק גוגל, ולכן שכבה קטנה וקריאה:
    אסימון סשן אקראי (32 בתים) נשמר כ-hash בלבד, בעוגיית HttpOnly/Secure/SameSite=Lax. */
-import { err, json, uid, nowISO, sha256hex, randomToken, parseCookies, cookie, isValidTz } from './util.js';
+import { err, json, uid, nowISO, sha256hex, randomToken, parseCookies, cookie, isValidTz, cleanName } from './util.js';
 
 const SESSION_COOKIE = 'mila_session';
 const OAUTH_COOKIE = 'mila_oauth';
@@ -78,11 +78,11 @@ async function upsertGoogleUser(env, c) {
   }
   if (!u) {
     const id = uid();
-    const name = (c.given_name || c.name || 'משתתפת').slice(0, 30);
+    const name = cleanName(c.given_name || c.name).slice(0, 30) || 'משתתפת';
     await env.DB.prepare(`insert into users(id, email, google_sub, display_name, color, status) values (?,?,?,?,?,'pending')`).bind(id, email, c.sub, name, pickColor(name)).run();
     u = await env.DB.prepare(`select * from users where id = ?`).bind(id).first();
   }
-  if (u.status === 'deleted') { await env.DB.prepare(`update users set status = 'pending', display_name = ?, email = ? where id = ?`).bind((c.given_name || 'משתתפת').slice(0, 30), email, u.id).run(); u.status = 'pending'; }
+  if (u.status === 'deleted') { await env.DB.prepare(`update users set status = 'pending', display_name = ?, email = ? where id = ?`).bind(cleanName(c.given_name).slice(0, 30) || 'משתתפת', email, u.id).run(); u.status = 'pending'; }
   return u;
 }
 
@@ -94,7 +94,9 @@ export async function testLogin(req, env) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw err('VALIDATION', 'אימייל לא תקין');
   let u = await env.DB.prepare(`select * from users where email = ?`).bind(email).first();
   if (!u) {
-    const id = uid(); const name = String(body.name || 'בודקת').slice(0, 30);
+    // סביבת הבדיקות חולקת מכסת כתיבה יומית עם הייצור: לא יותר מ-5,000 משתמשות בדיקה
+    if ((await env.DB.prepare(`select count(*) as n from users`).first()).n >= 5000) throw err('VALIDATION', 'סביבת הבדיקות מלאה. צריך לנקות אותה.');
+    const id = uid(); const name = cleanName(body.name).slice(0, 30) || 'בודקת';
     await env.DB.prepare(`insert into users(id, email, display_name, color, status) values (?,?,?,?,'pending')`).bind(id, email, name, pickColor(name)).run();
     u = await env.DB.prepare(`select * from users where id = ?`).bind(id).first();
   }
@@ -105,7 +107,7 @@ export async function testLogin(req, env) {
 
 /* השלמת פרופיל: שם, 18+, תנאים, אזור זמן */
 export async function completeProfile(user, body, env) {
-  const name = String(body.name || '').trim();
+  const name = cleanName(body.name);
   if (!name) throw err('VALIDATION', 'צריך שם תצוגה');
   if (name.length > 30) throw err('VALIDATION', 'השם ארוך מדי (עד 30 תווים)');
   if (!body.ageConfirmed) throw err('VALIDATION', 'בגרסת הבטא המשחק פתוח לבנות 18 ומעלה');
@@ -120,7 +122,8 @@ function pickColor(name) { let h = 0; for (const c of name) h = (h * 31 + c.char
 function base64url(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function decodeJwt(t) { try { const p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(atob(p)); } catch { return null; } }
 function safeJson(s) { try { return s ? JSON.parse(s) : null; } catch { return null; } }
-function sanitizeNext(n) { return n && /^\/[^/\\]/.test(n) ? n.slice(0, 200) : '/'; }
+/* רק נתיב פנימי: בלי // או /\ בהתחלה ובלי תווי בקרה/רווח (דפדפנים מוחקים טאב, ואז /\t/evil.com הופך ל-//evil.com) */
+function sanitizeNext(n) { return typeof n === 'string' && n.length <= 200 && /^\/(?![\/\\])[\x21-\x7e]*$/.test(n) ? n : '/'; }
 function redirect(to, setCookie) { return new Response(null, { status: 302, headers: { location: to, 'set-cookie': setCookie } }); }
 
 /* מנהלת מערכת: מזוהה בכניסה לפי SHA-256 של האימייל (ADMIN_EMAIL_SHA256). האימייל לא שמור בקוד. */

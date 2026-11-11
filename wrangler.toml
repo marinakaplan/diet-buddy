@@ -33,6 +33,18 @@ database_id = "da20c770-cfac-47a2-abd7-b7e15fde46a9"
 migrations_dir = "migrations"
 
 # ---------- ייצור ----------
+
+# הגבלת קצב (חינמי, בלי כתיבות למסד): נתיבים פתוחים לפי כתובת IP, פעולות לפי משתמשת
+[[ratelimits]]
+name = "RL_PUBLIC"
+namespace_id = "1001"
+simple = { limit = 60, period = 60 }
+
+[[ratelimits]]
+name = "RL_USER"
+namespace_id = "1002"
+simple = { limit = 120, period = 60 }
+
 [env.production]
 name = "mila"
 workers_dev = true
@@ -56,3 +68,14 @@ binding = "DB"
 database_name = "mila-db-prod"
 database_id = "8bacb983-b3e6-4bbd-89ac-2b2bc80fbfa2"
 migrations_dir = "migrations"
+
+# הגבלת קצב (חינמי, בלי כתיבות למסד): נתיבים פתוחים לפי כתובת IP, פעולות לפי משתמשת
+[[env.production.ratelimits]]
+name = "RL_PUBLIC"
+namespace_id = "2001"
+simple = { limit = 30, period = 60 }
+
+[[env.production.ratelimits]]
+name = "RL_USER"
+namespace_id = "2002"
+simple = { limit = 120, period = 60 }

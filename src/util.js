@@ -41,7 +41,8 @@ export function diffDays(a, b) {
   const [y1, m1, d1] = a.split('-').map(Number); const [y2, m2, d2] = b.split('-').map(Number);
   return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
 }
-export const isValidDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && !Number.isNaN(Date.parse(s));
+/* תאריך אמיתי בלבד: 2027-02-30 נדחה (Date.parse מגלגל אותו ל-2 במרץ) */
+export const isValidDate = (s) => { if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false; const t = Date.parse(s + 'T00:00:00Z'); return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s; };
 export function isValidTz(tz) { try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; } catch { return false; } }
 
 /* חלון דיווח: מתחילת היום המקומי עד 10:00 למחרת */
@@ -77,3 +78,6 @@ export function cookie(name, value, { maxAge, path = '/', httpOnly = true, secur
   if (maxAge !== undefined) s += `; Max-Age=${maxAge}`;
   return s;
 }
+
+/* שם תצוגה: טקסט פשוט בלבד (בלי תווי HTML ובלי תווי בקרה) */
+export const cleanName = (s) => String(s || '').replace(/[<>"'`&\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim();
