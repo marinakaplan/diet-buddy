@@ -3,177 +3,233 @@
 <head>
 <meta charset="utf-8">
 <title>מילה Reel</title>
-<!-- 1080x1920 promo reel for מילה. Open in a browser to preview (loops), or render with: node render.js <outDir> -->
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<!-- 1080x1920 promo reel for מילה, in the welcome-screen style (blobs, live logo, lime <mark>) with the app's mood faces.
+     Open in a browser to preview (loops). Render: node render.cjs <outDir>  (also writes captions.srt from VO below). -->
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-  :root{--lime:#DCF36E;--lime-deep:#BFDC3A;--ink:#1C1A1F;--ink2:#6A6472;--bg:#FCFAF9;--pink:#FFD3E4;--pink-ink:#B8356A;--lav:#E3DAFB;--peach:#FFE0CE}
+  :root{--bg:#FCFAF9;--card:#fff;--line:#EFE9EC;--line2:#E3DBE0;--ink:#1C1A1F;--ink2:#6A6472;
+    --lime:#DCF36E;--pink:#FFD3E4;--lav:#E3DAFB;--mint:#D5F1E3;--peach:#FFE0CE}
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
   body{font-family:'Heebo',sans-serif;color:var(--ink)}
   #stage{position:relative;width:1080px;height:1920px;overflow:hidden;background:var(--bg)}
+  .blobs i{position:absolute;width:820px;height:820px;border-radius:50%;filter:blur(120px);opacity:.5}
   .scene{position:absolute;inset:0;opacity:0}
   .abs{position:absolute}
   .c{left:0;right:0;text-align:center}
-  .h1{font-weight:900;font-size:136px;line-height:1.05;letter-spacing:-3px}
-  .h2{font-weight:900;font-size:96px;line-height:1.08;letter-spacing:-2px}
-  .cap{font-weight:600;font-size:48px;color:var(--ink2)}
-  .hl{position:relative;display:inline-block;z-index:0}
-  .hl i{position:absolute;right:-12px;bottom:6px;height:44%;background:var(--lime);z-index:-1}
-  .hl.dark i{background:var(--ink)}
-  .phone{position:absolute;left:220px;width:640px;height:1385px;border-radius:72px;overflow:hidden;background:#fff;
-    box-shadow:0 0 0 14px var(--ink),0 50px 120px rgba(28,26,31,.28)}
+  .h1{font-weight:900;font-size:128px;line-height:1.1;letter-spacing:-.03em}
+  .h2{font-weight:900;font-size:96px;line-height:1.1;letter-spacing:-.03em}
+  .brand{font-weight:800;font-size:56px;color:var(--ink2)}
+  .sub{font-weight:600;font-size:50px;color:var(--ink2)}
+  mark{background:linear-gradient(var(--lime),var(--lime)) no-repeat 100% 92% / var(--mw,100%) 42%;color:inherit;padding:0 6px}
+  .card{background:var(--card);border:3px solid var(--line2);display:flex;align-items:center;gap:34px;padding:30px 36px}
+  .promise{left:80px;right:80px;font-size:54px;font-weight:600;line-height:1.25;opacity:0}
+  .promise b{font-weight:900}
+  .promise .x{position:absolute;right:150px;top:50%;height:10px;width:0;background:var(--ink);margin-top:-5px}
+  .phone{position:absolute;left:260px;width:560px;height:1212px;border-radius:64px;overflow:hidden;background:#fff;
+    box-shadow:0 0 0 12px var(--ink),0 40px 100px rgba(28,26,31,.22)}
   .phone img{position:absolute;left:0;top:0;width:100%;display:block}
-  .tap{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:8px solid var(--ink);opacity:0}
-  .badge{position:absolute;font-weight:900;background:var(--lime);border:6px solid var(--ink);padding:10px 34px;font-size:96px;opacity:0}
-  .chip{display:inline-block;font-weight:800;padding:14px 30px;border:4px solid var(--ink);background:#fff;font-size:44px}
-  .face{position:absolute}
-  .progress{position:absolute;top:36px;left:60px;right:60px;height:8px;background:rgba(28,26,31,.1);z-index:50}
+  .tap{position:absolute;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:7px solid var(--ink);opacity:0}
+  .chip{display:inline-flex;align-items:center;gap:16px;font-weight:800;padding:16px 30px;background:#fff;border:3px solid var(--line2);font-size:44px}
+  .progress{position:absolute;top:36px;left:60px;right:60px;height:8px;background:rgba(28,26,31,.08);z-index:50}
   .progress i{display:block;height:100%;background:var(--ink)}
-  .sq{position:absolute;opacity:.9}
+  #cc{position:absolute;left:70px;right:70px;top:1680px;text-align:center;z-index:40}
+  #cc span{display:inline-block;background:var(--ink);color:#fff;font-weight:700;font-size:48px;line-height:1.35;padding:14px 30px;max-width:940px}
+  .btn-dark{display:inline-block;background:var(--ink);color:#fff;font-weight:800;font-size:66px;padding:34px 70px}
 </style>
 </head>
 <body>
 <div id="stage">
+  <div class="blobs"><i id="bl1" style="background:var(--lime)"></i><i id="bl2" style="background:var(--pink)"></i><i id="bl3" style="background:var(--lav)"></i></div>
   <div class="progress"><i id="prog"></i></div>
 
-  <!-- 1. HOOK -->
-  <div class="scene" id="s1" style="background:var(--lime)">
-    <svg class="face" id="logo1" style="left:440px;top:420px;width:200px;height:200px" viewBox="0 0 48 48"></svg>
-    <div class="abs c h1" id="s1a" style="top:720px">כולנו מבטיחות.</div>
-    <div class="abs c h1" id="s1b" style="top:900px">בואי נראה</div>
-    <div class="abs c h1" id="s1c" style="top:1060px"><span class="hl dark" style="color:var(--lime)"><i id="s1hl" style="height:96%;bottom:-4px;width:0"></i>מי מקיימת.</span></div>
+  <!-- 0. HOOK -->
+  <div class="scene" id="s0">
+    <div class="abs c h1" id="s0a" style="top:250px">די יפה שלי,</div>
+    <div class="abs c sub" id="s0b" style="top:420px;font-size:58px;color:var(--ink)">כמה פעמים אמרת לעצמך:</div>
+    <div class="abs card promise" id="p1" style="top:600px"><span class="fc" data-mood="oops"></span><span><b>די, ממחר</b> אני לא צועקת יותר על הילדים</span><i class="x"></i></div>
+    <div class="abs card promise" id="p2" style="top:880px"><span class="fc" data-mood="offline"></span><span><b>ממחר</b> אני עולה רק במדרגות</span><i class="x"></i></div>
+    <div class="abs card promise" id="p3" style="top:1090px"><span class="fc" data-mood="wink"></span><span><b>ממחר</b> אני נחמדה יותר לבעלי</span><i class="x"></i></div>
+    <div class="abs c" id="s0z" style="top:1360px"><span class="fc" data-mood="sleepy" data-size="190"></span><div class="h2" style="margin-top:10px">ו...מחר?</div></div>
+  </div>
+
+  <!-- 1. WELCOME -->
+  <div class="scene" id="s1">
+    <div class="abs c" id="s1l" style="top:470px"><svg id="logo1" width="260" height="260" viewBox="0 0 48 48"></svg></div>
+    <div class="abs c brand" id="s1br" style="top:770px">מילה.</div>
+    <div class="abs c h1" id="s1a" style="top:880px;font-size:112px">כולנו מבטיחות.</div>
+    <div class="abs c h1" id="s1b" style="top:1020px;font-size:100px">בואי נראה מי <mark id="m1">מקיימת</mark>.</div>
   </div>
 
   <!-- 2. RULES -->
   <div class="scene" id="s2">
-    <div class="abs c" id="s2a" style="top:470px"><span class="h1" style="font-size:300px;letter-spacing:-8px">3</span><div class="h2">אתגרים.</div></div>
-    <div class="abs c" id="s2b" style="top:470px"><span class="h1" style="font-size:300px;letter-spacing:-8px">14</span><div class="h2">ימים.</div></div>
-    <div class="abs c" id="s2c" style="top:470px"><span class="h1" style="font-size:300px;letter-spacing:-8px">+ חברות</span><div class="h2"><span class="hl"><i style="width:calc(100% + 24px)"></i>מי מתמידה יותר?</span></div></div>
-    <div class="sq" id="sq1" style="width:120px;height:120px;background:var(--pink);left:90px;top:300px"></div>
-    <div class="sq" id="sq2" style="width:90px;height:90px;background:var(--lav);right:110px;top:1350px"></div>
-    <div class="sq" id="sq3" style="width:70px;height:70px;background:var(--lime);left:180px;top:1500px"></div>
+    <div class="abs c" id="s2a" style="top:330px"><span class="h1" style="font-size:280px">3</span><div class="h2">אתגרים</div></div>
+    <div class="abs c" id="s2b" style="top:330px"><span class="h1" style="font-size:280px">14</span><div class="h2">ימים</div></div>
+    <div class="abs c" id="s2c" style="top:420px">
+      <div id="avs" style="display:flex;justify-content:center;gap:0"></div>
+      <div class="h2" style="margin-top:50px">עם <mark>החברות</mark></div>
+    </div>
   </div>
 
   <!-- 3. REPORT -->
   <div class="scene" id="s3">
-    <div class="abs c cap" id="s3k" style="top:110px">כל ערב, שאלה אחת:</div>
-    <div class="abs c h2" id="s3t" style="top:180px"><span class="hl"><i style="width:calc(100% + 24px)"></i>עמדת במילה?</span></div>
-    <div class="phone" id="s3p" style="top:420px">
-      <img id="im_today" src="shots/today.jpg">
-      <img id="im_report" src="shots/report.jpg">
-      <img id="im_done" src="shots/reported2.jpg">
+    <div class="abs c h2" id="s3t" style="top:150px">עמדת <mark>במילה</mark>?</div>
+    <div class="phone" id="s3p" style="top:380px">
+      <img src="shots/today.jpg"><img id="im_report" src="shots/report.jpg"><img id="im_done" src="shots/reported2.jpg">
       <div class="tap" id="tap"></div>
     </div>
-    <div class="badge" id="plus" dir="ltr" style="left:690px;top:1000px">+1</div>
+    <div class="abs" id="plus" style="left:735px;top:760px;text-align:center"><span class="fc" data-mood="happy" data-size="200"></span><div dir="ltr" style="font-weight:900;font-size:84px;margin-top:-6px">+1</div></div>
   </div>
 
   <!-- 4. LEADERBOARD -->
   <div class="scene" id="s4">
-    <div class="abs c cap" id="s4k" style="top:110px">והקבוצה רואה הכול.</div>
-    <div class="abs c h2" id="s4t" style="top:180px"><span class="hl"><i style="width:calc(100% + 24px)"></i>מי מובילה?</span></div>
-    <div class="phone" id="s4p" style="top:420px"><img id="im_circle" src="shots/circle-full.jpg"></div>
-    <div class="abs chip" id="s4c" style="left:70px;top:1180px;transform:rotate(-6deg)">👑 מקום 1</div>
+    <div class="abs c h2" id="s4t" style="top:150px">מי <mark>מובילה</mark>?</div>
+    <div class="phone" id="s4p" style="top:380px"><img id="im_circle" src="shots/circle-full.jpg"></div>
+    <div class="abs chip" id="s4c" style="left:60px;top:1050px"><span class="fc" data-mood="happy" data-size="70"></span>מקום 1</div>
   </div>
 
   <!-- 5. STREAK -->
   <div class="scene" id="s5">
-    <div class="abs c cap" id="s5k" style="top:110px">פספוס? הרצף מתאפס.</div>
-    <div class="abs c h2" id="s5t" style="top:180px">הנקודות <span class="hl"><i style="width:calc(100% + 24px)"></i>נשארות.</span></div>
-    <div class="phone" id="s5p" style="top:420px"><img src="shots/word.jpg"></div>
-    <div class="abs chip" id="s5c" style="right:60px;top:1260px;background:var(--lime);transform:rotate(5deg)">🔥 8 ימים ברצף</div>
+    <div class="abs c h2" id="s5t" style="top:150px">הנקודות <mark>נשארות</mark>.</div>
+    <div class="phone" id="s5p" style="top:380px"><img src="shots/word.jpg"></div>
+    <div class="abs chip" id="s5c" style="right:50px;top:1130px"><span class="fc" data-mood="wink" data-size="70"></span>8 ימים ברצף</div>
   </div>
 
   <!-- 6. NO MONEY -->
-  <div class="scene" id="s6" style="background:var(--ink);color:#fff">
-    <div class="abs c h1" id="s6a" style="top:620px">בלי כסף.</div>
-    <div class="abs c h1" id="s6b" style="top:780px">בלי קופה.</div>
-    <div class="abs c h1" id="s6c" style="top:1000px;color:var(--lime)">רק המילה שלך.</div>
+  <div class="scene" id="s6">
+    <div class="abs c h1" id="s6a" style="top:560px">בלי כסף.</div>
+    <div class="abs c h1" id="s6b" style="top:720px">בלי קופה.</div>
+    <div class="abs c h1" id="s6c" style="top:940px">רק <mark id="m6">המילה שלך</mark>.</div>
   </div>
 
   <!-- 7. END -->
-  <div class="scene" id="s7" style="background:var(--lime)">
-    <svg class="face" id="logo2" style="left:390px;top:380px;width:300px;height:300px" viewBox="0 0 48 48"></svg>
-    <div class="abs c" id="s7a" style="top:730px;font-weight:900;font-size:220px;letter-spacing:-6px;line-height:1">מילה.</div>
-    <div class="abs c" id="s7b" style="top:990px;font-weight:700;font-size:50px">כולנו מבטיחות. בואי נראה מי מקיימת.</div>
-    <div class="abs c" id="s7c" style="top:1200px"><span style="display:inline-block;background:var(--ink);color:var(--lime);font-weight:900;font-size:76px;padding:30px 60px">תעמדי במילה שלך</span></div>
-    <div class="abs c" id="s7d" style="top:1440px;font-weight:700;font-size:42px">מזמינה חברה ומתחילות היום · קישור בביו</div>
+  <div class="scene" id="s7">
+    <div class="abs c" id="s7l" style="top:360px"><svg id="logo2" width="300" height="300" viewBox="0 0 48 48"></svg></div>
+    <div class="abs c" id="s7a" style="top:700px;font-weight:900;font-size:200px;letter-spacing:-.04em;line-height:1">מילה.</div>
+    <div class="abs c" id="s7b" style="top:950px;font-weight:600;font-size:50px;color:var(--ink2)">כולנו מבטיחות. בואי נראה מי מקיימת.</div>
+    <div class="abs c" id="s7c" style="top:1140px"><span class="btn-dark">תעמדי במילה שלך</span></div>
+    <div class="abs c" id="s7d" style="top:1350px;font-weight:600;font-size:42px;color:var(--ink2)">חינם · מזמינה חברה ומתחילות היום</div>
   </div>
+
+  <div id="cc"><span id="ccx"></span></div>
 </div>
 
 <script>
-const DUR = 21.5;
-const S = { s1:[0,3.3], s2:[3.3,6.3], s3:[6.3,10.8], s4:[10.8,14.3], s5:[14.3,17.2], s6:[17.2,19.0], s7:[19.0,21.5] };
-const $ = id => document.getElementById(id);
+// Scene timing (seconds)
+const S = { s0:[0,10], s1:[10,13.6], s2:[13.6,17.2], s3:[17.2,21.8], s4:[21.8,25.2], s5:[25.2,28.4], s6:[28.4,31], s7:[31,34.5] };
+const DUR = 34.5;
+// Voiceover lines. cc:true = burned-in caption (scenes whose on-screen text already says the line don't need one).
+const VO = [
+  [0.2,1.6,'די יפה שלי,'],
+  [1.6,3.0,'כמה פעמים אמרת לעצמך:'],
+  [3.0,5.2,'״די, ממחר אני לא צועקת יותר על הילדים.״'],
+  [5.2,6.8,'״ממחר אני עולה רק במדרגות.״'],
+  [6.8,8.4,'״ממחר אני נחמדה יותר לבעלי.״'],
+  [8.6,9.9,'ו...מחר?'],
+  [10.2,11.6,'כולנו מבטיחות.'],
+  [11.6,13.5,'בואי נראה מי מקיימת.'],
+  [13.7,17.1,'בוחרות עד 3 אתגרים, ל-14 ימים, יחד עם החברות.',true],
+  [17.3,19.5,'כל ערב, שאלה אחת: עמדתי במילה?',true],
+  [19.5,21.7,'עמדת? נקודה.',true],
+  [21.9,25.1,'והקבוצה רואה מי מובילה.',true],
+  [25.3,28.3,'פספסת? הרצף מתאפס, אבל הנקודות נשארות.',true],
+  [28.5,30.9,'בלי כסף. בלי קופה. רק המילה שלך.'],
+  [31.2,34.3,'מילה. תעמדי במילה שלך.'],
+];
+
+const $=id=>document.getElementById(id);
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
 const lin=(t,a,b)=>clamp((t-a)/(b-a));
 const eo=x=>1-Math.pow(1-x,3);
-const back=x=>{const c=1.9,d=c+1;return 1+d*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
-function pop(el,t,a,d=.4,dy=70){const x=lin(t,a,a+d);el.style.opacity=clamp(x*2.5);el.style.transform=`translateY(${(1-eo(x))*dy}px) scale(${.8+.2*back(x)})`;}
-function slam(el,t,a,d=.3){const x=lin(t,a,a+d);el.style.opacity=clamp(x*3);el.style.transform=`scale(${1+(1-eo(x))*1.6})`;}
+const back=x=>{const c=1.7,d=c+1;return 1+d*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
+function up(el,t,a,d=.5,dy=50){const x=lin(t,a,a+d);el.style.opacity=clamp(x*2);el.style.transform=`translateY(${(1-eo(x))*dy}px)`;}
+function pop(el,t,a,d=.45){const x=lin(t,a,a+d);el.style.opacity=clamp(x*2.5);el.style.transform=`scale(${.6+.4*back(x)})`;}
 function out(el,t,a,d=.2){el.style.opacity=Math.min(+el.style.opacity||0,1-lin(t,a,a+d));}
+function markW(el,t,a,d=.5){el.style.setProperty('--mw',(eo(lin(t,a,a+d))*100)+'%');}
 
-// logo face from the app's icon, with blink (eye scaleY) and smile control
-function face(svg,blink,smile){
-  const ey=Math.max(.12,1-blink);
-  svg.innerHTML=`<rect width="48" height="48" rx="11" fill="${svg.id==='logo2'?'#1C1A1F':'#1C1A1F'}"/>
-  <g stroke="#DCF36E" stroke-width="2.8" stroke-linecap="round" fill="none"><path d="M12 15.5c2.2-1.6 5.4-1.8 7.6-.4"/><path d="M36 15.5c-2.2-1.6-5.4-1.8-7.6-.4"/></g>
-  <g fill="#DCF36E"><ellipse cx="16.5" cy="22.5" rx="2.9" ry="${2.9*ey}"/><ellipse cx="31.5" cy="22.5" rx="2.9" ry="${2.9*ey}"/></g>
-  <path d="M16 29c3.9 ${4.6*smile} 12.1 ${4.6*smile} 16 0" stroke="#DCF36E" stroke-width="2.9" stroke-linecap="round" fill="none"/>`;
+// ---- faces: same drawings as public/js/icons.js (moodFace, avatar) and app.js (liveLogo) ----
+const INK='#1B1B1F', st=`stroke="${INK}" stroke-width="2.6" stroke-linecap="round" fill="none"`;
+const MOOD={
+  sleepy:{fill:'#E3DAFB',body:z=>`<path d="M13 22c1.5 2 4.5 2 6 0M29 22c1.5 2 4.5 2 6 0" ${st}/><path d="M21 31.5c1.5 1 4.5 1 6 0" ${st}/><g stroke="${INK}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(0 ${-z*3})" opacity="${.5+z*.5}"><path d="M33 8.5h4.5l-4.5 4.5h4.5"/><path d="M39.5 3.5h3l-3 3h3" opacity=".6"/></g>`},
+  wink:{fill:'#D5F1E3',body:()=>`<circle cx="16" cy="21.5" r="2.5" fill="${INK}"/><path d="M29 22c1.5-2.5 4.5-2.5 6 0" ${st}/><path d="M17 29.5c3.5 4 10.5 4 14 0" ${st}/>`},
+  happy:{fill:'#D9F565',body:()=>`<path d="M13 22.5c1.5-2.5 4.5-2.5 6 0M29 22.5c1.5-2.5 4.5-2.5 6 0" ${st}/><path d="M16.5 29c3.5 4.5 11.5 4.5 15 0" ${st}/>`},
+  oops:{fill:'#FFD3E4',body:z=>`<path d="M12 15l7-1.6M36 15l-7-1.6" ${st}/><circle cx="16" cy="22" r="2.6" fill="${INK}"/><circle cx="32" cy="22" r="2.6" fill="${INK}"/><ellipse cx="24" cy="32" rx="3" ry="3.6" ${st}/><path d="M39.5 9.5c1.5 2 2.2 3.1 2.2 4.2a2.2 2.2 0 0 1-4.4 0c0-1.1.7-2.2 2.2-4.2z" fill="#7DB9F5" transform="translate(0 ${z*4})"/>`},
+  offline:{fill:'#FFD9C7',body:()=>`<circle cx="16" cy="21.5" r="2.5" fill="${INK}"/><path d="M29.5 19l5 5M34.5 19l-5 5" ${st}/><path d="M16 32c2.2-2.4 4.4 2.4 8 0s5.8 2.4 8 0" ${st}/>`},
+};
+function moodSVG(m,size,z=0){return `<svg width="${size}" height="${size}" viewBox="0 0 48 48" style="display:inline-block;vertical-align:middle;flex:none"><rect x="2" y="2" width="44" height="44" rx="14" fill="${MOOD[m].fill}"/>${MOOD[m].body(z)}</svg>`;}
+// live logo: suspicious brows + frown -> smile; blink; glance
+function logo(svg,{brow=1,smile=0,blink=0,glance=0}){
+  const ey=Math.max(.1,1-blink);
+  svg.innerHTML=`<rect x="2" y="2" width="44" height="44" rx="14" fill="#D9F565"/>
+  <g stroke="${INK}" stroke-width="2.8" stroke-linecap="round" opacity="${brow}"><path d="M11 14.5l8 3.2"/><path d="M37 14.5l-8 3.2"/></g>
+  <g fill="${INK}"><ellipse cx="${16.5+glance}" cy="22.5" rx="2.8" ry="${2.8*ey}"/><ellipse cx="${31.5+glance}" cy="22.5" rx="2.8" ry="${2.8*ey}"/></g>
+  <path d="M17.5 33c3.5-3 9.5-3 13 0" stroke="${INK}" stroke-width="2.8" stroke-linecap="round" fill="none" opacity="${1-smile}"/>
+  <path d="M16.5 29c3.8 4.4 11.2 4.4 15 0" stroke="${INK}" stroke-width="2.8" stroke-linecap="round" fill="none" opacity="${smile}"/>`;
 }
-const blinkAt=(t,ts)=>ts.reduce((m,b)=>Math.max(m,1-Math.abs(t-b)/.09),0);
+const AV={lime:'#D9F565',pink:'#FFC3DF',lavender:'#D9CBFF',peach:'#FFD9C2'};
+function avatarSVG(fill,v,size,blink=0){
+  const ey=Math.max(.1,1-blink);
+  const eyes=v===0?`<ellipse cx="16" cy="21" rx="2.2" ry="${2.2*ey}" fill="${INK}"/><ellipse cx="32" cy="21" rx="2.2" ry="${2.2*ey}" fill="${INK}"/>`
+    :v===1?`<path d="M13 22c1.5-2.5 4.5-2.5 6 0M29 22c1.5-2.5 4.5-2.5 6 0" stroke="${INK}" stroke-width="2.4" stroke-linecap="round" fill="none"/>`
+    :`<ellipse cx="16" cy="21" rx="2.2" ry="${2.2*ey}" fill="${INK}"/><path d="M29 22c1.5-2.5 4.5-2.5 6 0" stroke="${INK}" stroke-width="2.4" stroke-linecap="round" fill="none"/>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 48 48"><circle cx="24" cy="24" r="23" fill="${fill}"/>${eyes}<path d="M18 29c3 3.5 9 3.5 12 0" stroke="${INK}" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>`;
+}
+const FRIENDS=[['lime',0],['pink',1],['lavender',2],['peach',0]];
+$('avs').innerHTML=FRIENDS.map((f,i)=>`<span id="av${i}" style="display:inline-block;margin:0 -18px;border:8px solid var(--bg);border-radius:50%;line-height:0"></span>`).join('');
+const blinkAt=(t,ts)=>ts.reduce((m,b)=>Math.max(m,1-Math.abs(t-b)/.08),0);
+
+function drawFaces(root,t){root.querySelectorAll('.fc').forEach(el=>{el.innerHTML=moodSVG(el.dataset.mood,+(el.dataset.size||110),(Math.sin(t*4)+1)/2);});}
 
 function render(t){
   $('prog').style.width=(t/DUR*100)+'%';
-  for(const [id,[a,b]] of Object.entries(S)){
-    const el=$(id); const inn=lin(t,a,a+.18), o=1-lin(t,b,b+.18);
-    el.style.opacity=(t>=a&&t<b+.18)?Math.min(inn,o):0;
-  }
-  // 1
-  let l=t-S.s1[0];
-  face($('logo1'),blinkAt(l,[1.3,2.6]),.4+.6*eo(lin(l,2.2,2.6)));
-  pop($('logo1'),l,0,.45,0); $('logo1').style.transform+=` rotate(${(1-eo(lin(l,0,.6)))*-25}deg)`;
-  slam($('s1a'),l,.35); slam($('s1b'),l,1.15); pop($('s1c'),l,1.6,.35,40);
-  $('s1hl').style.width=`calc(${eo(lin(l,1.75,2.15))*100}% + 24px)`;
-  // 2
+  $('bl1').style.transform=`translate(${420+Math.sin(t*.35)*90}px,${-300+Math.cos(t*.3)*80}px)`;
+  $('bl2').style.transform=`translate(${-360+Math.cos(t*.28)*90}px,${1250+Math.sin(t*.33)*90}px)`;
+  $('bl3').style.transform=`translate(${520+Math.sin(t*.22)*80}px,${620+Math.cos(t*.25)*100}px)`;
+  for(const [id,[a,b]] of Object.entries(S)){const el=$(id),i=lin(t,a,a+.2),o=1-lin(t,b,b+.2);el.style.opacity=(t>=a&&t<b+.2)?Math.min(i,o):0;}
+  // captions
+  const line=VO.find(v=>v[3]&&t>=v[0]&&t<v[1]);
+  $('ccx').textContent=line?line[2]:''; $('cc').style.opacity=line?Math.min(lin(t,line[0],line[0]+.12),1-lin(t,line[1]-.12,line[1])):0;
+
+  // 0 hook
+  let l=t-S.s0[0]; drawFaces($('s0'),l);
+  up($('s0a'),l,.15,.5,60); up($('s0b'),l,1.5);
+  [['p1',3.0],['p2',5.2],['p3',6.8]].forEach(([id,a],i)=>{const el=$(id);up(el,l,a,.45,80);
+    el.querySelector('.x').style.width=`calc(${eo(lin(l,8.4+i*.15,8.7+i*.15))*100}% - ${eo(lin(l,8.4+i*.15,8.7+i*.15))*190}px)`;});
+  pop($('s0z'),l,8.7);
+  // 1 welcome
+  l=t-S.s1[0];
+  pop($('s1l'),l,0,.5); up($('s1br'),l,.25); up($('s1a'),l,.3,.6); up($('s1b'),l,1.5,.6); markW($('m1'),l,2.3,.6);
+  logo($('logo1'),{brow:1-lin(l,2.4,2.7),smile:eo(lin(l,2.4,2.8)),blink:blinkAt(l,[1.2,3.2]),glance:Math.sin(clamp((l-.6)/1.2)*Math.PI)*-2.5});
+  // 2 rules
   l=t-S.s2[0];
-  slam($('s2a'),l,0); out($('s2a'),l,.85,.15);
-  slam($('s2b'),l,1.0); out($('s2b'),l,1.85,.15);
-  slam($('s2c'),l,2.0);
-  ['sq1','sq2','sq3'].forEach((s,i)=>{$(s).style.transform=`rotate(${l*40*(i%2?-1:1)+i*20}deg) translateY(${Math.sin(l*2+i)*30}px)`;});
-  // 3
+  pop($('s2a'),l,0); out($('s2a'),l,1.0); pop($('s2b'),l,1.15); out($('s2b'),l,2.0);
+  up($('s2c'),l,2.1,.3,0);
+  FRIENDS.forEach((f,i)=>{const el=$('av'+i);el.innerHTML=avatarSVG(AV[f[0]],f[1],210,blinkAt(l,[3.0+i*.1]));pop(el,l,2.15+i*.12,.4);el.style.transform+=` translateY(${Math.sin(l*3+i)*8}px)`;});
+  // 3 report
   l=t-S.s3[0];
-  pop($('s3k'),l,0); pop($('s3t'),l,.2);
-  $('s3p').style.transform=`translateY(${(1-eo(lin(l,.1,.6)))*900}px)`;
-  const rp=eo(lin(l,1.2,1.55));
-  $('im_report').style.opacity=rp; $('im_report').style.transform=`translateY(${(1-rp)*160}px)`;
-  const tx=lin(l,2.3,2.8);
-  const tap=$('tap'); tap.style.left='72%'; tap.style.top='79%';
-  tap.style.opacity=(l>2.3&&l<2.8)?1-tx:0; tap.style.transform=`scale(${.4+tx*1.4})`;
-  $('im_done').style.opacity=lin(l,2.45,2.65);
-  pop($('plus'),l,2.6,.4,0); $('plus').style.transform+=` rotate(-8deg)`;
-  // 4
+  up($('s3t'),l,0); $('s3p').style.transform=`translateY(${(1-eo(lin(l,.1,.6)))*900}px)`;
+  const rp=eo(lin(l,1.0,1.35)); $('im_report').style.opacity=rp; $('im_report').style.transform=`translateY(${(1-rp)*140}px)`;
+  const tx=lin(l,2.1,2.6),tap=$('tap'); tap.style.left='72%'; tap.style.top='79%'; tap.style.opacity=(l>2.1&&l<2.6)?1-tx:0; tap.style.transform=`scale(${.4+tx*1.4})`;
+  $('im_done').style.opacity=lin(l,2.25,2.45);
+  drawFaces($('s3'),l); pop($('plus'),l,2.35,.45); if(l>2.8)$('plus').style.transform=`translateY(${-Math.abs(Math.sin((l-2.8)*5))*30*Math.max(0,1-(l-2.8)/1.5)}px)`;
+  // 4 leaderboard
   l=t-S.s4[0];
-  pop($('s4k'),l,0); pop($('s4t'),l,.2);
-  $('s4p').style.transform=`translateY(${(1-eo(lin(l,.1,.6)))*900}px)`;
-  // circle-full.jpg is 1170x4518 -> 640x2471 in phone; scroll to show the leaderboard
-  const sc=(t=>{const x=lin(t,1.0,2.6);return x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;})(l);
-  $('im_circle').style.transform=`translateY(${-sc*720}px)`;
-  pop($('s4c'),l,2.5,.35,0); $('s4c').style.transform+=` rotate(-6deg)`;
-  // 5
+  up($('s4t'),l,0); $('s4p').style.transform=`translateY(${(1-eo(lin(l,.1,.6)))*900}px)`;
+  const x=lin(l,.9,2.4),sc=x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2; $('im_circle').style.transform=`translateY(${-sc*630}px)`;
+  drawFaces($('s4'),l); pop($('s4c'),l,2.4); $('s4c').style.transform+=' rotate(-5deg)';
+  // 5 streak
   l=t-S.s5[0];
-  pop($('s5k'),l,0); pop($('s5t'),l,.25);
-  $('s5p').style.transform=`translateY(${(1-eo(lin(l,.1,.6)))*900}px)`;
-  pop($('s5c'),l,1.2,.35,0); $('s5c').style.transform+=` rotate(5deg)`;
-  // 6
+  up($('s5t'),l,0); $('s5p').style.transform=`translateY(${(1-eo(lin(l,.1,.6)))*900}px)`;
+  drawFaces($('s5'),l); pop($('s5c'),l,1.3); $('s5c').style.transform+=' rotate(4deg)';
+  // 6 no money
   l=t-S.s6[0];
-  slam($('s6a'),l,0); slam($('s6b'),l,.45); pop($('s6c'),l,.95,.35,40);
-  // 7
+  up($('s6a'),l,0); up($('s6b'),l,.6); up($('s6c'),l,1.3); markW($('m6'),l,1.7,.5);
+  // 7 end
   l=t-S.s7[0];
-  face($('logo2'),blinkAt(l,[1.4]),.5+.5*eo(lin(l,.5,.9)));
-  pop($('logo2'),l,0,.45,0);
-  slam($('s7a'),l,.2); pop($('s7b'),l,.55); pop($('s7c'),l,.8); pop($('s7d'),l,1.1);
+  pop($('s7l'),l,0,.5); logo($('logo2'),{brow:1-lin(l,.7,1),smile:eo(lin(l,.7,1.1)),blink:blinkAt(l,[1.9]),glance:0});
+  up($('s7a'),l,.25); up($('s7b'),l,.6); up($('s7c'),l,.9); up($('s7d'),l,1.2);
 }
-window.render=render; window.DUR=DUR;
+window.render=render; window.DUR=DUR; window.VO=VO;
 const q=new URLSearchParams(location.search);
 render(q.has('t')?+q.get('t'):0);
 if(!q.has('t')){const st=performance.now();(function loop(){render(((performance.now()-st)/1000)%DUR);requestAnimationFrame(loop)})();}
