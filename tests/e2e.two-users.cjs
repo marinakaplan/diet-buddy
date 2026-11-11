@@ -155,7 +155,7 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   assert.ok(feedA.includes('day_miss:נועה'), 'א רואה את ב: ' + feedA); assert.ok(feedB.includes('day_success:יעל'), 'ב רואה את א: ' + feedB);
   await a.page.evaluate(() => App.go('bank')); await a.page.waitForTimeout(400); await shot(a, '07-a-bank');
   await b.page.evaluate((id) => { App.go('circle', { id }); }, circleId); await b.page.waitForSelector('text=מי מובילה?', { timeout: 10000 }); await shot(b, '08-b-circle-rank');
-  await b.page.evaluate(() => App.setCircleTab('feed')); await b.page.waitForTimeout(300); await shot(b, '09-b-circle-feed');
+  await shot(b, '09-b-circle-feed');
 
   console.log('8. דיווח כפול מהדפדפן לא מכפיל; מניפולציה ביתרה לא נשמרת');
   const dup = await a.page.evaluate(async () => { const o = Mila.todayCards().find(x => x.outcome); const r = await Api.cloud.report(o.id, 'miss'); return { dup: r.duplicate, earned: Mila.bankSummary().earnedTotal }; });

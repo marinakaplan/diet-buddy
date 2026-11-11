@@ -89,7 +89,7 @@ function avatar(user, size = 36) {
     : variant === 1 ? '<path d="M13 22c1.5-2.5 4.5-2.5 6 0M29 22c1.5-2.5 4.5-2.5 6 0" stroke="#1B1B1F" stroke-width="2.4" stroke-linecap="round" fill="none"/>'
     : '<circle cx="16" cy="21" r="2.2" fill="#1B1B1F"/><path d="M29 22c1.5-2.5 4.5-2.5 6 0" stroke="#1B1B1F" stroke-width="2.4" stroke-linecap="round" fill="none"/>';
   const mouth = variant === 2 ? '<path d="M18 30c3 2 9 2 12 0" stroke="#1B1B1F" stroke-width="2.4" stroke-linecap="round" fill="none"/>' : '<path d="M18 29c3 3.5 9 3.5 12 0" stroke="#1B1B1F" stroke-width="2.4" stroke-linecap="round" fill="none"/>';
-  return `<span class="avatar" style="width:${size}px;height:${size}px" title="${user && user.name ? user.name : ''}"><svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true"><circle cx="24" cy="24" r="23" fill="${fill}"/>${eyes}${mouth}</svg></span>`;
+  return `<span class="avatar" style="width:${size}px;height:${size}px" title="${user && user.name ? String(user.name).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';') : ''}"><svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true"><circle cx="24" cy="24" r="23" fill="${fill}"/>${eyes}${mouth}</svg></span>`;
 }
 function avatarStack(users, size = 30, max = 4) {
   // תמיד לכל היותר max עיגולים: אם יש יותר, העיגול האחרון הוא ״+N״ (כך כל הכרטיסים באותו רוחב)

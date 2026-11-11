@@ -18,14 +18,17 @@ const Api = (() => {
   async function call(path, { method = 'GET', body } = {}) {
     let res;
     try {
-      res = await fetch(`/api/${path}`, { method, credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+      // בלי תשובה תוך 20 שניות = כמו אין רשת (אחרת כפתור ״רגע…״ נתקע לנצח על רשת תקועה)
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null; const timer = ctl ? setTimeout(() => ctl.abort(), 20000) : null;
+      try { res = await fetch(`/api/${path}`, { method, credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, signal: ctl ? ctl.signal : undefined }); }
+      finally { if (timer) clearTimeout(timer); }
     } catch (e) { const err = new Error('offline'); err.userMessage = 'אין חיבור לשרת. הדיווח לא נשמר. נסי שוב כשיש רשת.'; err.code = 'OFFLINE'; throw err; }
     let data = null; try { data = await res.json(); } catch (e) { data = null; }
     if (!res.ok) {
       const err = new Error((data && data.error) || `HTTP ${res.status}`);
       err.code = data && data.error; err.userMessage = (data && data.hint) || 'משהו השתבש. נסי שוב.'; err.status = res.status;
       if (data && data.cap) err.cap = data.cap;
-      if (res.status === 401) { me = null; notify(); }
+      if (res.status === 401 && me) { me = null; stopAutoSync(); try { sessionStorage.removeItem('mila.cache'); } catch (e) { /* ignore */ } notify(); }   // הכניסה פגה: האפליקציה חוזרת למסך הפתיחה (app.js → authLost)
       throw err;
     }
     return data;
@@ -50,12 +53,13 @@ const Api = (() => {
     stopAutoSync();
     try { await call('auth/logout', { method: 'POST', body: {} }); } catch (e) { /* ignore */ }
     me = null;
+    try { sessionStorage.removeItem('mila.cache'); } catch (e) { /* ignore */ }
     Mila.setState(Object.assign(Mila.emptyState(), { meta: { createdAt: new Date().toISOString(), demo: false, cloud: false } }));
   }
 
   /* מבקרת אנונימית (לספירת פתיחות קישור הזמנה ייחודיות) */
   function visitorId() { try { let v = localStorage.getItem('mila.visitor'); if (!v) { v = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).toLowerCase(); localStorage.setItem('mila.visitor', v); } return v; } catch (e) { return 'anon-' + Math.random().toString(36).slice(2, 12); } }
-  function trackInviteOpen(token) { if (!enabled || !token) return; call('invite/open', { method: 'POST', body: { token, visitor: visitorId() } }).catch(() => {}); }
+  function trackInviteOpen(token) { if (!enabled || !token) return; if (window.MilaA11y && MilaA11y.consent() === 'essential') return; call('invite/open', { method: 'POST', body: { token, visitor: visitorId() } }).catch(() => {}); }
   const adminStats = (days = 30) => call(`admin/stats?days=${days}`);
   /* מעקב זול: כל אירוע נשלח לכל היותר פעם ביום מכל מכשיר */
   function track(name) {
@@ -120,7 +124,6 @@ const Api = (() => {
     adoptGroupWord: async (defId) => { const r = await action('adoptGroupWord', { defId }); await sync(); return Mila.getState().commitments[r.commitmentId]; },
     cancelProposal: (defId) => after(action('cancelProposal', { defId })),
     endCommitment: (commitmentId) => after(action('endCommitment', { commitmentId })),
-    updateWordVisibility: (defId, visibility) => after(action('setVisibility', { defId, visibility })),
     report: async (obligationId, outcome, { note = '' } = {}) => { const r = await action('report', { obligationId, outcome, note }); await sync(); return { obligation: Mila.getState().obligations[obligationId], duplicate: !!r.duplicate }; },
     correct: async (obligationId, outcome, reason) => { await action('correct', { obligationId, outcome, reason }); await sync(); return Mila.getState().obligations[obligationId]; },
     encourage: (eventId, reaction) => after(action('encourage', { eventId, reaction })),

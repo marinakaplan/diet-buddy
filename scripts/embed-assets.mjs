@@ -25,6 +25,16 @@ if (out['/index.html']) out['/index.html'].body = out['/index.html'].body.replac
   const f = out['/' + file.replace(/^\//, '')]; return f ? `${pre}${file}?v=${hash(f.body || f.b64)}"` : m;
 });
 const all = hash(Object.keys(out).sort().map(k => k + (out[k].body || out[k].b64)).join('|'));
-if (out['/sw.js']) out['/sw.js'].body = out['/sw.js'].body.replace(/const CACHE_NAME = '[^']*';/, `const CACHE_NAME = 'mila-${all}';`);
+if (out['/sw.js']) {
+  // רשימת הקבצים למטמון הראשוני: בדיוק הכתובות (עם ?v=) שהדף מבקש, כדי שפתיחה בלי רשת תמצא אותן
+  const versioned = [...out['/index.html'].body.matchAll(/(?:src|href)="(\/?[^"?]+\.(?:js|css)\?v=[^"]*)"/g)].map(m => (m[1].startsWith('/') ? m[1] : '/' + m[1]));
+  const precache = ['/', ...new Set(versioned), '/manifest.json', '/icons/icon-192.png', '/icons/badge-96.png'];
+  const missing = versioned.filter(u => !out[u.split('?')[0]]);
+  if (missing.length || versioned.length < 5) throw new Error('embed: רשימת הקבצים ל-service worker לא שלמה: ' + JSON.stringify({ versioned, missing }));
+  out['/sw.js'].body = out['/sw.js'].body
+    .replace(/const CACHE_NAME = '[^']*';/, `const CACHE_NAME = 'mila-${all}';`)
+    .replace(/const PRECACHE = \[[^\]]*\];/, `const PRECACHE = ${JSON.stringify(precache)};`);
+  if (!out['/sw.js'].body.includes(`'mila-${all}'`) || !out['/sw.js'].body.includes(JSON.stringify(precache))) throw new Error('embed: sw.js לא עודכן');
+}
 writeFileSync(new URL('../src/assets.generated.js', import.meta.url), `// נוצר אוטומטית על ידי scripts/embed-assets.mjs — לא לערוך ידנית\nexport default ${JSON.stringify(out)};\n`);
 console.log(`embedded ${Object.keys(out).length} files, ${Math.round(JSON.stringify(out).length / 1024)} KB`);
