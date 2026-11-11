@@ -1107,18 +1107,30 @@ const App = (() => {
     const itemsOf = (uid) => todayObs.filter(o => o.userId === uid).map(o => { const k = Mila.commitment(o.commitmentId); const d = k && Mila.wordDef(k.defId); return d && d.circleId === id ? { o, d } : null; }).filter(Boolean);
     const stateOf = (o) => o.outcome === 'success' ? ['done', 'עמדה'] : o.outcome === 'miss' ? ['miss', 'פספסה'] : o.outcome === 'excused' ? ['skip', 'יום חריג'] : ['wait', 'עוד לא דיווחה'];
     const loose = looseMine(id);
+    // פרגונים על ימים מסוימים: מה שאני שלחתי (הלב מתמלא), ומה שקיבלתי (מונה קטן בשורה שלי)
+    const hearts = S.socialEvents.filter(e => e.type === 'encouragement' && e.payload && e.payload.obligationId);
+    const cheered = (obId) => cheeredNow.has(obId) || hearts.some(e => e.actorId === meId && e.payload.obligationId === obId);
+    const heartsOn = (obId) => hearts.filter(e => e.payload.toUserId === meId && e.payload.obligationId === obId).length;
     const todayRows = members.map(u => {
       const mine = u.id === meId; const items = itemsOf(u.id);
       const doneN = items.filter(x => x.o.outcome === 'success').length;
-      const list = items.length ? items.map(({ o, d }) => { const [cls, txt] = stateOf(o); const label = mine ? txt.replace('עמדה', 'עמדת').replace('פספסה', 'פספסת').replace('עוד לא דיווחה', 'לדווח') : txt; return `<button class="tg-item ${cls}" ${mine ? `onclick="App.reportSheet('${o.id}')"` : 'disabled'}><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${label}</span></button>`; }).join('')
-        : `<div class="tg-none">${mine ? (loose.length ? 'האתגרים שלך עוד לא בקבוצה.' : `אין לך אתגר בקבוצה. <a href="#" onclick="event.preventDefault(); App.openPick([], { circleId: '${id}' })">להוסיף</a>`) : 'עוד אין לה אתגר בקבוצה'}</div>`;
-      // אצל חברה: לפרגן לה. אצלי: להביא לכאן אתגרים שכבר רצים אצלי מחוץ לקבוצה.
-      // ״נו?״ מופיע רק אצל מי שעוד לא דיווחה היום על הכול
+      /* השורה עצמה היא הפעולה, בלי כפתורים נוספים:
+         אצלי – לחיצה מדווחת. אצל חברה – לב קטן כשדיווחה (לחיצה מפרגנת לה על היום הזה), ו״נו?״ כשעוד לא דיווחה. */
       const nudged = poked[u.id] && Date.now() - poked[u.id] < 6 * 3600000;
-      const nudge = !mine && items.some(x => !x.o.outcome) ? `<button class="btn text xs tg-clap" aria-label="לשלוח ל${esc(u.name)}: נו, מה איתך?" ${nudged ? 'disabled' : ''} onclick="App.poke('${id}','${u.id}')">${icon('bell', 15)} ${nudged ? 'נשלח' : 'נו?'}</button>` : '';
-      const side = mine ? '' : `<span class="tg-acts">${nudge}<button class="btn text xs tg-clap" onclick="App.encourageSheet('${id}','${u.id}')">${icon('clap', 15)} לפרגן</button></span>`;
+      const list = items.length ? items.map(({ o, d }) => {
+        const [cls, txt] = stateOf(o);
+        if (mine) {
+          const label = txt.replace('עמדה', 'עמדת').replace('פספסה', 'פספסת').replace('עוד לא דיווחה', 'לדווח'); const h = heartsOn(o.id);
+          return `<button class="tg-item ${cls}" onclick="App.reportSheet('${o.id}')"><span class="tg-t">${esc(d.title)}</span>${h ? `<span class="tg-h" aria-label="${h === 1 ? 'חברה אחת פירגנה' : h + ' חברות פירגנו'}">${icon('heart', 13)}${h > 1 ? h : ''}</span>` : ''}<span class="tg-s">${label}</span></button>`;
+        }
+        if (!o.outcome) return `<button class="tg-item wait" ${nudged ? 'disabled' : ''} aria-label="לשלוח ל${esc(u.name)}: נו, מה איתך?" onclick="App.poke('${id}','${u.id}')"><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${txt}</span><span class="tg-a">${nudged ? icon('check', 14) : 'נו?'}</span></button>`;
+        if (o.outcome === 'excused') return `<div class="tg-item ${cls}"><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${txt}</span></div>`;
+        const loved = cheered(o.id);
+        return `<button class="tg-item ${cls} ${loved ? 'loved' : ''}" ${loved ? 'disabled' : ''} aria-label="${loved ? 'פירגנת' : `לפרגן ל${esc(u.name)} על ${esc(d.title)}`}" onclick="App.cheer('${id}','${u.id}','${o.id}')"><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${txt}</span><span class="tg-a">${icon('heart', 16)}</span></button>`;
+      }).join('')
+        : `<div class="tg-none">${mine ? (loose.length ? 'האתגרים שלך עוד לא בקבוצה.' : `אין לך אתגר בקבוצה. <a href="#" onclick="event.preventDefault(); App.openPick([], { circleId: '${id}' })">להוסיף</a>`) : 'עוד אין לה אתגר בקבוצה'}</div>`;
       const bring = mine && loose.length ? `<button class="btn soft sm tg-bring" onclick="App.bringSheet('${id}')">${icon('plus', 16)} להביא לכאן אתגרים שלי</button>` : '';
-      return `<div class="tg-row ${mine ? 'me' : ''}">${avatar(u, 36, items.length && doneN === items.length ? 'happy' : '')}<div class="tg-body"><div class="tg-name"><span>${mine ? 'את' : esc(u.name)}${items.length ? ` <span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</span>${side}</div>${list}${bring}</div></div>`;
+      return `<div class="tg-row ${mine ? 'me' : ''}">${avatar(u, 36, items.length && doneN === items.length ? 'happy' : '')}<div class="tg-body"><div class="tg-name"><span>${mine ? 'את' : esc(u.name)}</span>${items.length ? `<span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</div>${list}${bring}</div></div>`;
     }).join('');
     // דירוג פשוט
     const { rows } = Mila.leaderboard(id);
@@ -1129,7 +1141,7 @@ const App = (() => {
     const groupWords = Object.values(S.wordDefs).filter(d => d.circleId === id && d.kind === 'group' && d.status !== 'cancelled' && (d.endDate || '9999') >= today);
     const waiting = groupWords.filter(d => !Mila.myAdoption(d.id) && (Mila.adopters(d.id).length > 0 || d.ownerId === meId));   // אתגר שכולן עזבו לא מוצע יותר
     const waitHtml = waiting.slice(0, 2).map(sharedInviteCard).join('');
-    const feed = Mila.feed(id, 6);
+    const feed = Mila.feed(id, 30).filter(e => !(e.type === 'encouragement' && e.payload && e.payload.obligationId)).slice(0, 6);   // לב על יום מסוים נשאר בין שתיהן, לא ממלא את העדכונים
     return `${topbar({ title: c.name, subtitle: left === 0 ? `יום ${round.dayIndex} · היום האחרון` : `יום ${round.dayIndex} · נשארו ${left} ימים`, end: `<button class="icon-btn lime" aria-label="להזמין חברות" onclick="App.inviteFlow({ circleId: '${id}' })">${icon('plus', 20)}</button><button class="icon-btn" aria-label="עוד" onclick="App.circleMenu('${id}')">${icon('more', 22)}</button>` })}
       ${waitHtml}
       <div class="section-title">היום בקבוצה</div>
@@ -1419,6 +1431,20 @@ const App = (() => {
     } catch (e) { fail(e); }
   });
   function declineInvite() { clearInvite(); back('circles'); }
+
+  /* לב על יום של חברה: מתמלא מיד, והיא מקבלת התראה שאומרת על מה. בפעם הראשונה מסבירות מה קרה. */
+  const cheeredNow = new Set();
+  const cheer = once(async (circleId, toUserId, obId) => {
+    if (cheeredNow.has(obId)) return;
+    const u = Mila.user(toUserId); const name = u ? (u.name || '').split(' ')[0] : 'חברה';
+    cheeredNow.add(obId); render({ keepSheet: true });
+    const el = document.querySelector('.tg-item.loved[onclick*="' + obId + '"] .tg-a'); if (el) FX.pop(el, 'heart-pop');
+    try {
+      await Store().sendEncouragement(circleId, toUserId, 'heart', obId);
+      let first = true; try { first = !localStorage.getItem('mila.cheered'); localStorage.setItem('mila.cheered', '1'); } catch (e) { /* ignore */ }
+      if (first) toast(`פירגנת ל${name}. היא מקבלת התראה.`, 'lime');
+    } catch (e) { cheeredNow.delete(obId); render({ keepSheet: true }); fail(e); }
+  });
 
   /* ״נו, מה איתך?״ לחברה שעוד לא דיווחה היום. השרת שולח לה התראה, פעם ב-6 שעות. */
   const poked = {};
@@ -2172,7 +2198,7 @@ const App = (() => {
     sendEncouragement, rotateInvite, openInvite, rename, unblock, ideasCat: setIdeasCat, ideasToggle,
     reportSheet, confirmMiss, excuseSheet, doReport, correctionSheet, _corrPick, doCorrect,
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
-    circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, encourageSheet, poke, bringSheet, bringToggle, bringGo, circleMenu, leaveCircle, copyText, removeMember, cmSet,
+    circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, encourageSheet, poke, cheer, bringSheet, bringToggle, bringGo, circleMenu, leaveCircle, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, gwSet, gwTemplate, gwPropose, adopt, cancelProposal,
     again, retry, ageSubmit, friendsSheet, friendToggle, friendsInvite, cwFriend, groupInviteNo, groupInviteYes, teamSheet, supportHide, howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,

@@ -136,7 +136,7 @@ const Api = (() => {
     report: async (obligationId, outcome, { note = '' } = {}) => { const r = await action('report', { obligationId, outcome, note }); await sync(); return { obligation: Mila.getState().obligations[obligationId], duplicate: !!r.duplicate }; },
     correct: async (obligationId, outcome, reason) => { await action('correct', { obligationId, outcome, reason }); await sync(); return Mila.getState().obligations[obligationId]; },
     encourage: (eventId, reaction) => after(action('encourage', { eventId, reaction })),
-    sendEncouragement: (circleId, toUserId, reaction) => after(action('sendEncouragement', { circleId, toUserId, reaction })),
+    sendEncouragement: (circleId, toUserId, reaction, obligationId) => after(action('sendEncouragement', { circleId, toUserId, reaction, obligationId: obligationId || undefined })),
     block: (userId) => after(action('block', { userId })),
     unblock: (userId) => after(action('unblock', { userId })),
     reportAbuse: (o) => after(action('reportAbuse', o)),

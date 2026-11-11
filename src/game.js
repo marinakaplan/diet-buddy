@@ -560,7 +560,17 @@ export async function sendEncouragement(env, user, b) {
   if (!(await isMember(env, b.circleId, user.id)) || !(await isMember(env, b.circleId, b.toUserId))) throw err('FORBIDDEN', 'אין הרשאה', 403);
   if (await isBlocked(env, b.toUserId, user.id)) return;
   const sentToday = (await first(env, `select count(*) as n from social_events where circle_id = ? and actor_id = ? and type = 'encouragement' and created_at > ? and payload like ?`, b.circleId, user.id, new Date(Date.now() - 12 * 3600000).toISOString(), `%${String(b.toUserId)}%`)).n;
-  if (sentToday >= 5) return;   // מספיק מילים טובות לחצי יום: בלי הצפה
+  if (sentToday >= 6) return;   // מספיק מילים טובות לחצי יום: בלי הצפה
+  /* פרגון על יום מסוים באתגר שלה (הלב שבשורה): פעם אחת לכל יום, וההתראה אומרת על מה */
+  if (b.obligationId) {
+    const o = await first(env, `select o.id, o.outcome, d.title from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id where o.id = ? and o.user_id = ? and d.circle_id = ? and d.visibility <> 'private' and o.outcome in ('success','miss')`, String(b.obligationId), b.toUserId, b.circleId);
+    if (!o) throw err('NOT_FOUND', 'היום הזה לא נמצא', 404);
+    if (await first(env, `select 1 as x from social_events where circle_id = ? and actor_id = ? and type = 'encouragement' and payload like ? limit 1`, b.circleId, user.id, `%${o.id}%`)) return { already: true };
+    const name = String(user.display_name || '').split(' ')[0] || 'חברה';
+    await env.DB.batch([eventStmt(env, b.circleId, user.id, 'encouragement', { toUserId: b.toUserId, reaction: 'heart', obligationId: o.id, title: o.title }),
+      notifyStmt(env, b.toUserId, 'encouragement', o.outcome === 'success' ? `${name} פירגנה לך על ״${o.title}״` : `${name} איתך. מחר יום חדש.`, '', { circleId: b.circleId }, o.id + '|' + user.id), ...grantStmts(env, user.id, 'first_encouragement', b.circleId)]);
+    return { ok: true };
+  }
   await env.DB.batch([eventStmt(env, b.circleId, user.id, 'encouragement', { toUserId: b.toUserId, reaction: b.reaction }), notifyStmt(env, b.toUserId, 'encouragement', `${user.display_name} שלחה לך מילה טובה`, '', { circleId: b.circleId }, localDate(user.timezone)), ...grantStmts(env, user.id, 'first_encouragement', b.circleId)]);
 }
 /* ״נו, מה איתך?״ — דחיפה קטנה לחברה שעוד לא דיווחה היום, כמו poke של פעם.

@@ -409,6 +409,15 @@ const invariants = async (c) => {
     const st = await M2.state(); const ob = Object.values(st.obligations).find(o => o.userId === st.me && o.commitmentId === w.commitmentId && !o.outcome && o.status === 'open');
     await M2.ok('report', { obligationId: ob.id, outcome: 'success' });
     await M2.ok('markNotificationsRead', {});
+    // לב על היום שדיווחה: פעם אחת, וההתראה אומרת על מה
+    await N2.fail('sendEncouragement', { circleId: g, toUserId: mId, reaction: 'heart', obligationId: ob.id }, 'FORBIDDEN');
+    await L.fail('sendEncouragement', { circleId: g, toUserId: lId, reaction: 'heart', obligationId: ob.id }, 'NOT_FOUND');   // היום הזה לא שלה
+    await L.ok('sendEncouragement', { circleId: g, toUserId: mId, reaction: 'heart', obligationId: ob.id });
+    const stM = await M2.state();
+    assert.ok(stM.notifications.some(x => x.type === 'encouragement' && /ליה פירגנה לך על ״/.test(x.title)), 'ההתראה אומרת על מה');
+    assert.strictEqual(stM.socialEvents.filter(e => e.type === 'encouragement' && e.payload.obligationId === ob.id).length, 1);
+    await L.ok('sendEncouragement', { circleId: g, toUserId: mId, reaction: 'heart', obligationId: ob.id });
+    assert.strictEqual((await M2.state()).socialEvents.filter(e => e.type === 'encouragement' && e.payload.obligationId === ob.id).length, 1, 'לא פעמיים על אותו יום');
   });
 
   await test('ייצוא ומחיקת חשבון', async () => {

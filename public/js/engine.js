@@ -766,10 +766,12 @@ const Mila = (() => {
     grant(state.me, 'first_encouragement', eventId);
     save();
   }
-  function sendEncouragement(circleId, toUserId, reaction) {
-    addEvent(circleId, state.me, 'encouragement', { toUserId, reaction });
+  function sendEncouragement(circleId, toUserId, reaction, obligationId = null) {
+    const o = obligationId ? state.obligations[obligationId] : null; const d = o ? state.wordDefs[(state.commitments[o.commitmentId] || {}).defId] : null;
+    if (o && state.socialEvents.some(e => e.type === 'encouragement' && e.actorId === state.me && e.payload && e.payload.obligationId === o.id)) return;
+    addEvent(circleId, state.me, 'encouragement', o ? { toUserId, reaction: 'heart', obligationId: o.id, title: d ? d.title : '' } : { toUserId, reaction });
     grant(state.me, 'first_encouragement', circleId);
-    notify(toUserId, 'encouragement', `${me().name} שלחה לך מילה טובה`, '', { circleId });
+    notify(toUserId, 'encouragement', o && d ? (o.outcome === 'success' ? `${me().name} פירגנה לך על ״${d.title}״` : `${me().name} איתך. מחר יום חדש.`) : `${me().name} שלחה לך מילה טובה`, '', { circleId });
     save();
   }
 
