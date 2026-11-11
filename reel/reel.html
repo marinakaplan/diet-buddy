@@ -175,10 +175,14 @@ function render(t){
 
   // 0 hook
   drawFaces($('s0'),t);
-  up($('s0a'),t,-.3,.3,60); up($('s0b'),t,L[1]);
-  [['p1',L[2]],['p2',L[3]],['p3',L[4]]].forEach(([id,a],i)=>{const el=$(id);up(el,t,a-.05,.22,70);
-    const s=eo(lin(t,E[4]+.05+i*.15,E[4]+.25+i*.15)); el.querySelector('.x').style.width=`calc(${s*100}% - ${s*160}px)`;});
-  pop($('s0z'),t,L[5]-.05);
+  // cover: the first 0.3 s show the whole hook (promises crossed out + sleepy face) so the share thumbnail
+  // isn't empty, then everything but the title drops away and the hook builds up line by line
+  const cov=1-lin(t,.3,.45), covY=eo(lin(t,.3,.45))*60;
+  const withCover=(el)=>{const o=+el.style.opacity||0; if(cov>o){el.style.opacity=cov; el.style.transform=`translateY(${covY}px)`;}};
+  up($('s0a'),t,-.3,.3,60); up($('s0b'),t,L[1]); withCover($('s0b'));
+  [['p1',L[2]],['p2',L[3]],['p3',L[4]]].forEach(([id,a],i)=>{const el=$(id);up(el,t,a-.05,.22,70); withCover(el);
+    const s=Math.max(cov>0&&t<L[2]?1:0, eo(lin(t,E[4]+.05+i*.15,E[4]+.25+i*.15))); el.querySelector('.x').style.width=`calc(${s*100}% - ${s*160}px)`;});
+  pop($('s0z'),t,L[5]-.05); withCover($('s0z'));
   // 1 welcome
   pop($('s1l'),t,L[6]-.05); up($('s1br'),t,L[6]+.05); up($('s1a'),t,L[6]+.05); up($('s1b'),t,L[7]); markW($('m1'),t,L[7]+.45);
   logo($('logo1'),{brow:1-lin(t,L[7]+.5,L[7]+.75),smile:eo(lin(t,L[7]+.5,L[7]+.85)),blink:blinkAt(t,[L[6]+.5]),glance:Math.sin(clamp((t-L[6])/.9)*Math.PI)*-2.5});
