@@ -116,12 +116,12 @@ const SFX = [
   [L[0],'pop',.5],[L[2],'pop',.6],[L[3],'pop',.6],[L[4],'pop',.6],
   [E[4]+.05,'scribble',.6],[E[4]+.2,'scribble',.6],[E[4]+.35,'scribble',.6],[L[5]-.05,'boing',.7],
   [L[6],'whoosh',.5],[L[7]+.45,'ding',.45],
-  [L[8],'whoosh',.4],[L[8]+.84,'thud',.9],[L[8]+1.78,'thud',.9],...[0,1,2,3].map(i=>[L[8]+2.6+i*.1,'pop',.5]),
+  [L[8],'whoosh',.4],[L[8]+.6,'thud',.9],[L[8]+1.5,'thud',.9],...[0,1,2,3].map(i=>[L[8]+2.95+i*.1,'pop',.5]),
   [L[9],'whoosh',.45],[L[9]+.6,'click',.4],[L[10]-.12,'click',.8],[L[10]+.05,'ding',.55],[L[10]+.1,'pop',.6],
   [L[11],'whoosh',.45],[L[11]+.85,'pop',.6],
-  [L[12],'whoosh',.45],[L[12]+.9,'pop',.6],[L[12]+2.2,'ding',.35],
-  [L[13],'thud',.8],[L[13]+.7,'thud',.8],[L[14],'whoosh',.3],[L[14]+.3,'ding',.45],
-  [L[15],'whoosh',.5],[L[15]+.05,'pop',.6],[L[15]+.75,'sparkle',.6],
+  [L[12],'whoosh',.45],[L[12]+1.1,'pop',.6],[L[12]+3.1,'ding',.35],
+  [L[13],'thud',.8],[L[13]+1.55,'thud',.8],[L[14],'whoosh',.3],[L[14]+.3,'ding',.45],
+  [L[15],'whoosh',.5],[L[15]+.05,'pop',.6],[L[15]+1.0,'sparkle',.6],
 ];
 
 const $=id=>document.getElementById(id);
@@ -183,10 +183,10 @@ function render(t){
   // 1 welcome
   pop($('s1l'),t,L[6]-.05); up($('s1br'),t,L[6]+.05); up($('s1a'),t,L[6]+.05); up($('s1b'),t,L[7]); markW($('m1'),t,L[7]+.45);
   logo($('logo1'),{brow:1-lin(t,L[7]+.5,L[7]+.75),smile:eo(lin(t,L[7]+.5,L[7]+.85)),blink:blinkAt(t,[L[6]+.5]),glance:Math.sin(clamp((t-L[6])/.9)*Math.PI)*-2.5});
-  // 2 rules (word times: שלושה +0.84, ארבעה עשר +1.78, החברות +2.6)
-  pop($('s2a'),t,L[8]+.8); out($('s2a'),t,L[8]+1.65); pop($('s2b'),t,L[8]+1.75); out($('s2b'),t,L[8]+2.5);
-  up($('s2c'),t,L[8]+2.55,.2,0);
-  FRIENDS.forEach((f,i)=>{const el=$('av'+i);el.innerHTML=avatarSVG(AV[f[0]],f[1],190,blinkAt(t,[L[8]+3.3+i*.08]));pop(el,t,L[8]+2.6+i*.1,.3);el.style.transform+=` translateY(${Math.sin(t*4+i)*7}px)`;});
+  // 2 rules (word times: שלושה +0.6, ארבעה עשר +1.5, החברות +2.95)
+  pop($('s2a'),t,L[8]+.58); out($('s2a'),t,L[8]+1.4); pop($('s2b'),t,L[8]+1.48); out($('s2b'),t,L[8]+2.8);
+  up($('s2c'),t,L[8]+2.9,.2,0);
+  FRIENDS.forEach((f,i)=>{const el=$('av'+i);el.innerHTML=avatarSVG(AV[f[0]],f[1],190,blinkAt(t,[L[8]+3.5+i*.08]));pop(el,t,L[8]+2.95+i*.1,.3);el.style.transform+=` translateY(${Math.sin(t*4+i)*7}px)`;});
   // 3 report
   up($('s3t'),t,L[9],.3); phoneIn($('s3p'),t,L[9]);
   const rp=eo(lin(t,L[9]+.6,L[9]+.85)); $('im_report').style.opacity=rp; $('im_report').style.transform=`translateY(${(1-rp)*120}px)`;
@@ -198,13 +198,13 @@ function render(t){
   const x=lin(t,L[11]+.15,L[11]+.85),sc=x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2; $('im_circle').style.transform=`translateY(${-sc*560}px)`;
   drawFaces($('s4'),t); pop($('s4c'),t,L[11]+.85); $('s4c').style.transform+=' rotate(-5deg)';
   // 5 streak
-  up($('s5t'),t,L[12],.3); phoneIn($('s5p'),t,L[12]); markW($('m5'),t,L[12]+2.2);
-  drawFaces($('s5'),t); pop($('s5c'),t,L[12]+.9); $('s5c').style.transform+=' rotate(4deg)';
+  up($('s5t'),t,L[12],.3); phoneIn($('s5p'),t,L[12]); markW($('m5'),t,L[12]+3.1);
+  drawFaces($('s5'),t); pop($('s5c'),t,L[12]+1.1); $('s5c').style.transform+=' rotate(4deg)';
   // 6 no money
-  up($('s6a'),t,L[13],.3); up($('s6b'),t,L[13]+.7,.3); up($('s6c'),t,L[14],.3); markW($('m6'),t,L[14]+.3);
+  up($('s6a'),t,L[13],.3); up($('s6b'),t,L[13]+1.55,.3); up($('s6c'),t,L[14],.3); markW($('m6'),t,L[14]+.3);
   // 7 end
   pop($('s7l'),t,L[15]); logo($('logo2'),{brow:1-lin(t,L[15]+.35,L[15]+.6),smile:eo(lin(t,L[15]+.35,L[15]+.7)),blink:blinkAt(t,[L[15]+1.4]),glance:0});
-  up($('s7a'),t,L[15]+.1); up($('s7b'),t,L[15]+.35); up($('s7c'),t,L[15]+.7); up($('s7d'),t,L[15]+1.0);
+  up($('s7a'),t,L[15]+.1); up($('s7b'),t,L[15]+.35); up($('s7c'),t,L[15]+1.0); up($('s7d'),t,L[15]+1.3);
 }
 window.render=render; window.DUR=DUR; window.SFX=SFX;
 window.VO=window.VO_LINES.map(v=>[v[0],v[1],v[2]]);

@@ -1,58 +1,60 @@
-"""Tightens the raw ElevenLabs take: shortens pauses, speeds up, and writes
-audio/vo.wav plus timing.js (line start/end times the reel animates to)."""
+"""Builds the voiceover from three ElevenLabs takes (fully-nikud Hebrew, Marina hebrew voice, eleven_v3):
+shortens long pauses, applies a light speed-up, normalizes loudness, and writes audio/vo.wav plus
+timing.js (each line's start/end in the final mix, which the reel animates to).
+Line times come from an independent Scribe transcription of each take."""
 import subprocess, re, json, os
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
-RAW = os.path.join(HERE, 'vo-raw.mp3')
-# the hook (everything up to 'ו...מחר?') is rapid-fire; the rest is quick but clear
-HOOK_END, HOOK_TEMPO, TEMPO = 13.55, 1.3, 1.18
-# Lines of the script with their start/end in the raw take (word alignment from ElevenLabs Scribe, take B).
-LINES = [
-  (0.08, 1.28, 'די יפה שלי,'),
-  (1.36, 3.36, 'כמה פעמים אמרת לעצמך:'),
-  (3.44, 6.04, '״די, ממחר אני לא צועקת יותר על הילדים!״'),
-  (6.08, 8.80, '״ממחר אני עולה רק במדרגות!״'),
-  (8.88, 10.96, '״ממחר אני נחמדה יותר לבעלי!״'),
-  (12.43, 13.31, 'ו...מחר?'),
-  (14.19, 15.15, 'כולנו מבטיחות.'),
-  (15.31, 16.67, 'בואי נראה מי מקיימת!'),
-  (16.95, 21.55, 'בוחרות עד שלושה אתגרים, לארבעה עשר יום, יחד עם החברות.'),
-  (21.87, 24.59, 'כל ערב, שאלה אחת: עמדתי במילה?'),
-  (25.23, 26.83, 'עמדת? נקודה!'),
-  (27.47, 28.75, 'והקבוצה רואה מי מובילה.'),
-  (29.07, 32.75, 'פספסת? הרצף מתאפס, אבל הנקודות נשארות.'),
-  (32.99, 34.83, 'בלי כסף. בלי קופה.'),
-  (35.63, 36.80, 'רק המילה שלך.'),
-  (37.74, 40.03, 'מילה. תעמדי במילה שלך!'),
+CHUNKS = [  # (file, tempo, max pause kept, [(start, end, caption)])
+  ('vo-hook.mp3', 1.15, 0.08, [
+    (0.50, 1.32, 'די יפה שלי,'),
+    (1.88, 3.30, 'כמה פעמים אמרת לעצמך:'),
+    (3.52, 6.50, '״די! ממחר אני לא צועקת יותר על הילדים!״'),
+    (7.08, 9.16, '״ממחר אני עולה רק במדרגות!״'),
+    (9.70, 11.82, '״ממחר אני נחמדה יותר לבעלי...״'),
+    (12.68, 13.74, 'ו...מחר?')]),
+  ('vo-body.mp3', 1.08, 0.22, [
+    (0.08, 1.22, 'כולנו מבטיחות.'),
+    (1.76, 3.02, 'בואי נראה מי מקיימת!'),
+    (3.90, 7.72, 'בוחרות עד שלושה אתגרים, לארבעה עשר יום, יחד עם החברות.'),
+    (8.28, 10.92, 'כל ערב, שאלה אחת: עמדתי במילה?'),
+    (11.62, 13.06, 'עמדת? נקודה!'),
+    (13.78, 15.56, 'והקבוצה רואה מי מובילה.'),
+    (16.32, 20.28, 'פספסת? הרצף מתאפס, אבל הנקודות נשארות.')]),
+  ('vo-end.mp3', 1.00, 0.30, [
+    (0.12, 2.26, 'בלי כסף. בלי קופה.'),
+    (3.42, 4.42, 'רק המילה שלך.'),
+    (5.38, 7.60, 'מילה. תעמדי במילה שלך!')]),
 ]
-log = subprocess.run(['ffmpeg', '-hide_banner', '-i', RAW, '-af', 'silencedetect=noise=-35dB:d=0.22', '-f', 'null', '-'], capture_output=True, text=True).stderr
-st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]; en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
-dur = float(re.search(r'Duration: (\d+):(\d+):([\d.]+)', log).groups()[2])
-KEEP = 0.12
-keep, cur = [], 0.0
-for s, e in zip(st, en):
-    # keep a comic beat before "ו...מחר?"
-    k = 0.22 if 10.9 < s < 12.1 else (0.06 if e < HOOK_END else KEEP)
-    if e - s > k:
-        keep.append((cur, s + k / 2)); cur = e - k / 2
-keep.append((cur, dur))
-# split the kept pieces at the hook boundary so each part gets its own tempo
-pieces = []
-for a, b in keep:
-    if a < HOOK_END < b: pieces += [(a, HOOK_END), (HOOK_END, b)]
-    else: pieces.append((a, b))
-keep = pieces
-def remap(t):
-    acc = 0.0
-    for a, b in keep:
-        tempo = HOOK_TEMPO if b <= HOOK_END else TEMPO
-        if t <= b: return acc + max(0.0, t - a) / tempo
-        acc += (b - a) / tempo
-    return acc
-parts = ''.join(f'[0:a]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,atempo={HOOK_TEMPO if b <= HOOK_END else TEMPO}[p{i}];' for i, (a, b) in enumerate(keep))
-flt = parts + ''.join(f'[p{i}]' for i in range(len(keep))) + f'concat=n={len(keep)}:v=0:a=1,loudnorm=I=-14:TP=-1.5:LRA=9[out]'
-subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', RAW, '-filter_complex', flt, '-map', '[out]', '-ar', '48000', '-ac', '1', os.path.join(HERE, 'vo.wav')], check=True)
-lines = [[round(remap(a), 3), round(remap(b), 3), t] for a, b, t in LINES]
-total = round(remap(dur), 3)
+GAP = 0.10   # silence between takes
+def keep_segments(path, maxpause, first, last):
+    log = subprocess.run(['ffmpeg', '-hide_banner', '-i', path, '-af', 'silencedetect=noise=-30dB:d=0.12', '-f', 'null', '-'], capture_output=True, text=True).stderr
+    st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]; en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
+    a0, b0 = max(0, first - 0.08), last + 0.15   # trim lead-in (sigh stays) and tail
+    segs, cur = [], a0
+    for s, e in zip(st, en):
+        if e <= a0 or s >= b0: continue
+        if e - s > maxpause:
+            segs.append((cur, s + maxpause / 2)); cur = e - maxpause / 2
+    segs.append((cur, b0))
+    return segs
+inputs, parts, labels, lines, t0 = [], '', [], [], 0.0
+for ci, (fname, tempo, maxpause, ls) in enumerate(CHUNKS):
+    path = os.path.join(HERE, fname); inputs += ['-i', path]
+    segs = keep_segments(path, maxpause, ls[0][0] - (0.45 if ci == 0 else 0), ls[-1][1])
+    def remap(t):
+        acc = 0.0
+        for a, b in segs:
+            if t <= b: return t0 + (acc + max(0.0, t - a)) / tempo
+            acc += b - a
+        return t0 + acc / tempo
+    for a, b, cap in ls: lines.append([round(remap(a), 3), round(remap(b), 3), cap])
+    for a, b in segs:
+        k = len(labels); parts += f'[{ci}:a]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,atempo={tempo}[p{k}];'; labels.append(f'[p{k}]')
+    parts += f'anullsrc=r=44100:cl=mono,atrim=0:{GAP}[g{ci}];'; labels.append(f'[g{ci}]')
+    t0 += sum(b - a for a, b in segs) / tempo + GAP
+flt = parts + ''.join(labels) + f'concat=n={len(labels)}:v=0:a=1,aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=9[out]'
+subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', *inputs, '-filter_complex', flt, '-map', '[out]', '-ar', '48000', '-ac', '1', os.path.join(HERE, 'vo.wav')], check=True)
+total = round(t0, 3)
 with open(os.path.join(ROOT, 'timing.js'), 'w') as f:
     f.write('// generated by audio/tighten.py: voiceover line times (s) in the final mix\n')
     f.write('window.VO_LINES = ' + json.dumps(lines, ensure_ascii=False, indent=1) + ';\nwindow.VO_END = ' + str(total) + ';\n')
