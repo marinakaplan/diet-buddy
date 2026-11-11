@@ -423,7 +423,7 @@ const App = (() => {
 
       ${main ? `<div class="card tight stat-strip">
           <div><b>${main.st.dayIndex}</b><span>יום</span></div>
-          <div><b>${bank.earnedCurrentRound}</b><span>הצלחות</span></div>
+          <div><b>${bank.earnedCurrentRound}</b><span>נקודות</span></div>
           <div><b>${bestStreak}</b><span>ימים ברצף</span></div>
         </div>` : ''}
 
@@ -921,7 +921,7 @@ const App = (() => {
     // דירוג פשוט
     const { rows } = Mila.leaderboard(id);
     const ranked = rows.filter(r => r.ranked);
-    const rankHtml = ranked.length ? ranked.map(r => `<div class="rk2 ${r.user.id === meId ? 'me' : ''}"><span class="rk2-p ${r.place === 1 ? 'first' : ''}">${r.place}</span><span class="rk2-n">${r.user.id === meId ? 'את' : esc(r.user.name)}</span><span class="rk2-v">${Math.round(r.rate * 100)}%</span></div>`).join('')
+    const rankHtml = ranked.length ? ranked.map(r => `<div class="rk2 ${r.user.id === meId ? 'me' : ''}"><span class="rk2-p ${r.place === 1 ? 'first' : ''}">${r.place}</span><span class="rk2-n">${r.user.id === meId ? 'את' : esc(r.user.name)}</span><span class="rk2-pts">${r.success} נק׳</span><span class="rk2-v">${Math.round(r.rate * 100)}%</span></div>`).join('')
       : `<div class="tiny muted">הדירוג מתחיל אחרי ${Mila.RULES.MIN_RANKED_EVENTS} דיווחים של כל אחת.</div>`;
     // אתגר משותף שמחכה לי
     const groupWords = Object.values(S.wordDefs).filter(d => d.circleId === id && d.kind === 'group' && d.status !== 'cancelled' && (d.endDate || '9999') >= today);
