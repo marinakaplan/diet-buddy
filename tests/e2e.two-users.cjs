@@ -185,7 +185,8 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   assert.strictEqual(offline, 'OFFLINE');
   await a.page.reload().catch(() => {});
   await a.ctx.setOffline(false);
-  await a.page.goto(BASE + '/'); await ready(a); await a.page.waitForFunction(() => Api.isCloud(), null, { timeout: 20000 });
+  // כשהרשת חוזרת האפליקציה טוענת את עצמה מחדש לבד; ניווט שלנו באותו רגע עלול להתנגש בזה, ולכן לא נכשלות עליו
+  await a.page.goto(BASE + '/').catch(() => {}); await a.page.waitForFunction(() => typeof Api !== 'undefined' && Api.isCloud(), null, { timeout: 30000 }); await ready(a);
 
   console.log('11. PWA: manifest ו-service worker נגישים; התנתקות');
   const man = await (await fetch(BASE + '/manifest.json')).json(); assert.strictEqual(man.dir, 'rtl'); assert.ok(man.icons.length);
