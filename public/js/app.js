@@ -419,6 +419,7 @@ const App = (() => {
         </div>
       </div>
       <div class="greeting"><div><div class="hello">${greet}, ${esc((u.name || '').split(' ')[0])} ${icon(hour >= 17 || hour < 5 ? 'moon' : 'sun', 22)}</div><div class="sub">${fresh ? 'בואי נתחיל.' : todaySubtitle(cards)}</div></div></div>
+      ${installCard()}
       ${Mila.getState().meta.demo ? `<div class="demo-banner"><span>זו דוגמה עם חברות מומצאות.</span><button class="btn dark sm" onclick="App.exitDemo()">יציאה מהדוגמה</button></div>` : ''}
 
       ${main ? `<div class="card tight stat-strip">
@@ -434,7 +435,6 @@ const App = (() => {
 
       ${pendingSum.length ? pendingSum.slice(0, 1).map(c => `<div class="card pastel-lav clickable tight" onclick="App.go('summary',{id:'${c.id}'})"><div style="display:flex;align-items:center;gap:12px"><span class="tile lav">${icon('medal')}</span><div style="flex:1"><div class="bold">הסבב נגמר: ${esc(Mila.wordDef(c.defId).title)}</div><div class="small muted">איך הלך?</div></div>${icon('chev', 20)}</div></div>`).join('') : ''}
 
-      ${installCard()}
       ${fresh ? `<div class="card start-card">
           <div class="start-title">במה את עומדת ב-14 הימים הקרובים?</div>
           <ol class="start-steps">
@@ -1127,8 +1127,8 @@ const App = (() => {
   function invNext() { inv.step = 2; render(); window.scrollTo({ top: 0 }); }
   function invBack() { inv.step = 1; render(); }
   function invHeadBack() { if (inv && inv.step === 2) invBack(); else inviteClose(); }
-  function inviteClose() { const cid = inv && inv.circleId; inv = null; back(cid ? 'circles' : 'today'); }
-  function inviteDone() { const cid = inv.circleId; inv = null; stack = [{ name: 'circles', params: {} }]; go('circle', { id: cid }); }
+  function inviteClose() { const cid = inv && inv.circleId; const created = inv && inv.created; inv = null; back(cid ? 'circles' : 'today'); if (created) afterFirstCommit(); }
+  function inviteDone() { const cid = inv.circleId; const created = inv.created; inv = null; stack = [{ name: 'circles', params: {} }]; go('circle', { id: cid }); if (created) afterFirstCommit(); }
   function inviteRotate() { const msgs = inviteMessages(inv.kind, inv.wordTitle, inv.libraryId); inv.idx = (inv.idx + 1) % msgs.length; inv.message = msgs[inv.idx]; const t = $('#inv-msg'); if (t) t.value = inv.message; }
   function inviteMsg(v) { inv.message = v; }
   async function inviteSend(how) {
@@ -1414,7 +1414,7 @@ const App = (() => {
     const d = I().detect(); const st = I().get();
     if (st.cardHidden && Date.now() - st.cardHidden < 5 * 864e5) return '';
     const x = `<button class="icon-btn inst-x" aria-label="לא עכשיו" onclick="event.stopPropagation(); App.installHide()">${icon('x', 16)}</button>`;
-    if (!d.standalone && d.os !== 'desktop') return `<div class="card tight clickable inst-card" onclick="App.installSheet()">${x}<div style="display:flex;align-items:center;gap:12px"><img class="inst-icon sm" src="/icons/icon-192.png" alt=""><div style="flex:1"><div class="bold">מילה על המסך הראשי</div><div class="small muted">נפתחת כמו אפליקציה ומזכירה לך לדווח. 30 שניות.</div></div>${icon('chev', 20)}</div></div>`;
+    if (!d.standalone && d.os !== 'desktop') return `<div class="card tight inst-card inst-hero">${x}<div style="display:flex;align-items:center;gap:12px"><img class="inst-icon sm" src="/icons/icon-192.png" alt=""><div style="flex:1"><div class="bold">שמרי את מילה במסך הבית</div><div class="small">ככה היא נפתחת כמו אפליקציה ומזכירה לך לדווח.</div></div></div><button class="btn dark mt" onclick="App.installSheet()">איך שומרים? 30 שניות</button></div>`;
     if (d.pushApi && I().pushChecked && !I().pushOn && I().permission() !== 'denied') { const rt = Mila.me().settings.reminderTime || '20:00'; return `<div class="card tight inst-card">${x}<div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('bell', 22)}</span><div style="flex:1"><div class="bold">שמילה תזכיר לך ב-${esc(rt)}?</div><div class="small muted">רק אם עוד לא דיווחת.</div></div><button class="btn dark sm" onclick="App.pushEnable()">להפעיל</button></div></div>`; }
     return '';
   }
