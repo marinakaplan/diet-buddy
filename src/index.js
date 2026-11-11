@@ -9,7 +9,7 @@ import { adminStats, track } from './admin.js';
 import * as push from './push.js';
 
 const ACTIONS = {
-  createPersonalWord: game.createPersonalWord, proposeGroupWord: game.proposeGroupWord, adoptGroupWord: game.adoptGroupWord, cancelProposal: game.cancelProposal,
+  createPersonalWord: game.createPersonalWord, shareToCircle: game.shareToCircle, proposeGroupWord: game.proposeGroupWord, adoptGroupWord: game.adoptGroupWord, cancelProposal: game.cancelProposal,
   endCommitment: game.endCommitment, report: game.report, correct: game.correct,
   createCircle: game.createCircle, updateCircle: game.updateCircle, createInvite: game.createInvite, inviteFriends: game.inviteFriends, revokeCircleInvites: game.revokeCircleInvites,
   previewInvite: game.previewInvite, acceptInvite: game.acceptInvite, leaveCircle: game.leaveCircle, removeMember: game.removeMember, setMemberRole: game.setMemberRole, deleteCircle: game.deleteCircle, overtake: game.overtake,

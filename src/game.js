@@ -121,6 +121,21 @@ export async function createPersonalWord(env, user, b) {
   return { defId: did, commitmentId: kid };
 }
 
+/* להביא לקבוצה אתגרים אישיים שכבר רצים. האתגר נשאר אותו אתגר (אותם ימים ואותן נקודות),
+   ומעכשיו חברות הקבוצה רואות אותו ואת הדיווחים עליו. רק אתגר שעוד לא שייך לקבוצה אחרת. */
+export async function shareToCircle(env, user, b) {
+  const ids = Array.isArray(b.commitmentIds) ? [...new Set(b.commitmentIds.map(String))].slice(0, 3) : [];
+  if (!ids.length) throw err('VALIDATION', 'צריך לבחור אתגר');
+  if (!(await isMember(env, b.circleId, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
+  const rows = await all(env, `select d.id as def_id, d.title from word_commitments k join word_definitions d on d.id = k.definition_id
+    where k.id in (${ids.map(() => '?').join(',')}) and k.user_id = ? and k.status = 'active' and d.kind = 'personal' and d.owner_id = ? and d.circle_id is null`, ...ids, user.id, user.id);
+  if (!rows.length) return { shared: 0 };
+  const batch = [];
+  for (const r of rows) batch.push(S(env, `update word_definitions set circle_id = ?, visibility = 'status' where id = ? and circle_id is null`, b.circleId, r.def_id), eventStmt(env, b.circleId, user.id, 'word_committed', { defId: r.def_id, title: r.title }));
+  await runBatch(env, batch);
+  return { shared: rows.length };
+}
+
 /* אתגר משותף: אותו אתגר לכל מי שמצטרפת בקבוצה. מי שפותחת אותו כבר בפנים (ההתחייבות שלה נוצרת באותה פעולה),
    והחברות מקבלות הזמנה להצטרף בלחיצה. */
 export async function proposeGroupWord(env, user, b) {

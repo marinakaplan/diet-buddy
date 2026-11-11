@@ -350,6 +350,19 @@ const Mila = (() => {
     return { adult, adultFrom: u.adultFrom };
   }
   /* יצירת מילה אישית (ואופציונלית – חשיפה לקבוצה אחד) */
+  /* להביא לקבוצה אתגרים אישיים שכבר רצים (רק כאלה שעוד לא שייכים לקבוצה) */
+  function shareToCircle(circleId, commitmentIds = []) {
+    if (!isMember(circleId)) throw err('את לא חברה בקבוצה הזו');
+    let shared = 0;
+    for (const id of commitmentIds) {
+      const k = state.commitments[id]; const d = k && state.wordDefs[k.defId];
+      if (!k || k.userId !== state.me || k.status !== 'active' || !d || d.kind !== 'personal' || d.circleId) continue;
+      d.circleId = circleId; d.visibility = 'status'; shared++;
+      addEvent(circleId, state.me, 'word_committed', { defId: d.id, title: d.title });
+    }
+    save();
+    return { shared };
+  }
   function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, visibility = circleId ? 'status' : 'private', libraryId = null, reward = '', rewardShared = false, shareSensitive = false }) {
     let lib = null, category = null, sensitive = false;
     if (libraryId) {
@@ -843,7 +856,7 @@ const Mila = (() => {
     createCircle, updateCircle, myCircles, membership, isMember, isAdmin, circleMembers, circleRound, leaveCircle, removeMember, setMemberRole, deleteCircle,
     createInvite, currentInvite, revokeInvite, revokeCircleInvites, inviteUrl, previewInvite, acceptInvite,
     wordDef, commitment, myCommitments, activeCommitments, obligationsOf, capCheck, activeWordsOn,
-    isAdult, setBirthDate, createPersonalWord, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment,
+    isAdult, setBirthDate, createPersonalWord, shareToCircle, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment,
     windowOf, isOpenNow, refreshStatuses, excusesUsed, report, canCorrect, correct,
     activeLedger, bankSummary, circlePool, circlePoolAllTime, streak, commitmentStats,
     todayCards, decorate, upcomingWords, wordHistory, leaderboard, rankInsight, previousRoundWinner,

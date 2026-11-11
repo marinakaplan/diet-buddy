@@ -368,6 +368,24 @@ const invariants = async (c) => {
     await Q.ok('block', { userId: (await Pp.state()).me });
     assert.strictEqual((await Pp.ok('inviteFriends', { circleId: g3, userIds: [qId] })).invited, 0);
   });
+  await test('להביא אתגר קיים לקבוצה: רק חברה בקבוצה, רק אתגר שלה שעוד לא בקבוצה, והחברות רואות אותו', async () => {
+    const H = new Client('H'), J = new Client('J'), K = new Client('K');
+    await H.login(`h.${stamp}@test.mila`, 'הילה'); await H.profile('הילה'); await J.login(`j.${stamp}@test.mila`, 'יעלי'); await J.profile('יעלי'); await K.login(`k.${stamp}@test.mila`, 'כרמל'); await K.profile('כרמל');
+    const g = (await H.ok('createCircle', { name: 'מביאות' })).circleId;
+    const w = await J.ok('createPersonalWord', { libraryId: 'hab_read_10' });
+    await J.fail('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] }, 'FORBIDDEN');     // עוד לא חברה
+    await J.ok('acceptInvite', { token: (await H.ok('createInvite', { circleId: g })).token });
+    await J.fail('shareToCircle', { circleId: g, commitmentIds: [] }, 'VALIDATION');
+    assert.ok(!Object.values((await H.state()).wordDefs).some(d => d.id === w.defId), 'לפני: החברה לא רואה אתגר פרטי');
+    await K.ok('acceptInvite', { token: (await H.ok('createInvite', { circleId: g })).token });
+    assert.strictEqual((await K.ok('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] })).shared, 0, 'אי אפשר להביא אתגר של מישהי אחרת');
+    assert.strictEqual((await J.ok('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] })).shared, 1);
+    const d = Object.values((await H.state()).wordDefs).find(x => x.id === w.defId);
+    assert.ok(d && d.circleId === g, 'אחרי: החברה רואה את האתגר בקבוצה');
+    assert.strictEqual((await J.ok('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] })).shared, 0, 'פעם שנייה לא עושה כלום');
+    assert.ok((await H.state()).socialEvents.some(e => e.type === 'word_committed' && e.payload.defId === w.defId), 'נרשם בעדכוני הקבוצה');
+  });
+
   await test('ייצוא ומחיקת חשבון', async () => {
     const ex = await Z.ok('exportData'); assert.ok(ex.user && Array.isArray(ex.ledger));
     await Z.ok('deleteAccount'); const r = await Z.req('/api/state'); assert.strictEqual(r.status, 401);
