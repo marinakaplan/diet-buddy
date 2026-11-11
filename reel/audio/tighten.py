@@ -16,7 +16,10 @@ CHUNKS = [  # (file, tempo, max pause kept, [(start, end, caption)])
   ('vo-body.mp3', 1.08, 0.22, [
     (0.08, 1.22, 'כולנו מבטיחות.'),
     (1.76, 3.02, 'בואי נראה מי מקיימת!'),
-    (3.90, 7.72, 'בוחרות עד שלושה אתגרים, לארבעה עשר יום, יחד עם החברות.'),
+    ]),
+  ('vo-rules.mp3', 1.08, 0.22, [       # re-recorded: "ארבעה עשר ימים" (was "יום")
+    (0.10, 4.12, 'בוחרות עד שלושה אתגרים, לארבעה עשר ימים, יחד עם החברות.')]),
+  ('vo-body.mp3', 1.08, 0.22, [
     (8.28, 9.66, 'כל ערב, שאלה אחת:')]),
   # feminine forms re-recorded with IPA (/aˈmadt/, /pisˈpast/); the body take said "amadeta"/"pispasta"
   ('vo-amadt.mp3', 1.08, 0.30, [
@@ -31,7 +34,7 @@ CHUNKS = [  # (file, tempo, max pause kept, [(start, end, caption)])
     (5.38, 7.60, 'מילה. תעמדי במילה שלך!')]),
 ]
 GAP = 0.10   # silence between takes
-GAPS = {0: 0.12, 2: 0.25, 3: 0.25, 4: 0.25}   # short breath after the opening; natural beats between spliced sentences
+GAPS = {0: 0.12, 2: 0.15, 3: 0.2, 4: 0.25, 5: 0.25, 6: 0.25}   # short breath after the opening; natural beats between spliced sentences
 def keep_segments(path, maxpause, first, last):
     log = subprocess.run(['ffmpeg', '-hide_banner', '-i', path, '-af', 'silencedetect=noise=-30dB:d=0.12', '-f', 'null', '-'], capture_output=True, text=True).stderr
     st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]; en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
@@ -39,6 +42,8 @@ def keep_segments(path, maxpause, first, last):
     segs, cur = [], a0
     for s, e in zip(st, en):
         if e <= a0 or s >= b0: continue
+        if e >= b0:                      # pause runs past the end of this piece: stop at the speech end
+            segs.append((cur, min(b0, s + maxpause / 2))); return segs
         if e - s > maxpause:
             segs.append((cur, s + maxpause / 2)); cur = e - maxpause / 2
     segs.append((cur, b0))

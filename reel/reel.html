@@ -115,7 +115,7 @@ const SFX = [
   [L[0],'pop',.5],[L[2],'pop',.6],[L[3],'pop',.6],[L[4],'pop',.6],
   [E[4]+.05,'scribble',.6],[E[4]+.2,'scribble',.6],[E[4]+.35,'scribble',.6],[L[5]-.05,'boing',.7],
   [L[6],'whoosh',.5],[L[7]+.45,'ding',.45],
-  [L[8],'whoosh',.4],[L[8]+.6,'thud',.9],[L[8]+1.5,'thud',.9],...[0,1,2,3].map(i=>[L[8]+2.95+i*.1,'pop',.5]),
+  [L[8],'whoosh',.4],[L[8]+.57,'thud',.9],[L[8]+1.54,'thud',.9],...[0,1,2,3].map(i=>[L[8]+3.2+i*.1,'pop',.5]),
   [L[9],'whoosh',.45],[L[9]+.6,'click',.4],[L[10]+.83,'click',.8],[L[10]+1.0,'ding',.55],[L[10]+1.05,'pop',.6],
   [L[11],'whoosh',.45],[L[11]+.85,'pop',.6],
   [L[12],'whoosh',.45],[L[12]+1.1,'pop',.6],[L[12]+3.1,'ding',.35],
@@ -182,10 +182,10 @@ function render(t){
   // 1 welcome
   pop($('s1l'),t,L[6]-.05); up($('s1br'),t,L[6]+.05); up($('s1a'),t,L[6]+.05); up($('s1b'),t,L[7]); markW($('m1'),t,L[7]+.45);
   logo($('logo1'),{brow:1-lin(t,L[7]+.5,L[7]+.75),smile:eo(lin(t,L[7]+.5,L[7]+.85)),blink:blinkAt(t,[L[6]+.5]),glance:Math.sin(clamp((t-L[6])/.9)*Math.PI)*-2.5});
-  // 2 rules (word times: שלושה +0.6, ארבעה עשר +1.5, החברות +2.95)
-  pop($('s2a'),t,L[8]+.58); out($('s2a'),t,L[8]+1.4); pop($('s2b'),t,L[8]+1.48); out($('s2b'),t,L[8]+2.8);
-  up($('s2c'),t,L[8]+2.9,.2,0);
-  FRIENDS.forEach((f,i)=>{const el=$('av'+i);el.innerHTML=avatarSVG(AV[f[0]],f[1],190,blinkAt(t,[L[8]+3.5+i*.08]));pop(el,t,L[8]+2.95+i*.1,.3);el.style.transform+=` translateY(${Math.sin(t*4+i)*7}px)`;});
+  // 2 rules (word times: שלושה +0.57, ארבעה עשר +1.54, החברות +3.22)
+  pop($('s2a'),t,L[8]+.55); out($('s2a'),t,L[8]+1.4); pop($('s2b'),t,L[8]+1.52); out($('s2b'),t,L[8]+3.05);
+  up($('s2c'),t,L[8]+3.15,.2,0);
+  FRIENDS.forEach((f,i)=>{const el=$('av'+i);el.innerHTML=avatarSVG(AV[f[0]],f[1],190,blinkAt(t,[L[8]+3.7+i*.08]));pop(el,t,L[8]+3.2+i*.1,.3);el.style.transform+=` translateY(${Math.sin(t*4+i)*7}px)`;});
   // 3 report
   up($('s3t'),t,L[9],.3); phoneIn($('s3p'),t,L[9]);
   const rp=eo(lin(t,L[9]+.6,L[9]+.85)); $('im_report').style.opacity=rp; $('im_report').style.transform=`translateY(${(1-rp)*120}px)`;
