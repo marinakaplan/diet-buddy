@@ -450,6 +450,7 @@ const App = (() => {
 
       ${upcoming.length ? `<div class="section-title">אתגרים שמתחילים בקרוב</div>${upcoming.map(c => `<div class="word-row" onclick="App.go('word',{id:'${c.id}'})">${wordTile(c.def, 'sm')}<div class="body"><div class="name">${esc(c.def.title)}</div><div class="meta">מתחילה ${Mila.relDay(c.startDate)}</div></div>${icon('chev', 18)}</div>`).join('')}` : ''}
 
+      ${supportCard()}
       ${digest.length ? `<div class="section-title">אצל החברות <small onclick="App.tab('circles')" style="cursor:pointer">הכול</small></div>
         <div class="card tight">${digest.map(e => `<div class="feed-item" onclick="App.go('circle',{id:'${e.circleId}'})">${avatar(e.actor, 36)}<div class="body"><div class="t">${feedText(e)}</div><div class="m">${esc(e.circle.name)} · ${timeAgo(e.createdAt)}</div></div></div>`).join('')}</div>` : ''}
       ${!fresh && !Mila.myCircles().length ? `<div class="card pastel-pink clickable tight" onclick="App.inviteFlow({})"><div style="display:flex;align-items:center;gap:12px"><span class="tile pink">${icon('users')}</span><div style="flex:1"><div class="bold">הזמיני חברה שתעזור לך לעמוד בזה</div><div class="small muted">היא רואה את ההתקדמות שלך, ואפשר גם להתחרות.</div></div>${icon('chev', 20)}</div></div>` : ''}
@@ -1418,6 +1419,21 @@ const App = (() => {
     if (d.pushApi && I().pushChecked && !I().pushOn && I().permission() !== 'denied') { const rt = Mila.me().settings.reminderTime || '20:00'; return `<div class="card tight inst-card">${x}<div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('bell', 22)}</span><div style="flex:1"><div class="bold">שמילה תזכיר לך ב-${esc(rt)}?</div><div class="small muted">רק אם עוד לא דיווחת.</div></div><button class="btn dark sm" onclick="App.pushEnable()">להפעיל</button></div></div>`; }
     return '';
   }
+  /* באנר פרגון בעמוד הבית: מטוס קטן טס לפורטוגל, לב פועם. אפשר להסתיר לשבוע. */
+  function supportCard() {
+    if (!Mila.me() || Mila.getState().meta.demo) return '';
+    let hid = 0; try { hid = Number(localStorage.getItem('mila.supportHidden') || 0); } catch (e) { }
+    if (hid && Date.now() - hid < 7 * 864e5) return '';
+    return `<div class="card sup-card">
+      <button class="icon-btn sup-x" aria-label="לא עכשיו" onclick="App.supportHide()">${icon('x', 16)}</button>
+      <div class="sup-sky" aria-hidden="true"><svg class="sup-path" viewBox="0 0 300 60" preserveAspectRatio="none"><path d="M296 46 C 220 6, 90 6, 4 40" fill="none" stroke="#1C1A1F" stroke-width="1.6" stroke-dasharray="3 6" opacity=".35"/></svg>
+        <svg class="sup-plane" width="26" height="26" viewBox="0 0 24 24"><path d="M2.5 13.2l7.6-1.6 4.6-7.8c.4-.7 1.5-.7 1.7.2l-1.2 7.1 4.7-1c1.2-.2 2.1.9 1.6 1.9-.2.4-.6.7-1 .8l-4.8 1-2.4 6.9c-.3.8-1.4.8-1.6 0l-.6-6.1-7.4 1.6c-.6.1-1-.6-.6-1.1l-.6-1.9z" fill="#1C1A1F" transform="scale(-1,1) translate(-24,0)"/></svg>
+        <span class="sup-dest">פורטוגל</span></div>
+      <div class="sup-body">${heartArt(46)}<div><div class="bold">עוזרות לנבחרת לטוס לפורטוגל</div><div class="small">הבנות עובדות מאוד קשה כדי להגיע לתחרות. האפליקציה נבנתה כדי לממן את הנסיעה, וכל פרגון קטן מקרב אותן לטיסה.</div></div></div>
+      <button class="btn primary mt" onclick="App.go('treat')">רוצה לפרגן</button>
+    </div>`;
+  }
+  function supportHide() { try { localStorage.setItem('mila.supportHidden', String(Date.now())); } catch (e) { } render(); }
   function installHide() { I().mark('cardHidden'); render(); }
   function phoneCard() {
     if (!I()) return '';
@@ -1835,7 +1851,7 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
-    howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
+    supportHide, howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();
