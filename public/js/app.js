@@ -1121,16 +1121,24 @@ const App = (() => {
       /* השורה עצמה היא הפעולה, בלי כפתורים נוספים:
          אצלי – לחיצה מדווחת. אצל חברה – לב קטן כשדיווחה (לחיצה מפרגנת לה על היום הזה), ו״נו?״ כשעוד לא דיווחה. */
       const nudged = poked[u.id] && Date.now() - poked[u.id] < 6 * 3600000;
-      const list = items.length ? items.map(({ o, d }) => {
-        const [cls, txt] = stateOf(o);
+      /* רשימה שקטה: בלי רקעים צבעוניים. סימון קטן בתחילת השורה אומר מה המצב (מלא = עמדה, ריק = עוד לא דיווחה, קו = לא היום),
+         ומילה רק כשצריך. ״נו?״ מופיע פעם אחת לכל חברה, בשורה הראשונה שעוד לא דווחה. */
+      const mark = (o) => o.outcome === 'success' ? `<span class="tg-m done">${icon('check', 11)}</span>` : o.outcome ? '<span class="tg-m off"></span>' : '<span class="tg-m"></span>';
+      const firstWait = items.findIndex(x => !x.o.outcome);
+      const list = items.length ? items.map(({ o, d }, n) => {
+        const [cls, txt] = stateOf(o); const title = `<span class="tg-t">${esc(d.title)}</span>`;
         if (mine) {
-          const label = txt.replace('עמדה', 'עמדת').replace('פספסה', 'פספסת').replace('עוד לא דיווחה', 'לדווח'); const h = heartsOn(o.id);
-          return `<button class="tg-item ${cls}" onclick="App.reportSheet('${o.id}')"><span class="tg-t">${esc(d.title)}</span>${h ? `<span class="tg-h" aria-label="${h === 1 ? 'חברה אחת פירגנה' : h + ' חברות פירגנו'}">${icon('heart', 13)}${h > 1 ? h : ''}</span>` : ''}<span class="tg-s">${label}</span></button>`;
+          const h = heartsOn(o.id); const hearts = h ? `<span class="tg-h" aria-label="${h === 1 ? 'חברה אחת פירגנה' : h + ' חברות פירגנו'}">${icon('heart', 13)}${h > 1 ? h : ''}</span>` : '';
+          const tail = !o.outcome ? '<span class="tg-go">לדווח</span>' : o.outcome === 'success' ? '' : `<span class="tg-s">${txt.replace('פספסה', 'פספסת')}</span>`;
+          return `<button class="tg-item ${cls}" aria-label="${esc(d.title)}: ${o.outcome ? txt.replace('עמדה', 'עמדת').replace('פספסה', 'פספסת') : 'לדווח'}" onclick="App.reportSheet('${o.id}')">${mark(o)}${title}${hearts}${tail}</button>`;
         }
-        if (!o.outcome) return `<button class="tg-item wait" ${nudged ? 'disabled' : ''} aria-label="לשלוח ל${esc(u.name)}: נו, מה איתך?" onclick="App.poke('${id}','${u.id}')"><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${txt}</span><span class="tg-a">${nudged ? icon('check', 14) : 'נו?'}</span></button>`;
-        if (o.outcome === 'excused') return `<div class="tg-item ${cls}"><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${txt}</span></div>`;
+        if (!o.outcome) {
+          if (n !== firstWait) return `<div class="tg-item wait" aria-label="${esc(d.title)}: ${txt}">${mark(o)}${title}</div>`;
+          return `<button class="tg-item wait" ${nudged ? 'disabled' : ''} aria-label="${esc(d.title)}: ${txt}. לשלוח ל${esc(u.name)}: נו, מה איתך?" onclick="App.poke('${id}','${u.id}')">${mark(o)}${title}<span class="tg-a ${nudged ? 'sent' : 'nu'}">${nudged ? 'נשלח' : 'נו?'}</span></button>`;
+        }
+        if (o.outcome === 'excused') return `<div class="tg-item ${cls}">${mark(o)}${title}<span class="tg-s">${txt}</span></div>`;
         const loved = cheered(o.id);
-        return `<button class="tg-item ${cls} ${loved ? 'loved' : ''}" ${loved ? 'disabled' : ''} aria-label="${loved ? 'פירגנת' : `לפרגן ל${esc(u.name)} על ${esc(d.title)}`}" onclick="App.cheer('${id}','${u.id}','${o.id}')"><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${txt}</span><span class="tg-a">${icon('heart', 16)}</span></button>`;
+        return `<button class="tg-item ${cls} ${loved ? 'loved' : ''}" ${loved ? 'disabled' : ''} aria-label="${esc(d.title)}: ${txt}. ${loved ? 'פירגנת' : `לפרגן ל${esc(u.name)}`}" onclick="App.cheer('${id}','${u.id}','${o.id}')">${mark(o)}${title}${o.outcome === 'miss' ? `<span class="tg-s">${txt}</span>` : ''}<span class="tg-a">${icon('heart', 16)}</span></button>`;
       }).join('')
         : `<div class="tg-none">${mine ? `עוד אין לך אתגר. <a href="#" onclick="event.preventDefault(); App.openPick([], { circleId: '${id}' })">לבחור</a>` : 'עוד אין לה אתגר'}</div>`;
       // הפרצוף קטן ויושב ליד השם, כדי שהשורות של האתגרים יקבלו את כל הרוחב

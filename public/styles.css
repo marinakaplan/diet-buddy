@@ -1101,3 +1101,24 @@ html { overscroll-behavior-y: contain; }   /* בלי הרענון המובנה �
 
 /* ---------- קבוצה: פרצוף קטן ליד השם, השורות ברוחב מלא ---------- */
 .tg-who { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+
+/* ---------- קבוצה: רשימה שקטה. בלי רקעים צבעוניים; צבע רק לסימון ״עמדה״, ל״לדווח״ שלי וללב שנתתי ---------- */
+.tg-body { gap: 0; }
+.tg-name { margin-bottom: 4px; }
+.tg-item, .tg-item.done, .tg-item.miss, .tg-item.skip { background: transparent; padding: 8px 0; gap: 10px; justify-content: flex-start; }
+.tg-item .tg-t { font-size: .92rem; }
+.tg-item .tg-m { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line-2); display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
+.tg-item .tg-m.done { background: var(--lime); border-color: var(--lime); }
+.tg-item .tg-m.off { border-color: transparent; position: relative; }
+.tg-item .tg-m.off::after { content: ''; width: 9px; height: 1.5px; background: var(--ink-4); }
+.tg-item.miss .tg-t, .tg-item.skip .tg-t { color: var(--ink-2); }
+.tg-item .tg-s, .tg-item.done .tg-s, .tg-item.miss .tg-s, .tg-item.skip .tg-s { font-size: .76rem; font-weight: 500; color: var(--ink-3); background: none; padding: 0; }
+.tg-item .tg-go { flex: none; font-size: .78rem; font-weight: 700; color: var(--ink); background: var(--lime); padding: 3px 10px; }
+.tg-row.me .tg-item.wait .tg-s { background: none; padding: 0; }
+.tg-item .tg-a { min-width: 28px; color: var(--ink-4); }
+.tg-item.done .tg-a, .tg-item.miss .tg-a { color: var(--ink-4); }
+.tg-item.loved .tg-a { color: var(--pink-ink); }
+.tg-item .tg-a.nu { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.tg-item.wait:not([disabled]) .tg-a { color: var(--ink); }
+.tg-item .tg-a.sent { color: var(--ink-3); font-weight: 500; text-decoration: none; }
+.tg-item .tg-h { color: var(--ink-3); } .tg-item .tg-h svg { fill: var(--pink-ink); color: var(--pink-ink); }
