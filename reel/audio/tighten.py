@@ -5,9 +5,10 @@ Line times come from an independent Scribe transcription of each take."""
 import subprocess, re, json, os
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 CHUNKS = [  # (file, tempo, max pause kept, [(start, end, caption)])
+  ('vo-open.mp3', 1.00, 0.15, [      # one quick sentence, short beat after "די"; יפה written as IPA /jaˈfa/ for the right stress
+    (0.10, 1.00, 'די, יפה שלי,'),
+    (1.20, 2.46, 'כמה פעמים אמרת לעצמך:')]),
   ('vo-hook.mp3', 1.15, 0.08, [
-    (0.50, 1.32, 'די יפה שלי,'),
-    (1.88, 3.30, 'כמה פעמים אמרת לעצמך:'),
     (3.52, 6.50, '״די! ממחר אני לא צועקת יותר על הילדים!״'),
     (7.08, 9.16, '״ממחר אני עולה רק במדרגות!״'),
     (9.70, 11.82, '״ממחר אני נחמדה יותר לבעלי...״'),
@@ -26,6 +27,7 @@ CHUNKS = [  # (file, tempo, max pause kept, [(start, end, caption)])
     (5.38, 7.60, 'מילה. תעמדי במילה שלך!')]),
 ]
 GAP = 0.10   # silence between takes
+GAPS = {0: 0.12}   # a short breath after the opening
 def keep_segments(path, maxpause, first, last):
     log = subprocess.run(['ffmpeg', '-hide_banner', '-i', path, '-af', 'silencedetect=noise=-30dB:d=0.12', '-f', 'null', '-'], capture_output=True, text=True).stderr
     st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]; en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
@@ -40,7 +42,7 @@ def keep_segments(path, maxpause, first, last):
 inputs, parts, labels, lines, t0 = [], '', [], [], 0.0
 for ci, (fname, tempo, maxpause, ls) in enumerate(CHUNKS):
     path = os.path.join(HERE, fname); inputs += ['-i', path]
-    segs = keep_segments(path, maxpause, ls[0][0] - (0.45 if ci == 0 else 0), ls[-1][1])
+    segs = keep_segments(path, maxpause, ls[0][0] - (0.05 if ci == 0 else 0), ls[-1][1])
     def remap(t):
         acc = 0.0
         for a, b in segs:
@@ -50,8 +52,8 @@ for ci, (fname, tempo, maxpause, ls) in enumerate(CHUNKS):
     for a, b, cap in ls: lines.append([round(remap(a), 3), round(remap(b), 3), cap])
     for a, b in segs:
         k = len(labels); parts += f'[{ci}:a]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,atempo={tempo}[p{k}];'; labels.append(f'[p{k}]')
-    parts += f'anullsrc=r=44100:cl=mono,atrim=0:{GAP}[g{ci}];'; labels.append(f'[g{ci}]')
-    t0 += sum(b - a for a, b in segs) / tempo + GAP
+    parts += f'anullsrc=r=44100:cl=mono,atrim=0:{GAPS.get(ci, GAP)}[g{ci}];'; labels.append(f'[g{ci}]')
+    t0 += sum(b - a for a, b in segs) / tempo + GAPS.get(ci, GAP)
 flt = parts + ''.join(labels) + f'concat=n={len(labels)}:v=0:a=1,aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=9[out]'
 subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', *inputs, '-filter_complex', flt, '-map', '[out]', '-ar', '48000', '-ac', '1', os.path.join(HERE, 'vo.wav')], check=True)
 total = round(t0, 3)
