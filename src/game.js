@@ -363,9 +363,9 @@ async function assertCircleRoom(env, userId) {
   if (n >= MAX_CIRCLES_PER_USER) throw err('VALIDATION', `אפשר להיות בעד ${MAX_CIRCLES_PER_USER} קבוצות. כדי להצטרף לחדשה צריך לעזוב אחת.`);
 }
 const INVITE_KINDS = new Set(['follow', 'compete', 'same']);
-async function newInviteStmt(env, circleId, userId, o = {}) {
+async function newInviteStmt(env, circleId, userId, o = {}, internalKind = null) {
   const tok = inviteCode();
-  const kind = INVITE_KINDS.has(o.kind) ? o.kind : 'follow';
+  const kind = internalKind || (INVITE_KINDS.has(o.kind) ? o.kind : 'follow');   // internalKind: רק מקוד השרת ('friends' = הזמנה בתוך האפליקציה), לא מהלקוח
   const libraryId = o.libraryId && MilaLibrary.get(String(o.libraryId)) ? String(o.libraryId) : null;
   const message = String(o.message || '').trim().slice(0, 200) || null;
   const wordTitle = String(o.wordTitle || '').trim().slice(0, 60) || null;
@@ -413,7 +413,7 @@ export async function inviteFriends(env, user, b) {
   ]);
   const targets = friends.filter(id => !skip.has(id));
   if (!targets.length) return { invited: 0 };
-  const inv = await newInviteStmt(env, cid, user.id, { kind: 'follow' });
+  const inv = await newInviteStmt(env, cid, user.id, {}, 'friends');
   const day = localDate(user.timezone);
   await runBatch(env, [inv.stmt, ...targets.map(id => notifyStmt(env, id, 'group_invite', `${user.display_name} מזמינה אותך לקבוצה ״${c.name}״`, 'נגיעה אחת, ואת בפנים.', { token: inv.tok, circleId: cid, circleName: c.name, inviterId: user.id }, day + cid))]);
   return { invited: targets.length };

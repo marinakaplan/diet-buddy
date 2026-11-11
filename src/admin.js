@@ -28,18 +28,20 @@ export async function adminStats(env, daysParam) {
 
   // ---------- סדרות יומיות (התקופה + הקודמת, לשם ההשוואה) ----------
   const S = prevStart;
-  const [sVisits, sSignups, sActive, sReports, sInvites, sOpens, sGroups, sViaInv, sEarn] = await Promise.all([
+  const [sVisits, sSignups, sActive, sReports, sInvites, sOpens, sGroups, sViaInv, sEarn, sAuto] = await Promise.all([
     many(`select day as d, count(*) as n from track_events where name = 'visit' and day between ? and ? group by day`, S, today),
     many(`select ${ilDay('created_at')} as d, count(*) as n from users where status <> 'deleted' and ${inRange('created_at')} group by d`, S, today),
     many(`select day as d, count(*) as n from user_days where day between ? and ? group by day`, S, today),
     many(`select ${ilDay('created_at')} as d, count(*) as n from resolution_history where reason = 'self_report' and ${inRange('created_at')} group by d`, S, today),
-    many(`select ${ilDay('created_at')} as d, count(*) as n from circle_invites where ${inRange('created_at')} group by d`, S, today),
+    many(`select ${ilDay('created_at')} as d, count(*) as n from circle_invites where kind <> 'friends' and ${inRange('created_at')} group by d`, S, today),   // קישורי הזמנה בלבד; הזמנות בתוך האפליקציה נספרות בנפרד
     many(`select ${ilDay('created_at')} as d, count(*) as n from invite_opens where ${inRange('created_at')} group by d`, S, today),
     many(`select ${ilDay('created_at')} as d, count(*) as n from circles where ${inRange('created_at')} group by d`, S, today),
     many(`select ${ilDay('created_at')} as d, count(*) as n from users where status = 'active' and invited_by is not null and ${inRange('created_at')} group by d`, S, today),
     many(`select local_date as d, sum(transaction_type = 'EARN') as n, sum(transaction_type in ('MISS_TO_CIRCLE','MISS_PERSONAL')) as m from virtual_ledger where local_date between ? and ? group by local_date`, S, today),
+    // ימים שנסגרו אוטומטית כפספוס כי לא דווחו עד 10:00 למחרת (לפי היום של האתגר)
+    many(`select local_date as d, count(*) as n from daily_obligations where resolve_reason = 'auto_unreported' and local_date between ? and ? group by local_date`, S, today),
   ]);
-  const series = { days: dayList, visits: map(sVisits), signups: map(sSignups), active: map(sActive), reports: map(sReports), invites: map(sInvites), opens: map(sOpens), groups: map(sGroups) };
+  const series = { days: dayList, visits: map(sVisits), signups: map(sSignups), active: map(sActive), reports: map(sReports), invites: map(sInvites), opens: map(sOpens), groups: map(sGroups), autoClosed: map(sAuto) };
   const sum = (m, a, b) => Object.entries(m).filter(([d]) => d >= a && d <= b).reduce((t, [, v]) => t + v, 0);
   const viaM = map(sViaInv);
   const earnM = Object.fromEntries(sEarn.map(r => [r.d, Number(r.n)])), missM = Object.fromEntries(sEarn.map(r => [r.d, Number(r.m)]));
@@ -60,7 +62,11 @@ export async function adminStats(env, daysParam) {
     signups: both(series.signups), viaInvite: both(viaM), reports: both(series.reports), invites: both(series.invites), opens: both(series.opens), groups: both(series.groups), visits: both(series.visits),
     activeAvg: { cur: activeAvg(start, today), prev: activeAvg(prevStart, prevEnd) },
     success: { cur: succ(start, today), prev: succ(prevStart, prevEnd) },
+    autoClosed: both(series.autoClosed),
   };
+  // אחוז דיווח: מתוך הימים שהוכרעו בתקופה, כמה דווחו על ידי המשתמשת עצמה (ולא נסגרו לבד)
+  const repRate = (r, a) => (r + a ? Math.round((100 * r) / (r + a)) : null);
+  kpi.reportRate = { cur: repRate(kpi.reports.cur, kpi.autoClosed.cur), prev: repRate(kpi.reports.prev, kpi.autoClosed.prev) };
 
   // ---------- משפך: מכניסה לאתר ועד דיווח וקבוצה (בנות שנרשמו בתקופה) ----------
   const f = await one(`select count(*) as signed,
@@ -105,6 +111,9 @@ export async function adminStats(env, daysParam) {
     countBy(`select via_invite as h, count(*) as n from circle_memberships where via_invite in ($$) group by via_invite`),
   ]) : [{}, {}, {}];
   const inviteKinds = ['follow', 'compete', 'same'].map(kind => ({ kind, sent: kindRows.filter(r => r.kind === kind).length, opens: kOpens[kind] || 0, signups: kSign[kind] || 0, joins: kJoin[kind] || 0 }));
+  // הזמנות בתוך האפליקציה לחברות שכבר במילה: כמה חברות הוזמנו (עדכון לכל אחת), וכמה הצטרפו
+  const friendsSent = (await one(`select count(*) as n from notifications where type = 'group_invite' and ${inRange('created_at')}`, start, today)).n || 0;
+  const friendInvites = { sent: friendsSent, joins: kJoin.friends || 0, rate: pct(kJoin.friends || 0, friendsSent) };
   const refsAll = await many(`select u.id, u.display_name as name,
       (select count(*) from circle_invites i where i.inviter_id = u.id and ${inRange('i.created_at')}) as invites,
       (select count(*) from invite_opens o where o.inviter_id = u.id and ${inRange('o.created_at')}) as opens,
@@ -200,10 +209,16 @@ export async function adminStats(env, daysParam) {
   const appN = (k) => Number((appRows.find(r => r.name === k) || {}).v || 0);
   let pushSubs = { n: 0, users: 0 }, pushPlat = [];
   try {
-    pushSubs = await one(`select count(*) as n, count(distinct user_id) as users from push_subscriptions`);
+    pushSubs = await one(`select count(*) as n, count(distinct user_id) as users, sum(last_ok_at is not null) as delivered, sum(fails > 0) as failing from push_subscriptions`);
     pushPlat = await many(`select coalesce(nullif(platform,''),'אחר') as platform, count(*) as n from push_subscriptions group by 1 order by n desc`);
   } catch (e) { /* לפני מיגרציה 0006 */ }
-  const app = { opens: appN('app_open'), sheet: appN('install_sheet'), prompt: appN('install_prompt'), installed: appN('installed'), pushOn: appN('push_on'), pushDenied: appN('push_denied'), subscriptions: pushSubs.n || 0, pushUsers: pushSubs.users || 0, platforms: pushPlat };
+  const app = { opens: appN('app_open'), sheet: appN('install_sheet'), prompt: appN('install_prompt'), installed: appN('installed'), pushOn: appN('push_on'), pushDenied: appN('push_denied'), subscriptions: pushSubs.n || 0, pushUsers: pushSubs.users || 0, delivered: pushSubs.delivered || 0, failing: pushSubs.failing || 0, platforms: pushPlat };
+  // מסכי שגיאה שמכשירים ראו (מכשיר ייחודי ליום לכל סוג)
+  const errRows = await many(`select name, count(*) as n from track_events where name like 'err:%' and day between ? and ? group by name`, start, today);
+  app.errors = ['server', 'quota', 'crash', 'notfound'].map(k2 => ({ kind: k2, n: Number((errRows.find(r => r.name === `err:${k2}`) || {}).n || 0) }));
+  // גיל: התחום שמגיל 18 (תאריך הלידה עצמו לא נשמר)
+  const ageRow = await one(`select sum(adult_from is not null and adult_from <= ?) as adults, sum(adult_from > ?) as minors, sum(adult_from is null) as unknown from users where status = 'active'`, today, today);
+  const age = { adults: ageRow.adults || 0, minors: ageRow.minors || 0, unknown: ageRow.unknown || 0 };
   const [abuse, blocks] = await Promise.all([
     many(`select reason, count(*) as n from abuse_reports where ${inRange('created_at')} group by reason order by n desc`, start, today),
     one(`select count(*) as n from user_blocks where ${inRange('created_at')}`, start, today),
@@ -211,13 +226,13 @@ export async function adminStats(env, daysParam) {
 
   return {
     generatedAt: new Date().toISOString(), range, series, kpi, funnel, sources, viral, inviteKinds, referrers, invitersTotal: refsAll.length,
-    engagement, retention, challenges, categories, groups, social: socialOut, treats, app,
+    engagement, retention, challenges, categories, groups, social: socialOut, friendInvites, age, treats, app,
     safety: { reports: abuse, blocks: blocks.n || 0, pending: kpi.pending, deleted: kpi.deleted },
   };
 }
 
 /* מעקב אירועים זול: מבקרת ייחודית ליום לכל שם. שמות מותרים בלבד. */
-const TRACK = new Set(['visit', 'visit_invite', 'signin_click', 'treat:cookie', 'treat:espresso', 'treat:latte', 'support:18', 'support:50', 'support:100', 'support:180', 'support:360', 'support:other', 'app_open', 'install_sheet', 'install_prompt', 'installed', 'push_on', 'push_denied']);
+const TRACK = new Set(['visit', 'visit_invite', 'signin_click', 'treat:cookie', 'treat:espresso', 'treat:latte', 'support:18', 'support:50', 'support:100', 'support:180', 'support:360', 'support:other', 'app_open', 'install_sheet', 'install_prompt', 'installed', 'push_on', 'push_denied', 'err:server', 'err:quota', 'err:crash', 'err:notfound']);
 export async function track(env, b) {
   const name = String(b.name || ''); const vis = String(b.visitor || '');
   if (!TRACK.has(name) || !/^[a-z0-9-]{8,40}$/.test(vis)) return { ok: false };

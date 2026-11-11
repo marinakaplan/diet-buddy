@@ -208,6 +208,7 @@ const App = (() => {
   };
   function errorScreen(kind = 'crash') {
     const [mood, title, text] = ERRORS[kind] || ERRORS.crash;
+    if (kind !== 'offline' && ERRORS[kind]) { try { Api.track('err:' + kind); } catch (e) { /* מעקב בלבד */ } }
     const home = Mila.me() && (kind === 'crash' || kind === 'notfound');
     return `<div class="err-screen" role="alert">${moodFace(mood, 104)}<h1>${title}</h1><p>${text}</p>
       <div class="err-actions">${home ? `<button class="btn primary" onclick="App.tab('today')">חזרה להיום</button><button class="btn text" onclick="App.retry()">לטעון מחדש</button>` : `<button class="btn primary" onclick="App.retry()">לנסות שוב</button>`}</div></div>`;
@@ -1734,7 +1735,8 @@ const App = (() => {
           ${adTile('נרשמו', adN(k.signups.cur), { delta: adDelta(k.signups.cur, k.signups.prev) })}
           ${adTile('פעילות ביום (ממוצע)', adN(k.activeAvg.cur), { delta: adDelta(k.activeAvg.cur, k.activeAvg.prev), help: 'משתמשות שפתחו את האפליקציה באותו יום' })}
           ${adTile('דיווחים', adN(k.reports.cur), { delta: adDelta(k.reports.cur, k.reports.prev) })}
-          ${adTile('אחוז הצלחה', adP(k.success.cur), { delta: adDelta(k.success.cur, k.success.prev, { kind: 'pp' }), help: 'מתוך הימים שדווחו: עמדו / (עמדו + פספסו)' })}
+          ${adTile('אחוז דיווח', adP(k.reportRate.cur), { delta: adDelta(k.reportRate.cur, k.reportRate.prev, { kind: 'pp' }), help: 'ימים שדווחו מתוך כל הימים שנסגרו: דווחו ÷ (דווחו + נסגרו בלי דיווח)' })}
+          ${adTile('אחוז הצלחה', adP(k.success.cur), { delta: adDelta(k.success.cur, k.success.prev, { kind: 'pp' }), help: 'עמדו ÷ (עמדו + פספסו). יום שנסגר בלי דיווח נספר כפספוס' })}
           ${adTile('הגיעו מהזמנה', adN(k.viaInvite.cur), { delta: adDelta(k.viaInvite.cur, k.viaInvite.prev) })}
           ${adTile('קבוצות חדשות', adN(k.groups.cur), { delta: adDelta(k.groups.cur, k.groups.prev) })}
         </div>
@@ -1748,7 +1750,7 @@ const App = (() => {
         </div>`;
     } else if (adminTab === 'growth') {
       const f = d.funnel, top = f[0].n || f.find(x => x.n).n || 1;
-      const v = d.viral, kinds = { follow: '👀 לעקוב', compete: '🏁 להתחרות', same: '🤝 אותו אתגר' };
+      const v = d.viral, kinds = { follow: 'לעזור לי לעמוד במילה', compete: 'להתחרות', same: 'אותו אתגר' }; const fi = d.friendInvites || { sent: 0, joins: 0, rate: null };
       const src = d.sources, srcTot = src.invite + src.direct;
       body = `${adSec('משפך הרשמה', `בנות שנכנסו ב${per}, ומה הן עשו. האחוז בכל שלב: מתוך השלב הקודם, ובסוגריים מתוך הכניסה לאתר.`)}
         <div class="card">${adHBars('funnel', f, { sub: (r, i) => i === 0 ? 'מבקרות ייחודיות (לפי מכשיר)' : `${adP(f[i - 1].n ? Math.round((1000 * r.n) / f[i - 1].n) / 10 : null)} מהשלב הקודם (${adP(top ? Math.round((1000 * r.n) / top) / 10 : null)} מהכניסה)` })}</div>
@@ -1762,9 +1764,14 @@ const App = (() => {
           ${adTile('נרשמו מתוך שפתחו', adP(v.signupRate), { help: 'יכול לעבור 100% כשחברה מצטרפת עם קוד בלי לפתוח קישור' })}
         </div>
         ${adLine('gr-inv', 'הזמנות ופתיחות ביום', sd, [{ name: 'הזמנות שנשלחו', color: AD_C.blue, data: d.series.invites }, { name: 'קישורים שנפתחו', color: AD_C.orange, data: d.series.opens }], { area: false, full: true })}
-        ${adSec('לפי סוג הזמנה', 'הזמנות שנשלחו בתקופה, ומה קרה איתן.')}
+        ${adSec('לפי סוג הזמנה', 'קישורי הזמנה שנוצרו בתקופה, ומה קרה איתם.')}
         <div class="card tight"><div class="ad-table c5"><div class="ad-row h"><span>סוג</span><span>נשלחו</span><span>נפתחו</span><span>נרשמו</span><span>הצטרפו</span></div>${d.inviteKinds.map(x => `<div class="ad-row"><span>${kinds[x.kind] || x.kind}</span><span>${adN(x.sent)}</span><span>${adN(x.opens)}</span><span>${adN(x.signups)}</span><span>${adN(x.joins)}</span></div>`).join('')}</div>
           ${adWithTable('kinds', [[r => kinds[r.kind] || r.kind, 'סוג'], ['sent', 'נשלחו'], ['opens', 'נפתחו'], ['signups', 'נרשמו'], ['joins', 'הצטרפו']], d.inviteKinds)}</div>
+        ${adSec('הזמנות בתוך האפליקציה', 'חברות שכבר במילה והוזמנו לקבוצה נוספת, בלי קישור.')}
+        <div class="ad-grid">
+          ${adTile('חברות שהוזמנו', adN(fi.sent))}
+          ${adTile('הצטרפו', adN(fi.joins), { sub: fi.rate === null ? '' : `${adP(fi.rate)} מהמוזמנות` })}
+        </div>
         ${adSec('מי הביאה את מי', `המזמינות המובילות ב${per}. נחשפו = מבקרות ייחודיות שפתחו קישור שהיא שלחה.`)}
         <div class="card tight">${d.referrers.length ? `<div class="ad-table c6"><div class="ad-row h"><span>מזמינה</span><span>הזמנות</span><span>נחשפו</span><span>נרשמו</span><span>הצטרפו</span><span>סה״כ הביאה</span></div>${d.referrers.map((r, i) => `<div class="ad-row"><span>${i < 3 ? ['🥇', '🥈', '🥉'][i] + ' ' : ''}${esc(r.name || 'ללא שם')}</span><span>${adN(r.invites)}</span><span>${adN(r.opens)}</span><span>${adN(r.signups)}</span><span>${adN(r.joins)}</span><span>${adN(r.signupsAll)}</span></div>`).join('')}</div>
           ${adWithTable('referrers', [['name', 'מזמינה'], ['invites', 'הזמנות'], ['opens', 'נחשפו'], ['signups', 'נרשמו'], ['joins', 'הצטרפו'], ['signupsAll', 'סה״כ הביאה']], d.referrers)}<div class="tiny muted mt">${adN(d.invitersTotal)} שלחו הזמנה אי פעם.</div>` : '<div class="small muted">עוד אין הזמנות בתקופה.</div>'}</div>`;
@@ -1775,8 +1782,9 @@ const App = (() => {
           ${adTile('היום', adN(k.dau))}${adTile('7 ימים', adN(k.wau))}${adTile('30 יום', adN(k.mau))}
           ${adTile('דביקות', adP(k.stickiness), { help: 'היום ÷ 30 יום' })}
           ${adTile('דיווחים לכל פעילה', String(e.reportsPerActive), { help: `ב${per}` })}
+          ${adTile('נסגרו בלי דיווח', adN(k.autoClosed.cur), { delta: adDelta(k.autoClosed.cur, k.autoClosed.prev, { upGood: false }), sub: `אחוז דיווח: ${adP(k.reportRate.cur)}`, help: 'ימים שלא דווחו עד 10:00 למחרת ונסגרו אוטומטית כפספוס' })}
         </div>
-        <div class="ad-charts">${adLine('en-rep', 'דיווחים ביום', sd, [{ name: 'דיווחים', color: AD_C.blue, data: d.series.reports }])}
+        <div class="ad-charts">${adLine('en-rep', 'דיווחים ביום', sd, [{ name: 'דיווחו', color: AD_C.blue, data: d.series.reports }, { name: 'נסגרו בלי דיווח', color: AD_C.orange, data: d.series.autoClosed }])}
         ${adCols('en-per', 'כמה אתגרים פעילים יש לכל אחת', e.perUser.map(x => (x.n === 3 ? '3' : String(x.n))), e.perUser.map(x => x.users), { note: 'משתמשות רשומות' })}
         ${adCols('en-hour', 'מתי מדווחות (שעה ביום)', Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}`), e.hours, { color: AD_C.teal, note: 'שעון ישראל' })}
         ${adCols('en-wd', 'דיווחים לפי יום בשבוע', [...wd].reverse(), [...e.weekdays].reverse(), { color: AD_C.teal })}</div>`;
@@ -1806,7 +1814,7 @@ const App = (() => {
       const g = d.groups, s = d.social;
       body = `${adSec('קבוצות', 'כמה קבוצות יש, כמה גדולות, וכמה מהבנות משחקות עם חברות.')}
         <div class="ad-grid">
-          ${adTile('קבוצות פעילות', adN(g.active), { delta: adDelta(k.groups.cur, k.groups.prev), sub: `${adN(g.created)} נפתחו בתקופה` })}
+          ${adTile('קבוצות פעילות', adN(g.active), { delta: adDelta(k.groups.cur, k.groups.prev), sub: `${adN((g.created || {}).cur || 0)} נפתחו בתקופה` })}
           ${adTile('גודל ממוצע', String(g.avgSize), { help: 'חברות בקבוצה' })}
           ${adTile('משחקות עם חברות', adP(g.inGroupPct), { sub: `${adN(g.inGroup)} מתוך ${adN(k.users)}` })}
           ${adTile('קבוצות שנסגרו', adN(g.closed))}
@@ -1816,7 +1824,7 @@ const App = (() => {
         <div class="ad-grid">
           ${adTile('מילים טובות', adN(s.encouragements + s.reactions), { sub: `${adN(s.encouragements)} עידודים · ${adN(s.reactions)} תגובות` })}
           ${adTile('עקיפות בדירוג', adN(s.overtakes))}
-          ${adTile('אתגרים משותפים', adN(s.shared), { sub: `${adN(s.sharedJoins)} הצטרפויות` })}
+          ${adTile('אתגרים משותפים', adN(s.shared), { sub: `${adN(s.sharedJoins)} חברות הצטרפו`, help: 'מי שפותחת כבר בפנים; כאן נספרות רק החברות שהצטרפו אחריה' })}
           ${adTile('הצטרפו לקבוצות', adN(s.joins))}
         </div>
         ${adSec('הקבוצות הכי פעילות', `לפי מספר הדיווחים ב${per}.`)}
@@ -1833,15 +1841,24 @@ const App = (() => {
         ${adSec('התראות', 'מינויים פעילים עכשיו (כל מכשיר בנפרד), ומי אישרה או חסמה ב' + per + '.')}
         <div class="ad-grid">
           ${adTile('מכשירים עם התראות', adN(a.subscriptions), { sub: `${adN(a.pushUsers)} משתמשות` })}
+          ${adTile('קיבלו התראה בפועל', adN(a.delivered || 0), { sub: a.failing ? `${adN(a.failing)} עם שליחה שנכשלה` : '', help: 'מכשירים ששליחה אחת לפחות הגיעה אליהם' })}
           ${adTile('הפעילו התראות', adN(a.pushOn))}
           ${adTile('חסמו התראות', adN(a.pushDenied))}
         </div>
-        ${a.platforms.length ? `<div class="card tight"><div class="card-title">לפי סוג מכשיר</div>${adHBars('pushplat', a.platforms.map(x => ({ label: x.platform, n: x.n })), { color: AD_C.teal })}</div>` : ''}`;
+        ${a.platforms.length ? `<div class="card tight"><div class="card-title">לפי סוג מכשיר</div>${adHBars('pushplat', a.platforms.map(x => ({ label: x.platform, n: x.n })), { color: AD_C.teal })}</div>` : ''}
+        ${adSec('תקלות שמשתמשות ראו', `מסכי שגיאה ב${per} (מכשיר נספר פעם ביום לכל סוג). ״אין חיבור״ לא נספר, כי בלי רשת אי אפשר לדווח עליו.`)}
+        <div class="card">${(a.errors || []).some(x => x.n) ? adHBars('errs', (a.errors || []).map(x => ({ label: { server: 'תקלה בשרת', quota: 'המכסה היומית נגמרה', crash: 'מסך שנתקע', notfound: 'מסך לא קיים' }[x.kind], n: x.n })), { color: AD_C.orange }) : '<div class="small muted">לא נראו תקלות בתקופה.</div>'}</div>`;
     } else {
       const t = d.treats, names = { 18: '18 ₪ · חי', 50: '50 ₪', 100: '100 ₪', 180: '180 ₪', 360: '360 ₪', other: 'סכום אחר', cookie: '🍪 עוגייה (ישן)', espresso: '☕ אספרסו (ישן)', latte: '🥛 קפה הפוך (ישן)' };
       const sf = d.safety;
-      body = `${adSec('פרגון', `כמה לחצו על כל סכום ב${per} (לחיצה אחת ליום לכל מכשיר). את התשלום עצמו רואים רק בביט.`)}
+      body = `${adSec('פרגון', `כמה לחצו על כל סכום ב${per} (לחיצה אחת ליום לכל מכשיר). את התשלום עצמו רואים רק ב-PayBox או בביט.`)}
         <div class="card">${adHBars('treats', t.map(x => ({ label: names[x.kind], n: x.clicks })), { color: AD_C.orange })}</div>
+        ${adSec('גיל', 'התחום ״זוגיות ואינטימיות״ פתוח מגיל 18. תאריך הלידה עצמו לא נשמר. מי שנרשמה לפני 11.11.2026 אישרה 18+ בהרשמה.')}
+        <div class="ad-grid">
+          ${adTile('התחום פתוח להן', adN((d.age || {}).adults || 0), { help: 'בנות 18 ומעלה' })}
+          ${adTile('מתחת ל-18', adN((d.age || {}).minors || 0), { help: 'נשאלו, והתחום ייפתח להן ביום ההולדת ה-18' })}
+          ${adTile('עוד לא נשאלו', adN((d.age || {}).unknown || 0), { help: 'לא ניסו להיכנס לתחום' })}
+        </div>
         ${adSec('בטיחות', `דיווחים וחסימות ב${per}.`)}
         <div class="ad-grid">
           ${adTile('דיווחים על משתמשות', adN(sf.reports.reduce((a, b) => a + b.n, 0)))}
