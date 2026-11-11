@@ -1084,3 +1084,19 @@ a.list-row { color: inherit; text-decoration: none; }
 .sup-body { display: flex; gap: 12px; align-items: flex-start; }
 .sup-body .th-heart { flex: none; animation: thbeat 1.6s ease-in-out infinite; }
 .sup-body .small { color: var(--ink-2); line-height: 1.5; margin-top: 2px; }
+/* ---------- על הנבחרת ---------- */
+.sup-kicker, .team-kicker { font-size: .72rem; font-weight: 800; letter-spacing: .02em; color: var(--pink-ink); margin-bottom: 2px; }
+.team { text-align: center; }
+.team p { margin: 0 0 10px; line-height: 1.6; color: var(--ink); }
+.team .team-title { font-size: 1.35rem; margin: 2px 0 12px; }
+.team-you { font-weight: 800; font-size: 1.05rem; }
+.team .btn { margin-top: 6px; }
+.team-hero { position: relative; width: 84px; height: 84px; margin: 4px auto 10px; display: grid; place-items: center; background: var(--lime); border-radius: 50%; animation: w2pop .6s cubic-bezier(.2, 1.6, .4, 1) both; }
+.team-medal { color: var(--ink); display: grid; animation: medal 2.4s ease-in-out .6s infinite; }
+@keyframes medal { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+.team-spark { position: absolute; width: 8px; height: 8px; background: #FFC93C; transform: rotate(45deg); opacity: 0; animation: spark 2.4s ease-in-out infinite; }
+.team-spark.s1 { top: 6px; right: 2px; } .team-spark.s2 { bottom: 10px; left: -2px; animation-delay: .8s; } .team-spark.s3 { top: 18px; left: 6px; width: 6px; height: 6px; animation-delay: 1.6s; }
+@keyframes spark { 0%, 100% { opacity: 0; transform: rotate(45deg) scale(.4); } 40% { opacity: 1; transform: rotate(45deg) scale(1); } }
+.team-link { margin-top: 2px; color: var(--pink-ink); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .team-hero, .team-medal, .team-spark { animation: none !important; opacity: 1; } }
+body:has(#sheet.open) #a11y-btn { display: none; }

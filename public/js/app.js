@@ -1429,9 +1429,22 @@ const App = (() => {
       <div class="sup-sky" aria-hidden="true"><svg class="sup-path" viewBox="0 0 300 60" preserveAspectRatio="none"><path d="M296 46 C 220 6, 90 6, 4 40" fill="none" stroke="#1C1A1F" stroke-width="1.6" stroke-dasharray="3 6" opacity=".35"/></svg>
         <svg class="sup-plane" width="26" height="26" viewBox="0 0 24 24"><path d="M2.5 13.2l7.6-1.6 4.6-7.8c.4-.7 1.5-.7 1.7.2l-1.2 7.1 4.7-1c1.2-.2 2.1.9 1.6 1.9-.2.4-.6.7-1 .8l-4.8 1-2.4 6.9c-.3.8-1.4.8-1.6 0l-.6-6.1-7.4 1.6c-.6.1-1-.6-.6-1.1l-.6-1.9z" fill="#1C1A1F" transform="scale(-1,1) translate(-24,0)"/></svg>
         <span class="sup-dest">פורטוגל</span></div>
-      <div class="sup-body">${heartArt(46)}<div><div class="bold">עוזרות לנבחרת לטוס לפורטוגל</div><div class="small">הבנות עובדות מאוד קשה כדי להגיע לתחרות. האפליקציה נבנתה כדי לממן את הנסיעה, וכל פרגון קטן מקרב אותן לטיסה.</div></div></div>
-      <button class="btn primary mt" onclick="App.go('treat')">רוצה לפרגן</button>
+      <div class="sup-body">${heartArt(46)}<div><div class="sup-kicker">הפועל עירוני יבנה · אקרובטיקה</div><div class="bold">עוזרות לנבחרת לטוס לפורטוגל</div><div class="small">הבנות עובדות מאוד קשה כדי להגיע לתחרות. האפליקציה נבנתה כדי לממן את הנסיעה, וכל פרגון קטן מקרב אותן לטיסה.</div></div></div>
+      <div class="btn-row mt"><button class="btn primary" onclick="App.go('treat')">רוצה לפרגן</button><button class="btn soft" onclick="App.teamSheet()">על הנבחרת</button></div>
     </div>`;
+  }
+  /* חלון ״על הנבחרת״: הפועל עירוני יבנה, אקרובטיקה, מימון ההורים */
+  function teamSheet() {
+    sheet(`<div class="team">
+      <div class="team-hero" aria-hidden="true"><span class="team-medal">${icon('medal', 34)}</span><span class="team-spark s1"></span><span class="team-spark s2"></span><span class="team-spark s3"></span></div>
+      <div class="team-kicker">הפועל עירוני יבנה · אקרובטיקה</div>
+      <div class="sheet-title team-title">הנבחרת שלנו בדרך לפורטוגל</div>
+      <p>ישראל מביאה המון מדליות באקרובטיקה. הבנות של הנבחרת התחרותית שלנו עובדות מאוד מאוד קשה כדי להיות חלק מזה, ועכשיו הן בדרך לתחרות בפורטוגל.</p>
+      <p>את כל המימון של הנסיעה מממנים ההורים.</p>
+      <p class="team-you">אז פה את נכנסת לתמונה, ועוזרת לנו להגיע ליעד.</p>
+      <p class="small muted">והאפליקציה הזו נבנתה בשביל זה: את עומדת במילה שלך, וגם עוזרת לילדה להגשים חלום.</p>
+      <button class="btn primary" onclick="App.closeSheet(); App.go('treat')">רוצה לפרגן</button>
+    </div>`);
   }
   function supportHide() { try { localStorage.setItem('mila.supportHidden', String(Date.now())); } catch (e) { } render(); }
   function installHide() { I().mark('cardHidden'); render(); }
@@ -1748,6 +1761,7 @@ const App = (() => {
       <div class="th-title">רוצה לפרגן? 💛</div>
       <p>אנחנו (בסדר, גם האבות 😉) אוספות כסף כדי לממן לנבחרת תחרותית נסיעה לתחרות בפורטוגל. הבנות עובדות מאוד מאוד קשה, והאפליקציה הזו נוצרה כדי לממן את הנסיעה.</p>
       <p class="bold">אז תדעי לך: את גם עומדת במילה שלך, וגם עוזרת לילדה להגשים חלום.</p>
+      <button class="btn text team-link" onclick="App.teamSheet()">על הנבחרת של הפועל עירוני יבנה ›</button>
     </div>
     <div class="tier-list">${TIERS.map((t, i) => `<button class="tier" style="--i:${i}" onclick="App.treatPick(${t.amt}, this)">
       <span class="tier-emo" aria-hidden="true">${t.emoji}</span>
@@ -1851,7 +1865,7 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, setCircleTab, encourageSheet, circleMenu, leaveCircle, inviteSheet, shareInvite, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, inviteFromWord, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
-    supportHide, howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
+    teamSheet, supportHide, howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();
