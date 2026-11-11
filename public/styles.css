@@ -841,7 +841,7 @@ input, textarea, select, .input, textarea.input, .wa-bubble textarea { font-size
 .ob-input { font-size: 1.15rem !important; }
 html, body { overflow-x: hidden; }
 @supports (overflow: clip) { html, body { overflow-x: clip; } }
-#app, #screen { max-width: 100%; }
+#screen { max-width: 100%; }   /* בלי #app: אחרת מתבטל רוחב הטלפון (480px) והמסך נמרח על כל המחשב */
 #screen { overflow-wrap: break-word; }
 img, svg, video { max-width: 100%; }
 @media (max-width: 360px) {
@@ -1027,3 +1027,7 @@ body:has(#sheet.open) #a11y-btn { display: none; }
 .err-screen p { margin: 4px 0 0; max-width: 28ch; color: var(--ink-2); font-size: 1.02rem; line-height: 1.55; }
 .err-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 320px; margin-top: 26px; }
 @media (prefers-reduced-motion: reduce) { .mood, .mood-z, .mood-drop { animation: none !important; } }
+
+/* שורת ההסכמה כולה לחיצה; הקישורים למסמכים בשורה נפרדת מתחתיה */
+.ob-legal { margin: -4px 0 0; padding-inline-start: 34px; font-size: .82rem; color: var(--ink-2); }
+.ob-legal a { color: inherit; text-decoration: underline; padding: 6px 2px; display: inline-block; }

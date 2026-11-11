@@ -105,12 +105,11 @@ export async function testLogin(req, env) {
   return json({ ok: true, userId: u.id, status: u.status }, 200, { 'set-cookie': session });
 }
 
-/* השלמת פרופיל: שם, 18+, תנאים, אזור זמן */
+/* השלמת פרופיל: שם, הסכמה לתנאים, אזור זמן. אין דרישת גיל 18 (החלטת מוצר 11.2026); התנאים קובעים גיל 13 ומעלה, ומתחת ל-18 באישור הורה. */
 export async function completeProfile(user, body, env) {
   const name = cleanName(body.name);
   if (!name) throw err('VALIDATION', 'צריך שם תצוגה');
   if (name.length > 30) throw err('VALIDATION', 'השם ארוך מדי (עד 30 תווים)');
-  if (!body.ageConfirmed) throw err('VALIDATION', 'בגרסת הבטא המשחק פתוח לבנות 18 ומעלה');
   if (!body.termsAccepted) throw err('VALIDATION', 'צריך לאשר את תנאי השימוש');
   const tz = isValidTz(body.timezone) ? body.timezone : 'Asia/Jerusalem';
   await env.DB.prepare(`update users set display_name = ?, age_confirmed = 1, terms_accepted_at = coalesce(terms_accepted_at, ?), timezone = ?, status = 'active' where id = ?`).bind(name, nowISO(), tz, user.id).run();

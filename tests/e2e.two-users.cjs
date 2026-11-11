@@ -83,23 +83,28 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
   assert.strictEqual(Object.values(sB.obligations).filter(o => o.userId === sB.me).length, 0, 'AT-02: הצטרפות יצרה אירועים');
   assert.strictEqual(sB.memberships.filter(m => !m.leftAt).length, 2);
 
-  console.log('4. א מציעה מילה קבוצתית ומאמצת אותה');
+  console.log('4. א פותחת אתגר משותף: היא כבר בפנים, וב מקבלת הזמנה');
   await a.page.evaluate((id) => App.openGroupWizard(id), circleId);
   await a.page.click('.ideas-open');   // הרעיונות סגורים כברירת מחדל
   await a.page.click('.ideas .chip.select >> nth=1');
-  await a.page.click('text=פותחת ומזמינה');
-  await a.page.waitForSelector('text=החברות קיבלו הודעה', { timeout: 20000 });
+  await a.page.click('text=מתחילה ומזמינה את הקבוצה');
+  await a.page.waitForSelector('.stamp.show', { timeout: 20000 });
   const defId = await a.page.evaluate(() => Object.values(Mila.getState().wordDefs).find(d => d.kind === 'group').id);
-  await a.page.click('button:has-text("אני בפנים")'); await a.page.click('#sheet button:has-text("אני בפנים")');
-  await a.page.waitForSelector('text=דיווח עד 10:00 למחרת', { timeout: 20000 });
+  assert.strictEqual(await a.page.evaluate((id) => Mila.adopters(id).length, defId), 1, 'מי שפתחה כבר בפנים');
+  assert.ok(!(await a.page.innerText('#screen')).includes('עוד לא הצטרפת'), 'אין יותר ״פתחת ועוד לא הצטרפת״');
 
-  console.log('5. ב רואה את המילה (דרך רענון) ומאמצת');
+  console.log('5. ב רואה את ההזמנה במסך היום ובקבוצה, ומצטרפת בלחיצה אחת');
   await sync(b);
-  await b.page.evaluate(() => App.tab('circles')); await b.page.waitForSelector('text=אתגרים שמחכים לך', { timeout: 20000 }); await shot(b, '05-b-circles');
-  await b.page.evaluate((id) => App.go('groupWord', { id }), defId);
-  await b.page.click('button:has-text("אני בפנים")'); await b.page.click('#sheet button:has-text("אני בפנים")');
-  await b.page.waitForSelector('text=דיווח עד 10:00 למחרת', { timeout: 20000 });
+  await b.page.evaluate(() => { App.closeSheet(); App.tab('today'); });
+  await b.page.waitForSelector('.tg-invite', { timeout: 20000 }); await shot(b, '05-b-today-shared-invite');
+  assert.ok(/מזמינה אותך לאתגר משותף/.test(await b.page.innerText('.tg-invite')) && /כבר בפנים/.test(await b.page.innerText('.tg-invite')));
+  await b.page.evaluate(() => App.tab('circles')); await b.page.waitForSelector('text=אתגרים שמחכים לך', { timeout: 20000 });
+  await b.page.evaluate((id) => App.go('groupWord', { id }), defId); await shot(b, '05-b-shared');
+  await b.page.click('#screen button:has-text("אני בפנים")');
+  await b.page.waitForSelector('.stamp.show', { timeout: 20000 });
+  await b.page.waitForFunction((id) => Mila.adopters(id).length === 2, defId, { timeout: 20000 });
   assert.strictEqual(await b.page.evaluate((id) => Mila.adopters(id).length, defId), 2, 'AT-04');
+  await b.page.waitForTimeout(2800);   // החותמת נעלמת
 
   console.log('5b. ב בוחרת 2 אתגרים מהספרייה עם ״אם אצליח, אני…״ (מסך הבחירה בממשק)');
   await b.page.evaluate(() => App.openPick());

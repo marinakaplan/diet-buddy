@@ -248,7 +248,7 @@ const App = (() => {
       ${pendingInviteToken ? `<div class="invited-banner w2-inv">חברה הזמינה אותך לקבוצה שלה. נכנסת עם Google, ומצטרפת.</div>` : ''}`}
       <div class="hero-cta w2-cta">${cta}
         <button class="btn text" onclick="App.howSheet()">איך זה עובד?</button>
-        <div class="disclaimer">כניסה עם Google · מגיל 18 · חינם · בטא</div>
+        <div class="disclaimer">כניסה עם Google · חינם · בטא</div>
         <nav class="legal-links" aria-label="מידע משפטי"><a href="/accessibility">נגישות</a><a href="/privacy">פרטיות</a><a href="/terms">תנאי שימוש</a></nav>
       </div>
     </div>`;
@@ -278,13 +278,11 @@ const App = (() => {
     <div class="step-title">איך קוראים לך?</div>
     <div class="step-sub">ככה החברות יראו אותך.</div>
     <div class="field"><input class="input" id="su-name" placeholder="שם תצוגה" value="${esc(signupForm.name)}" autocomplete="given-name" maxlength="30" oninput="App.suChange('name', this.value)"></div>
-    <div class="checkbox-row ${signupForm.age ? 'on' : ''}" onclick="App.suToggle('age')"><span class="box">${signupForm.age ? icon('check', 16) : ''}</span><span>אני בת 18 ומעלה</span></div>
     <div class="checkbox-row ${signupForm.terms ? 'on' : ''}" onclick="App.suToggle('terms')"><span class="box">${signupForm.terms ? icon('check', 16) : ''}</span><span>הבנתי: נקודות משחק, בלי כסף אמיתי.</span></div>
-    <div class="mt-lg"><button class="btn primary" id="su-go" ${signupForm.name.trim() && signupForm.age && signupForm.terms ? '' : 'disabled'} onclick="App.signup()">ממשיכה</button></div>`;
-  function suChange(k, v) { signupForm[k] = v; $('#su-go').disabled = !(signupForm.name.trim() && signupForm.age && signupForm.terms); }
+    <div class="mt-lg"><button class="btn primary" id="su-go" ${signupForm.name.trim() && signupForm.terms ? '' : 'disabled'} onclick="App.signup()">ממשיכה</button></div>`;
+  function suChange(k, v) { signupForm[k] = v; $('#su-go').disabled = !(signupForm.name.trim() && signupForm.terms); }
   function suToggle(k) { signupForm[k] = !signupForm[k]; render(); setTimeout(() => { const i = $('#su-name'); if (i && !signupForm.name) i.focus(); }, 0); }
   function signup() {
-    if (!signupForm.age) return toast('בגרסת הבטא המשחק פתוח לבנות 18 ומעלה');
     const u = Mila.createUser({ name: signupForm.name, ageConfirmed: true });
     Mila.getState().me = u.id; Mila.save();
     const token = pendingInviteToken; pendingInviteToken = null;
@@ -310,7 +308,7 @@ const App = (() => {
     }).catch(() => {});
   }
   const INVITE_WHAT = {
-    follow: (p) => `רוצה שתראי אם היא עומדת במילה שלה.`,
+    follow: (p) => `רוצה שתעזרי לה לעמוד במילה שלה.`,
     compete: (p) => `רוצה לראות מי מכן מתמידה יותר.`,
     same: (p) => p.wordTitle ? `רוצה שתעשו יחד: ${esc(p.wordTitle)}.` : `רוצה שתעשו את אותו אתגר יחד.`,
   };
@@ -343,28 +341,29 @@ const App = (() => {
     go('today', {}, { reset: true });
     if (token) openInvite(token);
   }
-  /* השלמת פרופיל אחרי הכניסה הראשונה: שם, 18+, תנאים */
+  /* השלמת פרופיל אחרי הכניסה הראשונה: שם והסכמה לתנאים */
   const obDots = (n) => `<div class="ob-dots" role="img" aria-label="שלב ${n} מתוך 3">${[1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
   SCREENS.profile = () => {
-    const agreed = authForm.age && authForm.terms;
+    const agreed = authForm.terms;
     return `<div class="ob">
       ${obDots(1)}
       <div class="ob-hero">${liveLogo(72)}</div>
       <h1 class="ob-title">נעים להכיר!<br>איך קוראים לך?</h1>
       <p class="ob-sub">${invitePeek && invitePeek.ok ? `<b>${esc(invitePeek.inviter.name)}</b> מחכה לך בקבוצה ״${esc(invitePeek.circleName)}״. ככה היא תראה אותך.` : 'ככה החברות יראו אותך.'}</p>
       <input class="input ob-input" id="pf-name" placeholder="השם שלך" maxlength="30" value="${esc(authForm.name || (Api.me && Api.me.name) || '')}" oninput="App.authSet('name', this.value)">
-      <div class="checkbox-row ob-agree ${agreed ? 'on' : ''}" role="presentation" tabindex="-1" onclick="App.authAgree()"><span class="box" role="checkbox" tabindex="0" aria-checked="${agreed}" aria-labelledby="agree-text" onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();App.authAgree()}">${agreed ? icon('check', 16) : ''}</span><span id="agree-text">אני בת 18 ומעלה ומסכימה ל<a href="/terms" target="_blank" rel="noopener" onclick="event.stopPropagation()">תנאי השימוש</a> ול<a href="/privacy" target="_blank" rel="noopener" onclick="event.stopPropagation()">מדיניות הפרטיות</a></span></div>
+      <div class="checkbox-row ob-agree ${agreed ? 'on' : ''}" role="presentation" tabindex="-1" onclick="App.authAgree()"><span class="box" role="checkbox" tabindex="0" aria-checked="${agreed}" aria-labelledby="agree-text" onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();App.authAgree()}">${agreed ? icon('check', 16) : ''}</span><span id="agree-text">אני מסכימה לתנאי השימוש ולמדיניות הפרטיות</span></div>
+      <div class="ob-legal">לקריאה: <a href="/terms" target="_blank" rel="noopener">תנאי השימוש</a> · <a href="/privacy" target="_blank" rel="noopener">מדיניות הפרטיות</a></div>
       <div class="ob-foot"><button class="btn primary" id="pf-go" ${busy ? 'disabled' : ''} onclick="App.completeProfile()">${busy ? 'רגע…' : 'ממשיכה'}</button>
       <button class="btn text" onclick="App.signOut()">יציאה</button></div>
     </div>`;
   };
-  function authAgree() { const kb = document.activeElement && document.activeElement.matches && document.activeElement.matches('.ob-agree .box'); const v = !(authForm.age && authForm.terms); authForm.age = v; authForm.terms = v; render(); if (kb) { const b = document.querySelector('.ob-agree .box'); if (b) b.focus(); } }
+  function authAgree() { const kb = document.activeElement && document.activeElement.matches && document.activeElement.matches('.ob-agree .box'); const v = !authForm.terms; authForm.age = v; authForm.terms = v; render(); if (kb) { const b = document.querySelector('.ob-agree .box'); if (b) b.focus(); } }
   function authSet(k, v) { authForm[k] = v; }
   async function completeProfile() {
     if (busy) return;
     const name = (authForm.name || (Api.me && Api.me.name) || '').trim();
     if (!name) return toast('צריך שם תצוגה');
-    if (!authForm.age || !authForm.terms) return toast('צריך לסמן שאת בת 18 ומעלה ומסכימה לתנאים');
+    if (!authForm.terms) return toast('צריך לסמן שאת מסכימה לתנאי השימוש ולמדיניות הפרטיות');
     busy = true; render();
     try { await Api.completeProfile({ name, ageConfirmed: true, termsAccepted: true, inviteToken: pendingInviteToken }); afterAuth(); }
     catch (e) { busy = false; fail(e); render(); }
@@ -454,6 +453,8 @@ const App = (() => {
     const upcoming = Mila.upcomingWords();
     // סבב "ראשי" להצגה בטבעת: ההתחייבות הפעילה עם הכי הרבה ימים שעברו
     const main = active.map(c => ({ c, st: Mila.commitmentStats(c.id) })).sort((a, b) => b.st.dayIndex - a.st.dayIndex)[0];
+    // אתגר משותף שחברה פתחה ועוד לא הצטרפתי אליו
+    const sharedWaiting = Mila.myCircles().flatMap(c => Object.values(Mila.getState().wordDefs).filter(d => d.circleId === c.id && d.kind === 'group' && d.status !== 'cancelled' && (d.endDate || '9999') >= Mila.today() && !Mila.myAdoption(d.id) && d.ownerId !== u.id && Mila.adopters(d.id).length > 0));
     // ימים פתוחים מאתמול מוצגים בנפרד, בכותרת משלהם (ולא עם תווית על כל שורה)
     const lateCards = cards.filter(x => x.late && !x.outcome); const nowCards = cards.filter(x => !(x.late && !x.outcome));
     const fresh = !active.length && !upcoming.length; // עוד לא בחרה אף אתגר
@@ -489,6 +490,7 @@ const App = (() => {
       ${nowCards.length || !lateCards.length ? `<div class="section-title">האתגרים שלי להיום ${nowCards.length ? `<small>${nowCards.filter(x => x.outcome).length}/${nowCards.length}</small>` : ''}</div>
       ${nowCards.length ? nowCards.map(todayRow).join('') : emptyState({ mood: 'sleepy', title: 'אין לך אתגר היום', text: 'האתגרים שבחרת עוד לא התחילו, או שכבר נגמרו.', actions: active.length < Mila.RULES.DAILY_CAP ? `<button class="btn primary" onclick="App.openPick()">בוחרת אתגר</button>` : '' })}` : ''}`}
       ${cards.length && active.length < Mila.RULES.DAILY_CAP ? `<button class="btn ghost mt" onclick="App.openPick()">${icon('plus', 20)} עוד אתגר</button>` : ''}
+      ${sharedWaiting.slice(0, 1).map(sharedInviteCard).join('')}
       ${rankAll.length ? `<div class="card tight my-ranks"><div class="card-title">${rankAll.length === 1 ? 'הקבוצה שלך' : 'הקבוצות שלך'}</div>${rankAll.map(({ c, ri }) => {
         const hasWord = active.some(k => (Mila.wordDef(k.defId) || {}).circleId === c.id);
         const status = ri.place ? `מקום ${ri.place} מתוך ${ri.total}` : !hasWord ? 'אין לך אתגר כאן' : 'עוד לא בדירוג';
@@ -817,7 +819,7 @@ const App = (() => {
       ${fresh ? `<div class="note lime">${icon('sparkle', 18)}<span>מתחיל ${Mila.relDay(c.startDate)}. דיווח עד ${Mila.RULES.GRACE_HOUR}:00 למחרת.</span></div>` : ''}
       <div class="stat-grid mb"><div class="stat lime"><div class="n">${st.success}</div><div class="l">עמדתי</div></div><div class="stat pink"><div class="n">${st.miss}</div><div class="l">פספסתי</div></div><div class="stat lav"><div class="n">${st.current}${icon('flame', 18)}</div><div class="l">ברצף</div></div></div>
       ${c.reward ? `<div class="card tight pastel-lav"><div class="tiny muted">${mine ? 'אם אצליח, אני…' : `${esc(Mila.user(c.userId).name)} הבטיחה לעצמה`}</div><div class="bold">${esc(c.reward)}</div></div>` : ''}
-      ${mine && c.status === 'active' ? `<div class="btn-row mb word-invite"><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'follow' })">בואי תראי אם עמדתי במילה שלי</button><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'same' })">בואי, שתינו צריכות את זה</button></div>` : ''}
+      ${mine && c.status === 'active' ? `<div class="btn-row mb word-invite"><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'follow' })">בואי תעזרי לי לעמוד במילה שלי</button><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'same' })">בואי, שתינו צריכות את זה</button></div>` : ''}
       <div class="card"><div class="card-title">14 הימים <span class="link">${c.status === 'active' ? `יום ${Math.max(st.dayIndex, 1)}` : `${Mila.fmtDate(c.startDate)} – ${Mila.fmtDate(c.endDate)}`}</span></div>${days14(id)}</div>
       ${mine && todayOb && !todayOb.outcome && Mila.isOpenNow(todayOb) ? `<button class="btn primary mb" onclick="App.reportSheet('${todayOb.id}')">${icon('check', 20)} דיווח על היום</button>` : ''}
       <div class="card tight">
@@ -955,8 +957,8 @@ const App = (() => {
       : `<div class="tiny muted">הדירוג מתחיל אחרי ${Mila.RULES.MIN_RANKED_EVENTS} דיווחים של כל אחת.</div>`;
     // אתגר משותף שמחכה לי
     const groupWords = Object.values(S.wordDefs).filter(d => d.circleId === id && d.kind === 'group' && d.status !== 'cancelled' && (d.endDate || '9999') >= today);
-    const waiting = groupWords.filter(d => !Mila.myAdoption(d.id));
-    const waitHtml = waiting.slice(0, 2).map(d => { const owner = Mila.user(d.ownerId); const ownerTxt = d.ownerId === meId ? 'פתחת אתגר משותף, ועוד לא הצטרפת' : `${esc(owner ? owner.name : 'חברה')} מזמינה אותך לאתגר משותף`; return `<div class="card tight pastel-lime tg-invite"><div class="tg-inv-body"><div class="small muted">${ownerTxt}</div><div class="bold">${esc(d.title)}</div></div><button class="btn primary sm" onclick="App.adoptSheet('${d.id}')">מצטרפת</button></div>`; }).join('');
+    const waiting = groupWords.filter(d => !Mila.myAdoption(d.id) && (Mila.adopters(d.id).length > 0 || d.ownerId === meId));   // אתגר שכולן עזבו לא מוצע יותר
+    const waitHtml = waiting.slice(0, 2).map(sharedInviteCard).join('');
     const feed = Mila.feed(id, 6);
     return `${topbar({ title: c.name, subtitle: left === 0 ? `יום ${round.dayIndex} · היום האחרון` : `יום ${round.dayIndex} · נשארו ${left} ימים`, end: `<button class="icon-btn lime" aria-label="להזמין חברה" onclick="App.inviteFlow({ circleId: '${id}' })">${icon('plus', 20)}</button><button class="icon-btn" aria-label="עוד" onclick="App.circleMenu('${id}')">${icon('more', 22)}</button>` })}
       ${waitHtml}
@@ -1051,25 +1053,25 @@ const App = (() => {
   }
   /* שלושה סוגי הזמנה. הטקסט נבנה מתבניות (בלי בינה מלאכותית) ואפשר לערוך לפני השליחה. */
   const INVITE_KINDS = {
-    follow: { title: 'בואי תראי אם עמדתי במילה שלי', sub: 'חברה רואה את ההתקדמות שלך.', cta: 'אני רוצה להזמין חברה', icon: 'eye', tile: 'lav' },
+    follow: { title: 'בואי תעזרי לי לעמוד במילה שלי', sub: 'חברה רואה את ההתקדמות שלך.', cta: 'אני רוצה להזמין חברה', icon: 'eye', tile: 'lav' },
     compete: { title: 'נראה אותך עומדת בזה יותר ממני', sub: 'חברה בוחרת 3 אתגרים משלה. מתחרות על התמדה.', cta: 'אני רוצה להזמין לתחרות', icon: 'trophy', tile: 'lime' },
     same: { title: 'בואי, שתינו צריכות את זה', sub: 'חברה לוקחת את אותו אתגר.', cta: 'אני רוצה לאתגר חברה', icon: 'users', tile: 'pink' },
   };
-  /* הודעות מוכנות להזמנה. הטון בטוח בעצמו: ״בואי תראי אם עמדתי במילה שלי״, לא ״תראי אם אני נכשלת״. */
-  const SEE_ME = 'בואי תראי אם עמדתי במילה שלי.';
+  /* הודעות מוכנות להזמנה. הטון: חברה שמבקשת עזרה לעמוד במילה שלה, בביטחון. לא ״תראי אם אני נכשלת״. */
+  const HELP_ME = 'בואי תעזרי לי לעמוד במילה שלי.';
   const INVITE_BY_LIBRARY = {
-    food_no_delivery: { follow: [`14 ימים בלי להזמין אוכל. ${SEE_ME}`, 'נפרדתי מהמשלוחים ל-14 יום. בואי תראי אותי עומדת בזה.'], same: ['14 ימים בלי להזמין אוכל. אני בפנים. את באה?'] },
-    move_8000_steps: { follow: [`8,000 צעדים ביום, 14 יום. ${SEE_ME}`], same: ['8,000 צעדים ביום. בואי נראה מי זזה יותר.', 'אנחנו הולכות על זה? תרתי משמע.'] },
-    move_no_phone_bed: { follow: [`14 לילות בלי טלפון במיטה. ${SEE_ME}`], same: ['הטלפון ישן בסלון. אני במיטה. 14 יום. נראה אותך.'] },
-    hab_no_impulse_buy: { follow: [`14 ימים בלי לקנות שטויות. ${SEE_ME}`], same: ['14 ימים בלי לקנות שטויות. אני בפנים. את באה?', 'בלי קניות אימפולסיביות. שתינו יודעות שאנחנו צריכות את זה.'] },
-    food_no_sweets_evening: { follow: [`בלי מתוק אחרי ארוחת ערב, 14 יום. ${SEE_ME}`, 'הקינוח נדחה ב-14 יום. בואי תראי אותי עומדת בזה.'], same: ['בלי מתוק אחרי ארוחת ערב, 14 יום. אני בפנים. את באה?'] },
+    food_no_delivery: { follow: [`14 ימים בלי להזמין אוכל. ${HELP_ME}`], same: ['14 ימים בלי להזמין אוכל. אני בפנים. את באה?'] },
+    move_8000_steps: { follow: [`8,000 צעדים ביום, 14 ימים. ${HELP_ME}`], same: ['8,000 צעדים ביום. בואי נראה מי זזה יותר.', 'אנחנו הולכות על זה? תרתי משמע.'] },
+    move_no_phone_bed: { follow: [`14 לילות בלי טלפון במיטה. ${HELP_ME}`], same: ['הטלפון ישן בסלון. אני במיטה. 14 ימים. נראה אותך.'] },
+    hab_no_impulse_buy: { follow: [`14 ימים בלי לקנות שטויות. ${HELP_ME}`], same: ['14 ימים בלי לקנות שטויות. אני בפנים. את באה?', 'בלי קניות אימפולסיביות. שתינו יודעות שאנחנו צריכות את זה.'] },
+    food_no_sweets_evening: { follow: [`בלי מתוק אחרי ארוחת ערב, 14 ימים. ${HELP_ME}`], same: ['בלי מתוק אחרי ארוחת ערב, 14 ימים. אני בפנים. את באה?'] },
   };
   function inviteMessages(kind, w, libraryId) {
     const n = Math.min(Math.max(Mila.me() ? Mila.activeCommitments().length : 3, 1), 3); const nA = n === 1 ? 'אתגר אחד' : `${n} אתגרים`;
     const special = (libraryId && INVITE_BY_LIBRARY[libraryId]) || {};
-    if (kind === 'compete') return [`אני בחרתי ${nA} ל-14 יום. בואי תבחרי גם. נראה מי מתמידה יותר.`, '14 ימים, 3 אתגרים, אחת מאיתנו מנצחת. באה?', 'אני בטוחה שאני מתמידה יותר ממך. תוכיחי שלא.'];
-    if (kind === 'same') return [...(special.same || []), ...(w ? [`14 ימים של ${w}. אני בפנים. את באה?`, `${w}. שתינו יודעות שאנחנו צריכות את זה.`, `${w} ל-14 יום. בואי נראה מי מתמידה יותר.`] : ['אותו אתגר, 14 יום, שתינו. באה?'])];
-    return [...(special.follow || []), ...(w ? [`נתתי מילה: ${w}, 14 יום. ${SEE_ME}`, `14 ימים של ${w}. בואי תראי אותי עומדת בזה.`, `${w}, 14 יום. אמרתי, ואני עושה. בואי תהיי עדה.`] : [`לקחתי על עצמי ${nA} ל-14 יום. ${SEE_ME}`, `14 ימים, ${nA}. בואי תראי אותי עומדת בזה.`, 'אמרתי, ואני עושה. בואי תהיי עדה.'])];
+    if (kind === 'compete') return [`אני בחרתי ${nA} ל-14 ימים. בואי תבחרי גם. נראה מי מתמידה יותר.`, '14 ימים, 3 אתגרים, אחת מאיתנו מנצחת. באה?', 'אני בטוחה שאני מתמידה יותר ממך. תוכיחי שלא.'];
+    if (kind === 'same') return [...(special.same || []), ...(w ? [`14 ימים של ${w}. אני בפנים. את באה?`, `${w}. שתינו יודעות שאנחנו צריכות את זה.`, `${w} ל-14 ימים. בואי נראה מי מתמידה יותר.`] : ['אותו אתגר, 14 ימים, שתינו. באה?'])];
+    return [...(special.follow || []), ...(w ? [`נתתי מילה: ${w}, 14 ימים. ${HELP_ME}`, `14 ימים של ${w}. בואי תראי אם עמדתי במילה שלי.`, `${w}, 14 ימים. אמרתי, ואני עושה. בואי תהיי עדה.`] : [`לקחתי על עצמי ${nA} ל-14 ימים. ${HELP_ME}`, `לקחתי על עצמי ${nA} ל-14 ימים. בואי תראי אם עמדתי במילה שלי.`, 'אמרתי, ואני עושה. בואי תהיי עדה.'])];
   }
   /* ============================================================
      הזמנת חברה — 3 צעדים: מה היא תעשה → ההודעה → נשלח (קישור וקוד תמיד גלויים)
@@ -1242,21 +1244,40 @@ const App = (() => {
   function openGroupWizard(circleId) { ideasOpen = false; ideasCat = 0; const r = Mila.circleRound(circleId); gwiz = { circleId, title: '', rule: '', icon: 'leaf', startDate: Mila.today(), visibility: 'status' }; go('groupWordNew'); }
   SCREENS.groupWordNew = () => {
     const c = Mila.getState().circles[gwiz.circleId];
-    const r = Mila.circleRound(gwiz.circleId);
+    const others = Mila.circleMembers(gwiz.circleId).length - 1;
+    const cap = Mila.capCheck(Mila.me().id, Mila.today());
     return `${topbar({ title: 'אתגר משותף', subtitle: c.name })}
-      <div class="step-title">איזה אתגר עושות ביחד?</div><div class="step-sub">כל אחת נמדדת לבד. מתחרות על התמדה.</div>
+      <div class="step-title">איזה אתגר עושות יחד?</div><div class="step-sub">את מתחילה אותו היום, ל-14 יום. ${others ? `${others === 1 ? 'החברה בקבוצה מקבלת' : `${others} החברות בקבוצה מקבלות`} הזמנה להצטרף, ורואים מי מתמידה יותר.` : 'אחר כך תזמיני חברה לעשות אותו איתך.'}</div>
       ${templateChips('gwTemplate', gwiz.title)}
       <div class="field"><label>שם האתגר</label><input class="input" placeholder="למשל: 8,000 צעדים ביום" maxlength="60" value="${esc(gwiz.title)}" oninput="App.gwSet('title', this.value)"></div>
       <div class="field"><label>מה נחשב הצלחה?</label><textarea class="input" maxlength="200" placeholder="כלל שכולן יכולות למדוד" oninput="App.gwSet('rule', this.value)">${esc(gwiz.rule)}</textarea></div>
       <div class="field"><label>אייקון</label><div class="icon-picker">${Mila.WORD_ICONS.map(ic => `<span class="tile ${tileColorFor(gwiz.title || ic)} ${gwiz.icon === ic ? 'on' : ''}" aria-label="${ICON_HE[ic] || ic}" aria-pressed="${gwiz.icon === ic}" onclick="App.gwSet('icon','${ic}'); App.refresh()">${icon(ic, 24)}</span>`).join('')}</div></div>
-      <div class="mt-lg"><button class="btn primary" onclick="App.gwPropose()">פותחת ומזמינה</button></div>
-      <div class="tiny muted center mt">כל חברה בוחרת אם להצטרף. גם את.</div>`;
+      ${!cap.ok ? `<div class="note warn">${icon('info', 18)}<span>יש לך כבר 3 אתגרים, וזה המקסימום. כשאחד מהם נגמר אפשר לפתוח אתגר משותף.</span></div>` : ''}
+      <div class="mt-lg"><button class="btn primary" ${cap.ok ? '' : 'disabled'} onclick="App.gwPropose()">${others ? 'מתחילה ומזמינה את הקבוצה' : 'מתחילה'}</button></div>`;
   };
   function gwSet(k, v) { gwiz[k] = v; }
   function gwTemplate(i) { const t = Mila.TEMPLATES[i]; gwiz.title = t.title; gwiz.rule = t.rule; gwiz.icon = t.icon; ideasOpen = false; render(); }
   const gwPropose = once(async () => {
-    try { const def = await Store().proposeGroupWord(gwiz.circleId, gwiz); const cid = gwiz.circleId; gwiz = null; stack = [{ name: 'circles', params: {} }, { name: 'circle', params: { id: cid } }]; go('groupWord', { id: def.id, fresh: true }); } catch (e) { fail(e); }
+    try {
+      if (!String(gwiz.title || '').trim()) return toast('איך קוראים לאתגר?');
+      if (!String(gwiz.rule || '').trim()) return toast('מה נחשב הצלחה?');
+      const def = await Store().proposeGroupWord(gwiz.circleId, gwiz); const cid = gwiz.circleId; gwiz = null;
+      const alone = Mila.circleMembers(cid).length <= 1;
+      stack = [{ name: 'circles', params: {} }, { name: 'circle', params: { id: cid } }]; render(); window.scrollTo({ top: 0 });
+      stamp('נתתי מילה.', alone ? 'עכשיו מזמינות חברה לעשות את זה איתך.' : 'את בפנים. החברות קיבלו הזמנה להצטרף.');
+      const mine = Mila.myAdoption(def.id);
+      if (alone && mine) setTimeout(() => { inviteFlow({ commitmentId: mine.id, kind: 'same' }); inv.step = 2; render(); }, 2700);
+    } catch (e) { fail(e); }
   });
+
+  /* הזמנה לאתגר משותף (בקבוצה ובמסך היום): מי פתחה, מי כבר בפנים, והצטרפות בלחיצה אחת */
+  function sharedInviteCard(d) {
+    const meId = Mila.me().id; const owner = Mila.user(d.ownerId); const ad = Mila.adopters(d.id);
+    const names = ad.map(u => esc(u.name.split(' ')[0]));
+    const who = !ad.length ? '' : names.length === 1 ? `${names[0]} כבר בפנים` : names.length === 2 ? `${names[0]} ו${names[1]} כבר בפנים` : `${names[0]}, ${names[1]} ועוד ${names.length - 2} כבר בפנים`;
+    const head = d.ownerId === meId ? 'האתגר המשותף שפתחת' : `${esc(owner ? owner.name.split(' ')[0] : 'חברה')} מזמינה אותך לאתגר משותף`;
+    return `<div class="card tight pastel-lime tg-invite"><div class="tg-inv-body" role="button" tabindex="0" onclick="App.go('groupWord',{id:'${d.id}'})"><div class="small muted">${head}</div><div class="bold">${esc(d.title)}</div>${who ? `<div class="tiny muted">${who}</div>` : ''}</div><button class="btn primary sm" onclick="App.adopt('${d.id}')">אני בפנים</button></div>`;
+  }
 
   /* ============================================================
      S13 — אימוץ מילה קבוצתית
@@ -1272,31 +1293,29 @@ const App = (() => {
     const cap = mine || over ? { ok: true } : Mila.capCheck(Mila.me().id, start);
     const owner = Mila.user(def.ownerId);
     const canCancel = !ad.length && (def.ownerId === Mila.me().id || Mila.isAdmin(def.circleId)) && def.status === 'proposed';
+    const members = Mila.circleMembers(def.circleId); const inIds = new Set(ad.map(u => u.id));
+    const notYet = members.filter(u => !inIds.has(u.id));
     return `${topbar({ title: 'אתגר משותף', subtitle: circle.name })}
-      <div class="sheet-hero">${wordTile(def, 'lg')}<div class="sheet-title">${esc(def.title)}</div><div class="sheet-sub" style="margin-bottom:8px">${esc(def.rule)}</div><div class="chips" style="justify-content:center"><span class="chip">${avatar(owner, 16)} ${esc(owner.name)} פתחה</span><span class="chip lav">${ad.length} בפנים</span>${mine ? '<span class="chip lime">את בפנים</span>' : ''}</div></div>
-      ${fresh ? `<div class="note lime">${icon('sparkle', 18)}<span>החברות קיבלו הודעה.</span></div>` : ''}
-      <div class="card tight">
-        <div class="kv"><span class="k">${icon('calendar', 18)} הסבב</span><span class="v">${Mila.fmtDate(def.startDate)} – ${Mila.fmtDate(def.endDate)}</span></div>
-        <div class="kv"><span class="k">${icon('star', 18)} נקודות</span><span class="v">נקודה לכל יום שעמדת בו</span></div>
-        <div class="kv"><span class="k">${icon('flame', 18)} פספוס</span><span class="v">הרצף מתאפס</span></div>
+      <div class="sheet-hero">${wordTile(def, 'lg')}<div class="sheet-title">${esc(def.title)}</div><div class="sheet-sub" style="margin-bottom:8px">${esc(def.rule)}</div></div>
+      <div class="note lime">${icon('users', 18)}<span>אותו אתגר לכל מי שמצטרפת. כל אחת מדווחת על עצמה, ובקבוצה רואים מי מתמידה יותר.</span></div>
+      <div class="card tight"><div class="card-title">מי בפנים</div>
+        ${ad.length ? ad.map(u => { const st = Mila.commitmentStats(u.commitmentId); return `<div class="list-row">${avatar(u, 36)}<div class="body"><div class="t">${u.id === Mila.me().id ? 'את' : esc(u.name)}${u.id === def.ownerId ? ' · פתחה את האתגר' : ''}</div><div class="m">${st.resolved ? `${st.success} מתוך ${st.resolved} ימים${st.current >= 2 ? ` · ${st.current} ברצף` : ''}` : 'עוד לא דיווחה'}</div></div></div>`; }).join('') : '<div class="tiny muted">עוד אף אחת.</div>'}
+        ${notYet.length && !over ? `<div class="tiny muted" style="padding-top:8px">עוד לא הצטרפו: ${notYet.map(u => u.id === Mila.me().id ? 'את' : esc(u.name.split(' ')[0])).join(', ')}</div>` : ''}
       </div>
-      ${ad.length ? `<div class="card tight"><div class="card-title">מי בפנים</div>${ad.map(u => { const st = Mila.commitmentStats(u.commitmentId); return `<div class="list-row">${avatar(u, 36)}<div class="body"><div class="t">${esc(u.name)}${u.id === Mila.me().id ? ' (את)' : ''}</div><div class="m">${st.resolved ? `${st.success} הצלחות${st.current ? ` · ${st.current} ברצף` : ''}` : 'עוד לא התחילה'}</div></div></div>`; }).join('')}</div>` : ''}
-      ${mine ? `<button class="btn ghost" onclick="App.go('word',{id:'${mine.id}'})">האתגר שלי כאן</button>` :
-        over ? `<div class="note">${icon('info', 18)}<span>נגמרה. אפשר להתחיל אותו שוב בסבב הבא.</span></div>` :
-        !cap.ok ? `<div class="note warn">${icon('info', 18)}<span>כבר יש לך 3 אתגרים בימים האלה (${cap.conflictingWords.map(w => esc(w.title)).join(', ')}).${cap.nextFree && cap.nextFree <= def.endDate ? ` פנוי מ-${Mila.fmtDate(cap.nextFree)}.` : ''}</span></div><button class="btn soft" disabled>אני בפנים · אין מקום</button>` :
-        `<button class="btn primary" onclick="App.adoptSheet('${id}')">אני בפנים</button>`}
-      ${canCancel ? `<button class="btn text mt" onclick="App.cancelProposal('${id}')">לבטל</button>` : ''}`;
+      ${mine ? `<button class="btn ghost" onclick="App.go('word',{id:'${mine.id}'})">הימים שלי באתגר</button>${members.length < 2 ? `<button class="btn primary mt" onclick="App.inviteFlow({ commitmentId: '${mine.id}', kind: 'same' })">להזמין חברה לאתגר הזה</button>` : ''}` :
+        over ? `<div class="note">${icon('info', 18)}<span>האתגר הזה נגמר.</span></div>` :
+        !cap.ok ? `<div class="note warn">${icon('info', 18)}<span>יש לך כבר 3 אתגרים, וזה המקסימום. כשאחד מהם נגמר אפשר להצטרף.</span></div>` :
+        `<button class="btn primary" onclick="App.adopt('${id}')">אני בפנים</button><div class="tiny muted center mt">מתחילה היום, עד ${Mila.fmtDate(def.endDate)}.</div>`}
+      ${canCancel ? `<button class="btn text mt" onclick="App.cancelProposal('${id}')">לבטל את האתגר</button>` : ''}`;
   };
-  function adoptSheet(id) {
-    const def = Mila.wordDef(id); const start = def.startDate < Mila.today() ? Mila.today() : def.startDate;
-    const end = def.endDate; const days = Mila.diffDays(start, end) + 1;
-    sheet(`<div class="sheet-hero">${wordTile(def, 'lg')}<div class="sheet-title">מצטרפת לאתגר?</div><div class="sheet-sub">${esc(def.title)} · ${days} ימים מ-${Mila.relDay(start)}</div></div>
-      <div class="kv"><span class="k">${icon('star', 18)} נקודות</span><span class="v">עד ${days}</span></div>
-      <div class="btn-row mt"><button class="btn soft" onclick="App.closeSheet()">הפעם לא</button><button class="btn primary" onclick="App.adopt('${id}')">אני בפנים</button></div>`);
-  }
-  async function adopt(id) {
-    try { const k = await Store().adoptGroupWord(id); closeSheet(true); go('word', { id: k.id, fresh: true }, { replace: true }); stamp('תפסתי אותך במילה.'); } catch (e) { fail(e); if (e.code === 'CAP') render(); }
-  }
+  const adopt = once(async (id) => {
+    try {
+      const def = Mila.wordDef(id);
+      await Store().adoptGroupWord(id); closeSheet(true);
+      const cur = current(); if (cur.name === 'groupWord' || cur.name === 'circle' || cur.name === 'today') render(); else go('circle', { id: def.circleId });
+      stamp('אני בפנים.', 'מתחילה היום. כל ערב מסמנת אם עמדת בזה.');
+    } catch (e) { fail(e); if (e.code === 'CAP') render(); }
+  });
   function cancelProposal(id) { confirmSheet({ title: 'לבטל?', sub: 'עוד אף אחת לא בפנים.', okText: 'לבטל', okClass: 'pink', onOk: async () => { await Store().cancelProposal(id); closeSheet(true); back(); toast('בוטל.'); } }); }
 
   /* ============================================================
@@ -1359,10 +1378,9 @@ const App = (() => {
   const I = () => window.MilaInstall;
   function installSheet({ os = null, intro = '' } = {}) {
     if (!I()) return;
-    instOs = os; const d = I().detect(); const g = I().guide(d, os);
+    instOs = os; const d = I().detect(); const g = I().guide(d, os);   // os: רק לבדיקות; בממשק תמיד המכשיר שזוהה
     if (!os) Api.track('install_sheet');
-    const seg = g.kind === 'installed' ? '' : `<div class="inst-dev"><span>${os && os !== d.os ? 'הוראות ל:' : `זיהינו: ${esc(I().platformName(d))}${d.inapp ? ` · בתוך ${esc(d.inapp)}` : d.os !== 'desktop' || d.browser !== 'other' ? ` · ${esc(I().browserName[d.browser] || '')}` : ''}`}</span>
-      <div class="inst-seg" role="tablist">${[['ios', 'אייפון'], ['android', 'אנדרואיד'], ['desktop', 'מחשב']].map(([k, l]) => `<button role="tab" class="${(os || d.os) === k ? 'on' : ''}" onclick="App.installSheet({os:'${k}'})">${l}</button>`).join('')}</div></div>`;
+    // רק ההוראות של המכשיר שזוהה: בלי לשוניות של מכשירים אחרים ובלי שורת ״זיהינו״
     const steps = (g.steps || []).length ? `<ol class="inst-steps">${g.steps.map((x, i) => `<li style="--i:${i}"><span class="n">${i + 1}</span><span class="g">${x.glyph}</span><div><div class="t">${x.title}</div>${x.sub ? `<div class="m">${x.sub}</div>` : ''}</div></li>`).join('')}</ol>` : '';
     const link = location.origin + '/';
     const extra = g.kind === 'inapp'
@@ -1372,10 +1390,10 @@ const App = (() => {
     const head = g.kind === 'installed'
       ? `<div class="inst-head"><img class="inst-icon" src="/icons/icon-192.png" alt=""><div><div class="sheet-title">מילה כבר על המסך הראשי 🎉</div><div class="sheet-sub">נפתחת כמו אפליקציה. עכשיו רק לוודא שהיא מזכירה לך.</div></div></div>`
       : `<div class="inst-head"><img class="inst-icon" src="/icons/icon-192.png" alt=""><div><div class="sheet-title">${intro || esc(g.title)}</div><div class="sheet-sub">${esc(g.sub || '')}</div></div></div>`;
-    sheet(`<div class="inst">${head}${seg}
+    sheet(`<div class="inst">${head}
       ${g.prompt ? `<button class="btn primary inst-go" onclick="App.installNow()">${I().G.install} התקנה בלחיצה</button><div class="inst-or">או ידנית</div>` : ''}
       ${steps}${extra}
-      ${pushBlock(d)}
+      ${d.pushNeedsInstall && g.kind !== 'installed' ? '' : pushBlock(d)}
       <button class="btn text mt" onclick="App.closeSheet()">${g.kind === 'installed' ? 'סגירה' : 'אחר כך'}</button>
       ${g.arrow ? '<div class="inst-arrow" aria-hidden="true"><span>כפתור השיתוף בשורה התחתונה</span><i>↓</i></div>' : ''}</div>`);
   }
@@ -1502,7 +1520,7 @@ const App = (() => {
         ${S.meta.demo ? `<div class="list-row clickable" onclick="App.resetDemo()"><span class="tile sm peach">${icon('repeat', 18)}</span><div class="body"><div class="t">איפוס הדוגמה</div><div class="m">ולהתחיל באמת</div></div></div>` : ''}
         ${isCloud() ? `<div class="list-row clickable" onclick="App.signOut()"><span class="tile sm gray">${icon('logout', 18)}</span><div class="body"><div class="t">יציאה מהחשבון</div><div class="m">${esc((Api.me && Api.me.email) || '')}</div></div></div>` : ''}
         <div class="list-row clickable" onclick="App.deleteAccount()"><span class="tile sm pink">${icon('trash', 18)}</span><div class="body"><div class="t" style="color:var(--danger)">מחיקת חשבון</div><div class="m">סופי</div></div></div></div>
-      <div class="tiny muted center mt">מילה · בטא · מגיל 18</div>`;
+      <div class="tiny muted center mt">מילה · בטא</div>`;
   };
   async function setSetting(k, v) { try { await Store().updateSettings({ [k]: v }); render(); } catch (e) { fail(e); } }
   async function rename(name) { try { if (!name.trim()) return; await Store().renameMe(name); toast('עודכן.'); } catch (e) { fail(e); } }
@@ -1890,7 +1908,7 @@ const App = (() => {
     reportSheet, confirmMiss, excuseSheet, doReport, correctionSheet, _corrPick, doCorrect,
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, encourageSheet, circleMenu, leaveCircle, copyText, removeMember, cmSet,
-    acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, gwSet, gwTemplate, gwPropose, adoptSheet, adopt, cancelProposal,
+    acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, gwSet, gwTemplate, gwPropose, adopt, cancelProposal,
     again, retry, teamSheet, supportHide, howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };

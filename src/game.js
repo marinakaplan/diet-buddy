@@ -119,6 +119,8 @@ export async function createPersonalWord(env, user, b) {
   return { defId: did, commitmentId: kid };
 }
 
+/* אתגר משותף: אותו אתגר לכל מי שמצטרפת בקבוצה. מי שפותחת אותו כבר בפנים (ההתחייבות שלה נוצרת באותה פעולה),
+   והחברות מקבלות הזמנה להצטרף בלחיצה. */
 export async function proposeGroupWord(env, user, b) {
   const c = await first(env, `select * from circles where id = ? and status = 'active'`, b.circleId);
   if (!c) throw err('NOT_FOUND', 'קבוצה לא נמצאה', 404);
@@ -129,15 +131,20 @@ export async function proposeGroupWord(env, user, b) {
   if (b.startDate != null && !isValidDate(b.startDate)) throw err('VALIDATION', 'תאריך ההתחלה לא תקין');
   const start = b.startDate || today;
   if (start < today) throw err('VALIDATION', 'אי אפשר להתחיל בתאריך שעבר');
-  const did = uid(); const vis = 'status';
+  const cap = await capInfo(env, user.id, start);
+  if (!cap.ok) throw err('CAP', 'יש לך כבר 3 אתגרים, וזה המקסימום. כשאחד מהם נגמר אפשר לפתוח אתגר משותף.', 409, { cap });
+  const did = uid(); const end = addDays(start, ROUND_DAYS - 1);
   const members = await all(env, `select user_id from circle_memberships where circle_id = ? and left_at is null and user_id <> ?`, c.id, user.id);
+  const { kid, stmts } = commitmentStmts(env, did, user, start, end);
   const batch = [
-    S(env, `insert into word_definitions(id, kind, circle_id, owner_id, title, rule, icon, visibility, start_date, end_date, status) values (?,?,?,?,?,?,?,?,?,?,'proposed')`, did, 'group', c.id, user.id, title, rule, icon(b.icon), vis, start, addDays(start, ROUND_DAYS - 1)),
+    S(env, `insert into word_definitions(id, kind, circle_id, owner_id, title, rule, icon, visibility, start_date, end_date, status) values (?,?,?,?,?,?,?,?,?,?,'active')`, did, 'group', c.id, user.id, title, rule, icon(b.icon), 'status', start, end),
+    ...stmts,
     eventStmt(env, c.id, user.id, 'group_word_proposed', { defId: did, title }),
+    ...grantStmts(env, user.id, 'first_word', did), ...grantStmts(env, user.id, 'first_group_word', did),
     ...members.map(m => notifyStmt(env, m.user_id, 'group_word', `באה איתי? · ${c.name}`, `${user.display_name} פתחה אתגר משותף: ${title}`, { defId: did, circleId: c.id }, today)),
   ];
   await runBatch(env, batch);
-  return { defId: did };
+  return { defId: did, commitmentId: kid };
 }
 
 export async function adoptGroupWord(env, user, b) {

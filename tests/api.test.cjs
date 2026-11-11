@@ -44,7 +44,7 @@ const invariants = async (c) => {
   await test('א נרשמת; בלי פרופיל אין גישה למצב (403)', async () => {
     await A.login(`a.${stamp}@test.mila`, 'יעל');
     const r = await A.req('/api/state'); assert.strictEqual(r.status, 403);
-    const bad = await A.req('/api/profile', { method: 'POST', body: { name: 'יעל', ageConfirmed: false, termsAccepted: true } }); assert.strictEqual(bad.status, 400, 'מגבלת גיל');
+    const bad = await A.req('/api/profile', { method: 'POST', body: { name: 'יעל', termsAccepted: false } }); assert.strictEqual(bad.status, 400, 'מגבלת גיל');
     assert.strictEqual((await A.profile('יעל')).status, 200);
     const s = await A.state(); assert.strictEqual(s.users[s.me].name, 'יעל');
   });

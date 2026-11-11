@@ -382,11 +382,14 @@ const Mila = (() => {
     if (circle.whoCanPropose === 'admins' && !isAdmin(circleId)) throw err('בקבוצה הזו רק מנהלות פותחות אתגר משותף');
     validateWordInput({ title, rule });
     if (!startDate) startDate = today();
+    const cap0 = capCheck(state.me, startDate);
+    if (!cap0.ok) throw Object.assign(err('יש לך כבר 3 אתגרים, וזה המקסימום. כשאחד מהם נגמר אפשר לפתוח אתגר משותף.'), { code: 'CAP', cap: cap0 });
     const def = { id: uid('w'), kind: 'group', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility, version: 1, startDate, endDate: addDays(startDate, RULES.ROUND_DAYS - 1), status: 'proposed', createdAt: nowISO() };
     state.wordDefs[def.id] = def;
     addEvent(circleId, state.me, 'group_word_proposed', { defId: def.id, title: def.title });
     // התראה לחברות
     for (const m of activeMemberships(circleId)) if (m.userId !== state.me) notify(m.userId, 'group_word', `באה איתי? · ${circle.name}`, `${me().name} פתחה אתגר משותף: ${def.title}`, { defId: def.id, circleId });
+    adoptGroupWord(def.id, { silent: true });   // מי שפותחת כבר בפנים
     save();
     return def;
   }
@@ -395,7 +398,7 @@ const Mila = (() => {
   }
   function myAdoption(defId, userId = state.me) { return Object.values(state.commitments).find(c => c.defId === defId && c.userId === userId && c.status !== 'cancelled') || null; }
 
-  function adoptGroupWord(defId) {
+  function adoptGroupWord(defId, { silent = false } = {}) {
     const def = state.wordDefs[defId];
     if (!def || def.kind !== 'group') throw err('האתגר לא נמצא');
     if (!isMember(def.circleId)) throw err('את לא חברה בקבוצה הזו');
@@ -409,7 +412,7 @@ const Mila = (() => {
     // התחייבות של מילה קבוצתית מסתיימת עם המילה הקבוצתית
     if (def.endDate && c.endDate > def.endDate) { c.endDate = def.endDate; obligationsOf(c.id).filter(o => o.localDate > def.endDate).forEach(o => { o.status = 'cancelled'; }); }
     if (def.status === 'proposed') def.status = 'active';
-    addEvent(def.circleId, state.me, 'group_word_adopted', { defId: def.id, title: def.title });
+    if (!silent) addEvent(def.circleId, state.me, 'group_word_adopted', { defId: def.id, title: def.title });
     grant(state.me, 'first_word', def.id);
     grant(state.me, 'first_group_word', def.id);
     save();
