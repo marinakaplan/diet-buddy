@@ -191,7 +191,10 @@ const App = (() => {
     setTimeout(() => { FX.confetti(innerWidth / 2, innerHeight / 2, { n: 34, power: 1.6 }); FX.buzz(20); }, 260);
     setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, sub ? 2600 : 1600);
   }
-  function fail(e) { toast(e.userMessage || e.message || 'משהו השתבש'); if (!e.userMessage) console.error(e); }
+  function fail(e) {
+    toast(e.userMessage || e.message || 'משהו השתבש'); if (!e.userMessage) console.error(e);
+    if (e && (e.code === 'QUOTA' || e.status >= 500)) Api.track(e.code === 'QUOTA' ? 'err:quota' : 'err:server');   // גם תקלה שהופיעה כהודעה קצרה נספרת באנליטיקה
+  }
   function confirmSheet({ title, sub, okText = 'אישור', okClass = 'dark', onOk, cancelText = 'ביטול' }) {
     sheet(`<div class="sheet-title">${esc(title)}</div><div class="sheet-sub">${sub || ''}</div>
       <div class="btn-row"><button class="btn soft" onclick="App.closeSheet()">${esc(cancelText)}</button><button class="btn ${okClass}" id="sheet-ok">${esc(okText)}</button></div>`);

@@ -141,7 +141,7 @@ async function handleApi(req, env, ctx, url) {
   return json({ error: 'NOT_FOUND' }, 404);
 }
 
-const publicMe = (u) => ({ id: u.id, name: u.display_name, email: u.email, status: u.status, timezone: u.timezone, color: u.color, isAdmin: !!u.is_admin });
+const publicMe = (u) => ({ id: u.id, name: u.status === 'pending' ? auth.repairName(u.display_name) : u.display_name, email: u.email, status: u.status, timezone: u.timezone, color: u.color, isAdmin: !!u.is_admin });
 async function body(req) { try { return await req.json(); } catch { return {}; } }
 /* "נראתה לאחרונה" + משתמשת פעילה ביום: כתיבה רק כשעברו 10 דקות, ושורה אחת ליום בטבלת user_days */
 async function touch(env, user) {

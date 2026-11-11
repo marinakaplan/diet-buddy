@@ -130,7 +130,18 @@ export async function completeProfile(user, body, env) {
 const COLORS = ['lime', 'pink', 'lavender', 'mint', 'peach', 'sky'];
 function pickColor(name) { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; }
 function base64url(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
-function decodeJwt(t) { try { const p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(atob(p)); } catch { return null; } }
+/* atob מחזיר בתים, לא טקסט: בלי פענוח UTF-8 שם בעברית מ-Google (״שני״) נשמר כג׳יבריש (״×©× ×™״) */
+export function decodeJwt(t) { try { const p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(p), ch => ch.charCodeAt(0)))); } catch { return null; } }
+/* שמות שכבר נשמרו כג׳יבריש לפני התיקון: מפענחות חזרה. אם אי אפשר, מחזירות שדה ריק ולא ג׳יבריש. */
+export function repairName(s) {
+  s = String(s || '');
+  if (!/[\u00c0-\u00ff]/.test(s) || /[^\u0000-\u00ff]/.test(s)) return s;   // אין סימן לפענוח שגוי
+  // הבית A0 (למשל באות נ) נשמר כרווח רגיל: רווח שבא מיד אחרי בית פותח הוא A0, ורווח אחר הוא רווח אמיתי
+  for (const v of [s, s.replace(/([\u00c2-\u00f4]) /g, '$1\u00a0'), s.replace(/ /g, '\u00a0')]) {
+    try { const t = new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(v, ch => ch.charCodeAt(0))); if (t && t !== v) return cleanName(t); } catch { /* לא UTF-8: ממשיכות */ }
+  }
+  return s.includes('\u00d7') ? '' : s;
+}
 function safeJson(s) { try { return s ? JSON.parse(s) : null; } catch { return null; } }
 /* רק נתיב פנימי: בלי // או /\ בהתחלה ובלי תווי בקרה/רווח (דפדפנים מוחקים טאב, ואז /\t/evil.com הופך ל-//evil.com) */
 function sanitizeNext(n) { return typeof n === 'string' && n.length <= 200 && /^\/(?![\/\\])[\x21-\x7e]*$/.test(n) ? n : '/'; }
