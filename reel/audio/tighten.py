@@ -2,7 +2,9 @@
 audio/vo.wav plus timing.js (line start/end times the reel animates to)."""
 import subprocess, re, json, os
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
-RAW = os.path.join(HERE, 'vo-raw.mp3'); TEMPO = 1.12
+RAW = os.path.join(HERE, 'vo-raw.mp3')
+# the hook (everything up to 'ו...מחר?') is rapid-fire; the rest is quick but clear
+HOOK_END, HOOK_TEMPO, TEMPO = 13.55, 1.3, 1.18
 # Lines of the script with their start/end in the raw take (word alignment from ElevenLabs Scribe, take B).
 LINES = [
   (0.08, 1.28, 'די יפה שלי,'),
@@ -25,22 +27,29 @@ LINES = [
 log = subprocess.run(['ffmpeg', '-hide_banner', '-i', RAW, '-af', 'silencedetect=noise=-35dB:d=0.22', '-f', 'null', '-'], capture_output=True, text=True).stderr
 st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]; en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
 dur = float(re.search(r'Duration: (\d+):(\d+):([\d.]+)', log).groups()[2])
-KEEP = 0.16
+KEEP = 0.12
 keep, cur = [], 0.0
 for s, e in zip(st, en):
     # keep a comic beat before "ו...מחר?"
-    k = 0.42 if 10.9 < s < 12.1 else KEEP
+    k = 0.22 if 10.9 < s < 12.1 else (0.06 if e < HOOK_END else KEEP)
     if e - s > k:
         keep.append((cur, s + k / 2)); cur = e - k / 2
 keep.append((cur, dur))
+# split the kept pieces at the hook boundary so each part gets its own tempo
+pieces = []
+for a, b in keep:
+    if a < HOOK_END < b: pieces += [(a, HOOK_END), (HOOK_END, b)]
+    else: pieces.append((a, b))
+keep = pieces
 def remap(t):
     acc = 0.0
     for a, b in keep:
-        if t <= b: return (acc + max(0.0, t - a)) / TEMPO
-        acc += b - a
-    return acc / TEMPO
-parts = ''.join(f'[0:a]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS[p{i}];' for i, (a, b) in enumerate(keep))
-flt = parts + ''.join(f'[p{i}]' for i in range(len(keep))) + f'concat=n={len(keep)}:v=0:a=1,atempo={TEMPO},loudnorm=I=-14:TP=-1.5:LRA=9[out]'
+        tempo = HOOK_TEMPO if b <= HOOK_END else TEMPO
+        if t <= b: return acc + max(0.0, t - a) / tempo
+        acc += (b - a) / tempo
+    return acc
+parts = ''.join(f'[0:a]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,atempo={HOOK_TEMPO if b <= HOOK_END else TEMPO}[p{i}];' for i, (a, b) in enumerate(keep))
+flt = parts + ''.join(f'[p{i}]' for i in range(len(keep))) + f'concat=n={len(keep)}:v=0:a=1,loudnorm=I=-14:TP=-1.5:LRA=9[out]'
 subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', RAW, '-filter_complex', flt, '-map', '[out]', '-ar', '48000', '-ac', '1', os.path.join(HERE, 'vo.wav')], check=True)
 lines = [[round(remap(a), 3), round(remap(b), 3), t] for a, b, t in LINES]
 total = round(remap(dur), 3)

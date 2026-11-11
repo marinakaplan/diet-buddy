@@ -27,12 +27,12 @@
   .promise b{font-weight:900}
   .promise .x{position:absolute;right:130px;top:50%;height:9px;width:0;background:var(--ink);margin-top:-4px}
   .phone{position:absolute;left:265px;width:470px;height:1017px;border-radius:56px;overflow:hidden;background:#fff;
-    box-shadow:0 0 0 10px var(--ink),0 36px 90px rgba(28,26,31,.22)}
+    border:3px solid var(--line2);box-shadow:0 30px 80px rgba(28,26,31,.12)}
   .phone img{position:absolute;left:0;top:0;width:100%;display:block}
   .tap{position:absolute;width:100px;height:100px;margin:-50px 0 0 -50px;border-radius:50%;border:7px solid var(--ink);opacity:0}
   .chip{display:inline-flex;align-items:center;gap:14px;font-weight:800;padding:12px 24px;background:#fff;border:3px solid var(--line2);font-size:40px}
   #cc{position:absolute;left:60px;right:140px;top:1385px;text-align:center;z-index:40}
-  #cc span{display:inline-block;background:var(--ink);color:#fff;font-weight:700;font-size:42px;line-height:1.3;padding:12px 26px}
+  #cc span{display:inline-block;background:#fff;color:var(--ink);border:3px solid var(--line2);font-weight:700;font-size:42px;line-height:1.3;padding:12px 26px}
   .btn-dark{display:inline-block;background:var(--ink);color:#fff;font-weight:800;font-size:60px;padding:30px 60px}
 </style>
 </head>
@@ -170,14 +170,14 @@ function render(t){
   $('bl1').style.transform=`translate(${380+Math.sin(t*.4)*90}px,${-300+Math.cos(t*.35)*80}px)`;
   $('bl2').style.transform=`translate(${-360+Math.cos(t*.32)*90}px,${1150+Math.sin(t*.38)*90}px)`;
   $('bl3').style.transform=`translate(${480+Math.sin(t*.26)*80}px,${600+Math.cos(t*.3)*100}px)`;
-  for(const [id,[a,b]] of Object.entries(S)){const el=$(id),i=lin(t,a-.08,a+.08),o=1-lin(t,b-.08,b+.08);el.style.opacity=(t>=a-.08&&t<b+.08)?Math.min(i,o):0;}
+  for(const [id,[a,b]] of Object.entries(S)){const el=$(id),i=a===0?1:lin(t,a-.08,a+.08),o=1-lin(t,b-.08,b+.08);el.style.opacity=(t>=a-.08&&t<b+.08)?Math.min(i,o):0;}
   const k=CAPTIONED.find(i=>t>=L[i]&&t<E[i]+.15);
   $('ccx').textContent=k!==undefined?window.VO_LINES[k][2]:''; $('cc').style.opacity=k!==undefined?Math.min(lin(t,L[k],L[k]+.08),1-lin(t,E[k]+.07,E[k]+.15)):0;
 
   // 0 hook
   drawFaces($('s0'),t);
-  up($('s0a'),t,L[0],.3,60); up($('s0b'),t,L[1]);
-  [['p1',L[2]],['p2',L[3]],['p3',L[4]]].forEach(([id,a],i)=>{const el=$(id);up(el,t,a,.3,70);
+  up($('s0a'),t,-.3,.3,60); up($('s0b'),t,L[1]);
+  [['p1',L[2]],['p2',L[3]],['p3',L[4]]].forEach(([id,a],i)=>{const el=$(id);up(el,t,a-.05,.22,70);
     const s=eo(lin(t,E[4]+.05+i*.15,E[4]+.25+i*.15)); el.querySelector('.x').style.width=`calc(${s*100}% - ${s*160}px)`;});
   pop($('s0z'),t,L[5]-.05);
   // 1 welcome
