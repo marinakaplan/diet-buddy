@@ -102,6 +102,21 @@ function avatarStack(users, size = 30, max = 4) {
   return `<span class="avatar-stack">${shown.map(u => avatar(u, size)).join('')}${extra > 0 ? `<span class="avatar avatar-more" dir="ltr" style="width:${size}px;height:${size}px">+${extra}</span>` : ''}</span>`;
 }
 
+/* פרצוף מצב למסכים ריקים ולמסכי שגיאה: אותו פרצוף של מילה, בהבעה שמתאימה למצב.
+   sleepy = עוד אין כאן כלום · wink = בואי נתחיל · happy = הכול טוב · oops = משהו השתבש · offline = אין חיבור */
+function moodFace(mood = 'sleepy', size = 72) {
+  const ink = '#1B1B1F'; const st = `stroke="${ink}" stroke-width="2.6" stroke-linecap="round" fill="none"`;
+  const M = {
+    sleepy: { fill: '#E3DAFB', body: `<path d="M13 22c1.5 2 4.5 2 6 0M29 22c1.5 2 4.5 2 6 0" ${st}/><path d="M21 31.5c1.5 1 4.5 1 6 0" ${st}/><g class="mood-z" stroke="${ink}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M33 8.5h4.5l-4.5 4.5h4.5"/><path d="M39.5 3.5h3l-3 3h3" opacity=".6"/></g>` },
+    wink: { fill: '#D5F1E3', body: `<circle cx="16" cy="21.5" r="2.5" fill="${ink}"/><path d="M29 22c1.5-2.5 4.5-2.5 6 0" ${st}/><path d="M17 29.5c3.5 4 10.5 4 14 0" ${st}/>` },
+    happy: { fill: '#D9F565', body: `<path d="M13 22.5c1.5-2.5 4.5-2.5 6 0M29 22.5c1.5-2.5 4.5-2.5 6 0" ${st}/><path d="M16.5 29c3.5 4.5 11.5 4.5 15 0" ${st}/>` },
+    oops: { fill: '#FFD3E4', body: `<path d="M12 15l7-1.6M36 15l-7-1.6" ${st}/><circle cx="16" cy="22" r="2.6" fill="${ink}"/><circle cx="32" cy="22" r="2.6" fill="${ink}"/><ellipse cx="24" cy="32" rx="3" ry="3.6" ${st}/><path class="mood-drop" d="M39.5 9.5c1.5 2 2.2 3.1 2.2 4.2a2.2 2.2 0 0 1-4.4 0c0-1.1.7-2.2 2.2-4.2z" fill="#7DB9F5"/>` },
+    offline: { fill: '#FFD9C7', body: `<circle cx="16" cy="21.5" r="2.5" fill="${ink}"/><path d="M29.5 19l5 5M34.5 19l-5 5" ${st}/><path d="M16 32c2.2-2.4 4.4 2.4 8 0s5.8 2.4 8 0" ${st}/>` },
+  };
+  const m = M[mood] || M.sleepy;
+  return `<svg class="mood mood-${M[mood] ? mood : 'sleepy'}" width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true"><rect x="2" y="2" width="44" height="44" rx="14" fill="${m.fill}"/>${m.body}</svg>`;
+}
+
 /* לוגו חי: עצבני בזמן שהתירוצים נמחקים, מחייך כשהחותמת נוחתת, ממצמץ,
    ומדי פעם מציץ הצידה עם גבות מורמות וחיוך עקום ("נראה אם תעמדי בזה"). */
 function liveLogo(size = 26) {
