@@ -116,7 +116,7 @@ const SFX = [
   [E[4]+.05,'scribble',.6],[E[4]+.2,'scribble',.6],[E[4]+.35,'scribble',.6],[L[5]-.05,'boing',.7],
   [L[6],'whoosh',.5],[L[7]+.45,'ding',.45],
   [L[8],'whoosh',.4],[L[8]+.6,'thud',.9],[L[8]+1.5,'thud',.9],...[0,1,2,3].map(i=>[L[8]+2.95+i*.1,'pop',.5]),
-  [L[9],'whoosh',.45],[L[9]+.6,'click',.4],[L[10]-.12,'click',.8],[L[10]+.05,'ding',.55],[L[10]+.1,'pop',.6],
+  [L[9],'whoosh',.45],[L[9]+.6,'click',.4],[L[10]+.83,'click',.8],[L[10]+1.0,'ding',.55],[L[10]+1.05,'pop',.6],
   [L[11],'whoosh',.45],[L[11]+.85,'pop',.6],
   [L[12],'whoosh',.45],[L[12]+1.1,'pop',.6],[L[12]+3.1,'ding',.35],
   [L[13],'thud',.8],[L[13]+1.55,'thud',.8],[L[14],'whoosh',.3],[L[14]+.3,'ding',.45],
@@ -189,9 +189,9 @@ function render(t){
   // 3 report
   up($('s3t'),t,L[9],.3); phoneIn($('s3p'),t,L[9]);
   const rp=eo(lin(t,L[9]+.6,L[9]+.85)); $('im_report').style.opacity=rp; $('im_report').style.transform=`translateY(${(1-rp)*120}px)`;
-  const tx=lin(t,L[10]-.15,L[10]+.25),tap=$('tap'); tap.style.left='72%'; tap.style.top='79%'; tap.style.opacity=(tx>0&&tx<1)?1-tx:0; tap.style.transform=`scale(${.4+tx*1.4})`;
-  $('im_done').style.opacity=lin(t,L[10],L[10]+.12);
-  drawFaces($('s3'),t); pop($('plus'),t,L[10]+.05); if(t>L[10]+.4)$('plus').style.transform=`translateY(${-Math.abs(Math.sin((t-L[10]-.4)*6))*26*Math.max(0,1-(t-L[10]-.4)/1.2)}px)`;
+  const tx=lin(t,L[10]+.8,L[10]+1.2),tap=$('tap'); tap.style.left='72%'; tap.style.top='79%'; tap.style.opacity=(tx>0&&tx<1)?1-tx:0; tap.style.transform=`scale(${.4+tx*1.4})`;
+  $('im_done').style.opacity=lin(t,L[10]+.95,L[10]+1.07);
+  drawFaces($('s3'),t); pop($('plus'),t,L[10]+1.0); if(t>L[10]+1.35)$('plus').style.transform=`translateY(${-Math.abs(Math.sin((t-L[10]-1.35)*6))*26*Math.max(0,1-(t-L[10]-1.35)/1.2)}px)`;
   // 4 leaderboard (short scene: quick scroll)
   up($('s4t'),t,L[11],.25); phoneIn($('s4p'),t,L[11]);
   const x=lin(t,L[11]+.15,L[11]+.85),sc=x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2; $('im_circle').style.transform=`translateY(${-sc*560}px)`;

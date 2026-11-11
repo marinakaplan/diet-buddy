@@ -17,17 +17,21 @@ CHUNKS = [  # (file, tempo, max pause kept, [(start, end, caption)])
     (0.08, 1.22, 'כולנו מבטיחות.'),
     (1.76, 3.02, 'בואי נראה מי מקיימת!'),
     (3.90, 7.72, 'בוחרות עד שלושה אתגרים, לארבעה עשר יום, יחד עם החברות.'),
-    (8.28, 10.92, 'כל ערב, שאלה אחת: עמדתי במילה?'),
-    (11.62, 13.06, 'עמדת? נקודה!'),
-    (13.78, 15.56, 'והקבוצה רואה מי מובילה.'),
-    (16.32, 20.28, 'פספסת? הרצף מתאפס, אבל הנקודות נשארות.')]),
+    (8.28, 9.66, 'כל ערב, שאלה אחת:')]),
+  # feminine forms re-recorded with IPA (/aˈmadt/, /pisˈpast/); the body take said "amadeta"/"pispasta"
+  ('vo-amadt.mp3', 1.08, 0.30, [
+    (0.13, 1.80, 'עמדת במילה? נקודה!')]),
+  ('vo-body.mp3', 1.08, 0.22, [
+    (13.78, 15.56, 'והקבוצה רואה מי מובילה.')]),
+  ('vo-pispast.mp3', 1.08, 0.22, [
+    (0.145, 3.62, 'פספסת? הרצף מתאפס, אבל הנקודות נשארות.')]),
   ('vo-end.mp3', 1.00, 0.30, [
     (0.12, 2.26, 'בלי כסף. בלי קופה.'),
     (3.42, 4.42, 'רק המילה שלך.'),
     (5.38, 7.60, 'מילה. תעמדי במילה שלך!')]),
 ]
 GAP = 0.10   # silence between takes
-GAPS = {0: 0.12}   # a short breath after the opening
+GAPS = {0: 0.12, 2: 0.25, 3: 0.25, 4: 0.25}   # short breath after the opening; natural beats between spliced sentences
 def keep_segments(path, maxpause, first, last):
     log = subprocess.run(['ffmpeg', '-hide_banner', '-i', path, '-af', 'silencedetect=noise=-30dB:d=0.12', '-f', 'null', '-'], capture_output=True, text=True).stderr
     st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]; en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
