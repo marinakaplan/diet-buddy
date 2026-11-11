@@ -135,6 +135,26 @@ const App = (() => {
     if (current().name === 'admin') { adminData = await Api.adminStats(adminDays); adminErr = null; render(); return; }
     if (Api.isCloud()) await Api.sync(); else render();
   }
+  /* אייפון, אפליקציה מותקנת: אחרי שהמקלדת נסגרת (או כשחוזרים לאפליקציה) גובה המסך לפעמים ״נתקע״ בגובה שהיה עם המקלדת,
+     ואז התפריט התחתון צף באמצע המסך. כותבות מחדש את הגדרת ה-viewport (אותו ערך) וזזות פיקסל הלוך וחזור:
+     זה גורם לספארי לחשב את הגובה מחדש. רץ רק באייפון, ולא יותר מפעם ב-400 אלפיות שנייה. */
+  let lastViewportFix = 0;
+  function fixViewport() {
+    const d = I() ? I().detect() : null; if (!d || d.os !== 'ios') return;
+    const el = document.activeElement; if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;   // המקלדת פתוחה: לא נוגעות
+    if (Date.now() - lastViewportFix < 400) return; lastViewportFix = Date.now();
+    const vp = document.querySelector('meta[name="viewport"]');
+    if (vp) { const c = vp.getAttribute('content'); vp.setAttribute('content', c + ', minimum-scale=1'); requestAnimationFrame(() => vp.setAttribute('content', c)); }
+    const y = window.scrollY; window.scrollTo(0, y + 1); requestAnimationFrame(() => window.scrollTo(0, y));
+  }
+  function initViewportFix() {
+    document.addEventListener('focusout', (e) => { if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) setTimeout(fixViewport, 180); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(fixViewport, 250); });
+    window.addEventListener('pageshow', () => setTimeout(fixViewport, 250));
+    window.addEventListener('orientationchange', () => setTimeout(fixViewport, 350));
+    // המקלדת נסגרה: האזור הנראה גדל בחזרה
+    if (window.visualViewport) { let h = window.visualViewport.height; window.visualViewport.addEventListener('resize', () => { const n = window.visualViewport.height; if (n > h + 80) setTimeout(fixViewport, 120); h = n; }); }
+  }
   function initPull() {
     const el = document.createElement('div'); el.id = 'ptr'; el.setAttribute('aria-hidden', 'true'); el.innerHTML = `<span class="ptr-ic">${icon('refresh', 16)}</span><span class="ptr-t"></span>`; document.body.appendChild(el);
     const ic = el.firstChild, tx = el.lastChild;
@@ -2137,7 +2157,7 @@ const App = (() => {
     setInterval(() => { dayTick(); if (document.visibilityState === 'visible') probe(); }, 60000);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible' || !stack.length) return; if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); dayTick(); probe(); updateIfIdle(); if (Api.isCloud()) Api.sync().catch(() => {}); });
     window.addEventListener('online', () => { if (Api.isCloud()) Api.sync().then(() => toast('החיבור חזר. הכול מעודכן.', 'lime')).catch(() => {}); else if (Api.enabled && ((Mila.getState().meta || {}).offline || (stack.length && current().name === 'error'))) location.reload(); });   // נפתחה בלי רשת מהעותק השמור: טוענות מחדש כשהרשת חוזרת
-    initPull();
+    initPull(); initViewportFix();
     Api.track('visit');
     if (I() && I().detect().inapp) Api.track('visit_inapp');
     if (urlToken) { history.replaceState(null, '', location.pathname); Api.trackInviteOpen(urlToken); Api.track('visit_invite'); }
