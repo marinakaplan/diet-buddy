@@ -563,6 +563,22 @@ export async function sendEncouragement(env, user, b) {
   if (sentToday >= 5) return;   // מספיק מילים טובות לחצי יום: בלי הצפה
   await env.DB.batch([eventStmt(env, b.circleId, user.id, 'encouragement', { toUserId: b.toUserId, reaction: b.reaction }), notifyStmt(env, b.toUserId, 'encouragement', `${user.display_name} שלחה לך מילה טובה`, '', { circleId: b.circleId }, localDate(user.timezone)), ...grantStmts(env, user.id, 'first_encouragement', b.circleId)]);
 }
+/* ״נו, מה איתך?״ — דחיפה קטנה לחברה שעוד לא דיווחה היום, כמו poke של פעם.
+   פרטי בין שתיהן (לא מופיע בעדכוני הקבוצה), פעם ב-6 שעות לכל חברה, ורק אם באמת נשאר לה משהו לדווח היום. */
+export async function poke(env, user, b) {
+  if (!b.toUserId || b.toUserId === user.id) throw err('VALIDATION', 'צריך לבחור חברה');
+  if (!(await isMember(env, b.circleId, user.id)) || !(await isMember(env, b.circleId, b.toUserId))) throw err('FORBIDDEN', 'אין הרשאה', 403);
+  if (await isBlocked(env, b.toUserId, user.id)) return { sent: false };
+  const to = await first(env, `select id, timezone from users where id = ? and status = 'active'`, b.toUserId);
+  if (!to) return { sent: false };
+  const open = await first(env, `select 1 as x from daily_obligations where user_id = ? and local_date = ? and outcome is null and status in ('scheduled','open') limit 1`, to.id, localDate(to.timezone));
+  if (!open) return { sent: false, reason: 'done' };
+  const recent = await first(env, `select 1 as x from notifications where user_id = ? and type = 'poke' and created_at > ? and ref like ? limit 1`, to.id, new Date(Date.now() - 6 * 3600000).toISOString(), `%${String(user.id)}%`);
+  if (recent) return { sent: false, reason: 'wait' };
+  const name = String(user.display_name || '').split(' ')[0] || 'חברה';
+  await env.DB.batch([notifyStmt(env, to.id, 'poke', `${name}: נו, מה איתך?`, 'את עומדת במילה שלך היום?', { circleId: b.circleId, fromUserId: user.id }, String(Date.now()))]);
+  return { sent: true };
+}
 export async function block(env, user, b) { if (b.userId !== user.id) await S(env, `insert or ignore into user_blocks(blocker_id, blocked_id) values (?,?)`, user.id, b.userId).run(); }
 export async function unblock(env, user, b) { await S(env, `delete from user_blocks where blocker_id = ? and blocked_id = ?`, user.id, b.userId).run(); }
 export async function reportAbuse(env, user, b) {

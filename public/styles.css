@@ -1085,3 +1085,6 @@ html { overscroll-behavior-y: contain; }   /* בלי הרענון המובנה �
 .react-picker.labeled { gap: 8px; }
 .react-picker.labeled button { width: auto; flex: 1; height: auto; padding: 10px 2px 8px; flex-direction: column; gap: 4px; }
 .react-picker.labeled small { font-size: .72rem; font-weight: 600; color: var(--ink-2); }
+
+.tg-acts { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.tg-clap:disabled { opacity: .55; }

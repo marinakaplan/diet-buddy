@@ -20,6 +20,7 @@ const App = (() => {
   /* Store: אותו ממשק פעולות, שני מימושים – מקומי (דמו) או שרת (Supabase). */
   const Local = {};
   for (const k of ['updateSettings','setBirthDate','renameMe','updateCircle','leaveCircle','removeMember','setMemberRole','deleteCircle','cancelProposal','endCommitment','report','correct','encourage','sendEncouragement','block','unblock','reportAbuse','markAllRead','markSummarySeen','deleteAccount','acceptInvite','adoptGroupWord','proposeGroupWord','createPersonalWord','shareToCircle','createCircle','createInvite','previewInvite']) Local[k] = async (...a) => Mila[k](...a);
+  Local.poke = async () => ({ sent: true });   // במצב מקומי אין למי לשלוח
   Local.inviteFriends = async () => ({ invited: 0 });   // במצב מקומי אין חברות אמיתיות להזמין
   Local.inviteToken = (circleId) => (Mila.currentInvite(circleId) || {}).token || null;
   Local.cachedPreview = (token) => Mila.previewInvite(token);
@@ -1091,7 +1092,10 @@ const App = (() => {
       const list = items.length ? items.map(({ o, d }) => { const [cls, txt] = stateOf(o); const label = mine ? txt.replace('עמדה', 'עמדת').replace('פספסה', 'פספסת').replace('עוד לא דיווחה', 'לדווח') : txt; return `<button class="tg-item ${cls}" ${mine ? `onclick="App.reportSheet('${o.id}')"` : 'disabled'}><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${label}</span></button>`; }).join('')
         : `<div class="tg-none">${mine ? (loose.length ? 'האתגרים שלך עוד לא בקבוצה.' : `אין לך אתגר בקבוצה. <a href="#" onclick="event.preventDefault(); App.openPick([], { circleId: '${id}' })">להוסיף</a>`) : 'עוד אין לה אתגר בקבוצה'}</div>`;
       // אצל חברה: לפרגן לה. אצלי: להביא לכאן אתגרים שכבר רצים אצלי מחוץ לקבוצה.
-      const side = mine ? '' : `<button class="btn text xs tg-clap" onclick="App.encourageSheet('${id}','${u.id}')">${icon('clap', 15)} לפרגן</button>`;
+      // ״נו?״ מופיע רק אצל מי שעוד לא דיווחה היום על הכול
+      const nudged = poked[u.id] && Date.now() - poked[u.id] < 6 * 3600000;
+      const nudge = !mine && items.some(x => !x.o.outcome) ? `<button class="btn text xs tg-clap" aria-label="לשלוח ל${esc(u.name)}: נו, מה איתך?" ${nudged ? 'disabled' : ''} onclick="App.poke('${id}','${u.id}')">${icon('bell', 15)} ${nudged ? 'נשלח' : 'נו?'}</button>` : '';
+      const side = mine ? '' : `<span class="tg-acts">${nudge}<button class="btn text xs tg-clap" onclick="App.encourageSheet('${id}','${u.id}')">${icon('clap', 15)} לפרגן</button></span>`;
       const bring = mine && loose.length ? `<button class="btn soft sm tg-bring" onclick="App.bringSheet('${id}')">${icon('plus', 16)} להביא לכאן אתגרים שלי</button>` : '';
       return `<div class="tg-row ${mine ? 'me' : ''}">${avatar(u, 36, items.length && doneN === items.length ? 'happy' : '')}<div class="tg-body"><div class="tg-name"><span>${mine ? 'את' : esc(u.name)}${items.length ? ` <span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</span>${side}</div>${list}${bring}</div></div>`;
     }).join('');
@@ -1395,6 +1399,18 @@ const App = (() => {
   });
   function declineInvite() { clearInvite(); back('circles'); }
 
+  /* ״נו, מה איתך?״ לחברה שעוד לא דיווחה היום. השרת שולח לה התראה, פעם ב-6 שעות. */
+  const poked = {};
+  const poke = once(async (circleId, toUserId) => {
+    const u = Mila.user(toUserId); const name = u ? (u.name || '').split(' ')[0] : 'חברה';
+    try {
+      const r = await Store().poke(circleId, toUserId);
+      if (r && (r.sent || r.reason === 'wait')) poked[toUserId] = Date.now();
+      render({ keepSheet: true });
+      toast(r && r.sent ? `שלחת ל${name}: נו, מה איתך?` : r && r.reason === 'done' ? `${name} כבר דיווחה היום.` : r && r.reason === 'wait' ? `כבר שלחת ל${name}. אפשר שוב בעוד כמה שעות.` : 'לא נשלח.', r && r.sent ? 'lime' : '');
+    } catch (e) { fail(e); }
+  });
+
   /* להביא לקבוצה אתגרים שכבר רצים אצלי מחוץ לכל קבוצה. אתגר מהתחום הרגיש לא מסומן מראש. */
   function looseMine() { return Mila.me() ? Mila.activeCommitments().map(k => ({ k, d: Mila.wordDef(k.defId) })).filter(x => x.d && x.d.kind === 'personal' && !x.d.circleId) : []; }
   let bsel = null;
@@ -1563,7 +1579,7 @@ const App = (() => {
   SCREENS.notifications = () => {
     const list = Mila.notifications();
     if (Mila.unreadCount()) setTimeout(() => Store().markAllRead().catch(() => {}), 400);
-    const ic = { invite: ['users', 'pink'], group_invite: ['users', 'lime'], encouragement: ['clap', 'lime'], group_word: ['pencil', 'lav'], achievement: ['medal', 'peach'], reminder: ['bell', 'sky'], overtake: ['trophy', 'lime'] };
+    const ic = { invite: ['users', 'pink'], group_invite: ['users', 'lime'], encouragement: ['clap', 'lime'], poke: ['bell', 'pink'], group_word: ['pencil', 'lav'], achievement: ['medal', 'peach'], reminder: ['bell', 'sky'], overtake: ['trophy', 'lime'] };
     return `${topbar({ title: 'עדכונים' })}
       ${list.length ? `<div class="card tight">${list.map(n => { const [i, c] = ic[n.type] || ['bell', 'gray']; const act = n.ref && n.ref.token ? `App.openInvite('${n.ref.token}')` : n.ref && n.ref.defId ? `App.go('groupWord',{id:'${n.ref.defId}'})` : n.ref && n.ref.circleId ? `App.go('circle',{id:'${n.ref.circleId}'})` : n.ref && n.ref.type ? `App.tab('me')` : ''; return `<div class="list-row ${act ? 'clickable' : ''}" ${act ? `onclick="${act}"` : ''}><span class="tile sm ${c}">${icon(i, 18)}</span><div class="body"><div class="t" style="${n.read ? 'font-weight:600' : ''}">${esc(n.title)}</div><div class="m">${esc(n.body || '')}${n.body ? ' · ' : ''}${timeAgo(n.createdAt)}</div></div>${act ? icon('chev', 18) : ''}</div>`; }).join('')}</div>` : emptyState({ mood: 'sleepy', title: 'שקט כאן', text: 'כשחברה תצטרף, תעקוף אותך או תשלח מילה טובה, זה יופיע כאן.', actions: `<button class="btn primary" onclick="App.inviteFlow()">להזמין חברה</button>`, card: false })}`;
   };
@@ -1684,7 +1700,8 @@ const App = (() => {
     const needInstall = !d.standalone && d.os !== 'desktop'; const needPush = d.pushApi && !I().pushOn && I().permission() === 'default';
     if (!needInstall && !needPush) return;
     I().mark('askedAfterFirst');
-    setTimeout(() => { if (!sheetOpen()) installSheet({ intro: needInstall ? 'שמילה תזכיר לך לדווח?' : '' }); }, 1900);
+    // רק אם היא עדיין במסך ראשי: לא קופצות באמצע אשף או הקלדה (הכרטיס במסך היום נשאר בכל מקרה)
+    setTimeout(() => { if (!sheetOpen() && stack.length && TOP.includes(current().name)) installSheet({ intro: needInstall ? 'שמילה תזכיר לך לדווח?' : '' }); }, 1900);
   }
   /* פתיחה מהתראה / קיצור דרך: ?go=today | circle&id= | invite */
   function routeFromUrl(href) {
@@ -2130,7 +2147,7 @@ const App = (() => {
     sendEncouragement, rotateInvite, openInvite, rename, unblock, ideasCat: setIdeasCat, ideasToggle,
     reportSheet, confirmMiss, excuseSheet, doReport, correctionSheet, _corrPick, doCorrect,
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
-    circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, encourageSheet, bringSheet, bringToggle, bringGo, circleMenu, leaveCircle, copyText, removeMember, cmSet,
+    circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, encourageSheet, poke, bringSheet, bringToggle, bringGo, circleMenu, leaveCircle, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, gwSet, gwTemplate, gwPropose, adopt, cancelProposal,
     again, retry, ageSubmit, friendsSheet, friendToggle, friendsInvite, cwFriend, groupInviteNo, groupInviteYes, teamSheet, supportHide, howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,

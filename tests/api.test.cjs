@@ -386,6 +386,26 @@ const invariants = async (c) => {
     assert.ok((await H.state()).socialEvents.some(e => e.type === 'word_committed' && e.payload.defId === w.defId), 'נרשם בעדכוני הקבוצה');
   });
 
+  await test('״נו, מה איתך?״: רק בין חברות קבוצה, רק למי שעוד לא דיווחה היום, ופעם ב-6 שעות', async () => {
+    const L = new Client('L'), M2 = new Client('M2'), N2 = new Client('N2');
+    await L.login(`l.${stamp}@test.mila`, 'ליה'); await L.profile('ליה'); await M2.login(`m2.${stamp}@test.mila`, 'מאיה'); await M2.profile('מאיה'); await N2.login(`n2.${stamp}@test.mila`, 'נגה'); await N2.profile('נגה');
+    const g = (await L.ok('createCircle', { name: 'דוחפות' })).circleId;
+    await M2.ok('acceptInvite', { token: (await L.ok('createInvite', { circleId: g })).token });
+    const mId = (await M2.state()).me, lId = (await L.state()).me;
+    await N2.fail('poke', { circleId: g, toUserId: mId }, 'FORBIDDEN');                                   // לא חברה בקבוצה
+    await L.fail('poke', { circleId: g, toUserId: lId }, 'VALIDATION');                                   // לא לעצמי
+    assert.deepStrictEqual(await L.ok('poke', { circleId: g, toUserId: mId }), { sent: false, reason: 'done' }, 'אין לה מה לדווח היום');
+    const w = await M2.ok('createPersonalWord', { libraryId: 'hab_read_10', circleId: g });
+    assert.strictEqual((await L.ok('poke', { circleId: g, toUserId: mId })).sent, true);
+    const n = (await M2.state()).notifications.find(x => x.type === 'poke');
+    assert.ok(n && /ליה: נו, מה איתך\?/.test(n.title), 'קיבלה התראה עם השם של מי ששלחה');
+    assert.deepStrictEqual(await L.ok('poke', { circleId: g, toUserId: mId }), { sent: false, reason: 'wait' }, 'לא פעמיים ברצף');
+    assert.ok(!(await L.state()).socialEvents.some(e => e.type === 'poke'), 'לא מופיע בעדכוני הקבוצה');
+    const st = await M2.state(); const ob = Object.values(st.obligations).find(o => o.userId === st.me && o.commitmentId === w.commitmentId && !o.outcome && o.status === 'open');
+    await M2.ok('report', { obligationId: ob.id, outcome: 'success' });
+    await M2.ok('markNotificationsRead', {});
+  });
+
   await test('ייצוא ומחיקת חשבון', async () => {
     const ex = await Z.ok('exportData'); assert.ok(ex.user && Array.isArray(ex.ledger));
     await Z.ok('deleteAccount'); const r = await Z.req('/api/state'); assert.strictEqual(r.status, 401);

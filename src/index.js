@@ -13,7 +13,7 @@ const ACTIONS = {
   endCommitment: game.endCommitment, report: game.report, correct: game.correct,
   createCircle: game.createCircle, updateCircle: game.updateCircle, createInvite: game.createInvite, inviteFriends: game.inviteFriends, revokeCircleInvites: game.revokeCircleInvites,
   previewInvite: game.previewInvite, acceptInvite: game.acceptInvite, leaveCircle: game.leaveCircle, removeMember: game.removeMember, setMemberRole: game.setMemberRole, deleteCircle: game.deleteCircle, overtake: game.overtake,
-  encourage: game.encourage, sendEncouragement: game.sendEncouragement, block: game.block, unblock: game.unblock, reportAbuse: game.reportAbuse,
+  encourage: game.encourage, sendEncouragement: game.sendEncouragement, poke: game.poke, block: game.block, unblock: game.unblock, reportAbuse: game.reportAbuse,
   markNotificationsRead: game.markNotificationsRead, markSummarySeen: game.markSummarySeen, updateSettings: game.updateSettings, rename: game.rename, setBirthDate: game.setBirthDate,
   deleteAccount: game.deleteAccount, exportData: game.exportData,
 };
