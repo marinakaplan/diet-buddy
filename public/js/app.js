@@ -109,8 +109,29 @@ const App = (() => {
   }
   function refresh() { render(); }
   /* משיכה למטה בראש המסך מרעננת את הנתונים. באפליקציה המותקנת אין רענון של דפדפן, אז זה הרענון. */
+  /* גרסה חדשה: אפליקציה מותקנת שנשארה פתוחה ברקע ממשיכה לרוץ עם הקוד הישן עד שנטענת מחדש.
+     משוות את גרסאות הקבצים שבדף הפתוח לאלה שהשרת מגיש עכשיו. */
+  async function newVersion() {
+    try {
+      const mine = [...document.querySelectorAll('script[src], link[rel="stylesheet"]')].map(e => (e.getAttribute('src') || e.getAttribute('href') || '')).filter(u => /\?v=/.test(u)).map(u => u.replace(/^\//, ''));
+      if (!mine.length) return false;
+      const r = await fetch('/?_=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return false;
+      const html = await r.text(); if (!/js\/app\.js\?v=/.test(html)) return false;
+      return mine.some(u => !html.includes(u));
+    } catch (e) { return false; }
+  }
+  /* לא טוענות מחדש יותר מפעם בשתי דקות, כדי שלא תיווצר לולאה אם משהו בהשוואה משתבש */
+  function reloadOnce() { try { const k = 'mila.reloaded'; const t = Number(sessionStorage.getItem(k) || 0); if (Date.now() - t < 120000) return false; sessionStorage.setItem(k, String(Date.now())); } catch (e) { /* בלי אחסון: טוענות */ } location.reload(); return true; }
+  let lastVersionCheck = Date.now();
+  async function updateIfIdle() {
+    if (Date.now() - lastVersionCheck < 3 * 60000) return; lastVersionCheck = Date.now();
+    const el = document.activeElement; const typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+    if (typing || sheetOpen() || acting || !stack.length || !TOP.includes(current().name)) return;   // לא באמצע משהו
+    if (await newVersion()) reloadOnce();
+  }
   async function pullRefresh() {
-    if (navigator.serviceWorker) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});   // על הדרך: בודקות אם יש גרסה חדשה
+    if (navigator.serviceWorker) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+    if (await newVersion() && reloadOnce()) return new Promise(() => {});   // משיכה לרענון מביאה גם גרסה חדשה
     if (current().name === 'admin') { adminData = await Api.adminStats(adminDays); adminErr = null; render(); return; }
     if (Api.isCloud()) await Api.sync(); else render();
   }
@@ -1085,7 +1106,7 @@ const App = (() => {
     const todayObs = Object.values(S.obligations).filter(o => o.localDate === today && o.status !== 'cancelled');
     const itemsOf = (uid) => todayObs.filter(o => o.userId === uid).map(o => { const k = Mila.commitment(o.commitmentId); const d = k && Mila.wordDef(k.defId); return d && d.circleId === id ? { o, d } : null; }).filter(Boolean);
     const stateOf = (o) => o.outcome === 'success' ? ['done', 'עמדה'] : o.outcome === 'miss' ? ['miss', 'פספסה'] : o.outcome === 'excused' ? ['skip', 'יום חריג'] : ['wait', 'עוד לא דיווחה'];
-    const loose = looseMine();
+    const loose = looseMine(id);
     const todayRows = members.map(u => {
       const mine = u.id === meId; const items = itemsOf(u.id);
       const doneN = items.filter(x => x.o.outcome === 'success').length;
@@ -1387,7 +1408,7 @@ const App = (() => {
       const c = await Store().acceptInvite(token);
       clearInvite();
       stack = [{ name: 'circles', params: {} }, { name: 'circle', params: { id: c.id } }];
-      if (looseMine().length && p.kind !== 'same') { render(); window.scrollTo({ top: 0 }); bringSheet(c.id); return; }   // כבר יש לה אתגרים: מביאה אותם לקבוצה
+      if (looseMine(c.id).length && p.kind !== 'same') { render(); window.scrollTo({ top: 0 }); bringSheet(c.id); return; }   // כבר יש לה אתגרים: מביאה אותם לקבוצה
       if (p.kind === 'compete') { render(); openPick([], { circleId: c.id }); toast('את בפנים. עכשיו האתגרים שלך.', 'lime'); return; }
       if (p.kind === 'same') {
         if (p.libraryId) { render(); openPick([p.libraryId], { circleId: c.id }); }
@@ -1412,16 +1433,20 @@ const App = (() => {
   });
 
   /* להביא לקבוצה אתגרים שכבר רצים אצלי מחוץ לכל קבוצה. אתגר מהתחום הרגיש לא מסומן מראש. */
-  function looseMine() { return Mila.me() ? Mila.activeCommitments().map(k => ({ k, d: Mila.wordDef(k.defId) })).filter(x => x.d && x.d.kind === 'personal' && !x.d.circleId) : []; }
+  /* האתגרים האישיים שלי שלא נמצאים בקבוצה הזו: בלי קבוצה בכלל, או בקבוצה אחרת שלי (ואז הם עוברים) */
+  function looseMine(circleId) { return Mila.me() ? Mila.activeCommitments().map(k => ({ k, d: Mila.wordDef(k.defId) })).filter(x => x.d && x.d.kind === 'personal' && (circleId ? x.d.circleId !== circleId : !x.d.circleId)) : []; }
   let bsel = null;
   function bringSheet(circleId) {
-    const list = looseMine(); const c = Mila.getState().circles[circleId]; if (!list.length || !c) return;
+    const list = looseMine(circleId); const S = Mila.getState(); const c = S.circles[circleId]; if (!list.length || !c) return;
     const sens = (d) => !!(d.libraryId && Mila.LIBRARY.isSensitive(d.libraryId));
-    if (!bsel || bsel.circleId !== circleId) bsel = { circleId, ids: list.filter(x => !sens(x.d)).map(x => x.k.id) };
+    const from = (d) => (d.circleId && S.circles[d.circleId]) || null;
+    const others = (d) => d.circleId ? Mila.circleMembers(d.circleId).length - 1 : 0;   // כמה חברות רואות אותו היום בקבוצה שבה הוא נמצא
+    // מסומנים מראש: מה שלא רגיש, ומה שלא ״נלקח״ מחברות בקבוצה אחרת
+    if (!bsel || bsel.circleId !== circleId) bsel = { circleId, ids: list.filter(x => !sens(x.d) && !others(x.d)).map(x => x.k.id) };
     sheet(`<button class="icon-btn sheet-x" aria-label="סגירה" onclick="App.closeSheet()">${icon('x', 22)}</button>
       <div class="sheet-title">להביא אתגרים ל״${esc(c.name)}״</div>
       <div class="sheet-sub">החברות יראו אותם ואת מה שדיווחת, והם נכנסים לדירוג.</div>
-      ${list.map(({ k, d }) => { const on = bsel.ids.includes(k.id); return `<div class="pick-row friend-row ${on ? 'on' : ''}" onclick="App.bringToggle('${k.id}')"><span class="tile sm lime">${icon(d.icon, 18)}</span><div class="body"><div class="t">${esc(d.title)}</div>${sens(d) ? '<div class="m">אתגר פרטי. מסמנת רק אם את רוצה שיראו.</div>' : ''}</div><span class="box">${on ? icon('check', 14) : ''}</span></div>`; }).join('')}
+      ${list.map(({ k, d }) => { const on = bsel.ids.includes(k.id); return `<div class="pick-row friend-row ${on ? 'on' : ''}" onclick="App.bringToggle('${k.id}')"><span class="tile sm lime">${icon(d.icon, 18)}</span><div class="body"><div class="t">${esc(d.title)}</div>${sens(d) ? '<div class="m">אתגר פרטי. מסמנת רק אם את רוצה שיראו.</div>' : from(d) ? `<div class="m">עכשיו ב״${esc(from(d).name)}״. יעבור לכאן${others(d) ? ', והחברות שם כבר לא יראו אותו' : ''}.</div>` : ''}</div><span class="box">${on ? icon('check', 14) : ''}</span></div>`; }).join('')}
       <button class="btn primary mt" ${bsel.ids.length ? '' : 'disabled'} onclick="App.bringGo()">להביא לקבוצה</button>`);
   }
   function bringToggle(id) { if (!bsel) return; bsel.ids = bsel.ids.includes(id) ? bsel.ids.filter(x => x !== id) : [...bsel.ids, id]; bringSheet(bsel.circleId); }
@@ -2093,7 +2118,7 @@ const App = (() => {
     let probing = false;
     const probe = () => { if (probing || !Api.enabled || Api.hasSession() || !(Mila.getState().meta || {}).offline) return; probing = true; Api.init().then(u => { if (u) location.reload(); }).catch(() => {}).finally(() => { probing = false; }); };
     setInterval(() => { dayTick(); if (document.visibilityState === 'visible') probe(); }, 60000);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible' || !stack.length) return; if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); dayTick(); probe(); if (Api.isCloud()) Api.sync().catch(() => {}); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible' || !stack.length) return; if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); dayTick(); probe(); updateIfIdle(); if (Api.isCloud()) Api.sync().catch(() => {}); });
     window.addEventListener('online', () => { if (Api.isCloud()) Api.sync().then(() => toast('החיבור חזר. הכול מעודכן.', 'lime')).catch(() => {}); else if (Api.enabled && ((Mila.getState().meta || {}).offline || (stack.length && current().name === 'error'))) location.reload(); });   // נפתחה בלי רשת מהעותק השמור: טוענות מחדש כשהרשת חוזרת
     initPull();
     Api.track('visit');

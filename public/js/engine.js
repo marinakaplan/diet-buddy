@@ -350,13 +350,13 @@ const Mila = (() => {
     return { adult, adultFrom: u.adultFrom };
   }
   /* יצירת מילה אישית (ואופציונלית – חשיפה לקבוצה אחד) */
-  /* להביא לקבוצה אתגרים אישיים שכבר רצים (רק כאלה שעוד לא שייכים לקבוצה) */
+  /* להביא לקבוצה אתגרים אישיים שכבר רצים; אתגר שהיה בקבוצה אחרת שלי עובר לכאן */
   function shareToCircle(circleId, commitmentIds = []) {
     if (!isMember(circleId)) throw err('את לא חברה בקבוצה הזו');
     let shared = 0;
     for (const id of commitmentIds) {
       const k = state.commitments[id]; const d = k && state.wordDefs[k.defId];
-      if (!k || k.userId !== state.me || k.status !== 'active' || !d || d.kind !== 'personal' || d.circleId) continue;
+      if (!k || k.userId !== state.me || k.status !== 'active' || !d || d.kind !== 'personal' || d.circleId === circleId) continue;
       d.circleId = circleId; d.visibility = 'status'; shared++;
       addEvent(circleId, state.me, 'word_committed', { defId: d.id, title: d.title });
     }

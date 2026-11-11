@@ -383,6 +383,11 @@ const invariants = async (c) => {
     const d = Object.values((await H.state()).wordDefs).find(x => x.id === w.defId);
     assert.ok(d && d.circleId === g, 'אחרי: החברה רואה את האתגר בקבוצה');
     assert.strictEqual((await J.ok('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] })).shared, 0, 'פעם שנייה לא עושה כלום');
+    // אתגר שנמצא בקבוצה אחרת שלי עובר לקבוצה שאליה אני מביאה אותו
+    const g2 = (await J.ok('createCircle', { name: 'הקבוצה של יעלי' })).circleId;
+    assert.strictEqual((await J.ok('shareToCircle', { circleId: g2, commitmentIds: [w.commitmentId] })).shared, 1);
+    assert.ok(!Object.values((await H.state()).wordDefs).some(x => x.id === w.defId), 'בקבוצה הקודמת כבר לא רואים אותו');
+    assert.strictEqual((await J.ok('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] })).shared, 1, 'ואפשר להחזיר');
     assert.ok((await H.state()).socialEvents.some(e => e.type === 'word_committed' && e.payload.defId === w.defId), 'נרשם בעדכוני הקבוצה');
   });
 
