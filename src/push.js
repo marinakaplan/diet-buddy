@@ -152,11 +152,11 @@ export async function social(env, userIds) {
     try {
       const st = settingsOf(s); if (st.socialDigest === false) continue;
       if (s.last_social_at && now - s.last_social_at < 90000) continue; // לא יותר מאחת בדקה וחצי לכל מכשיר
-      const n = latest.get(s.user_id); if (!n || !['overtake', 'invite', 'encouragement', 'group_word', 'circle_closed'].includes(n.type)) continue;
+      const n = latest.get(s.user_id); if (!n || !['overtake', 'invite', 'group_invite', 'encouragement', 'group_word', 'circle_closed'].includes(n.type)) continue;
       let ref = {}; try { ref = JSON.parse(n.ref || '{}'); } catch { }
       const body = st.lockScreenPrivacy && PRIVATE_BODY[n.type] ? PRIVATE_BODY[n.type](n) : n.body;
       stmts.push(env.DB.prepare(`update push_subscriptions set last_social_at = ? where endpoint = ?`).bind(now, s.endpoint));
-      const out = await sendOne(env, s, { title: n.title, body: body || '', tag: n.type, url: ref.circleId ? `/?go=circle&id=${encodeURIComponent(ref.circleId)}` : '/?go=today' }, { ttl: 24 * 3600, urgency: n.type === 'overtake' ? 'high' : 'normal' });
+      const out = await sendOne(env, s, { title: n.title, body: body || '', tag: n.type, url: ref.circleId && n.type !== 'group_invite' ? `/?go=circle&id=${encodeURIComponent(ref.circleId)}` : '/?go=today' }, { ttl: 24 * 3600, urgency: n.type === 'overtake' ? 'high' : 'normal' });
       stmts.push(...out.stmts); sent++;
     } catch (e) { console.warn('social push', String(e && e.message || e)); }
   }

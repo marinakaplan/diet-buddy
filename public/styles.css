@@ -1048,3 +1048,12 @@ body:has(#sheet.open) #a11y-btn { display: none; }
 .sup-body { flex-direction: column; align-items: center; text-align: center; gap: 6px; }
 .sup-q { max-width: 26ch; margin-inline: auto; text-wrap: balance; }
 .sup-dest { display: inline-flex; align-items: center; justify-content: center; line-height: 1; padding: 5px 9px; text-align: center; }
+
+/* גיליון הדיווח: שתי פעולות משנה (להזמין חברה, כל הפרטים) */
+.sheet-more { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.sheet-more .btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+/* בחירת חברות שכבר במילה */
+.friend-row { display: flex; align-items: center; gap: 12px; }
+.friend-row .body { flex: 1; min-width: 0; }
+.friend-row .box { flex: none; margin: 0; }
+.gi-no { padding-inline: 0; margin-top: 2px; }

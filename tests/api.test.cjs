@@ -347,6 +347,27 @@ const invariants = async (c) => {
     assert.strictEqual((await E.ok('previewInvite', { token: tH })).reason, 'revoked');
     const H2 = new Client('H2'); const again = await H2.login(`h.${stamp}@test.mila`, 'גלית'); assert.notStrictEqual(again.userId, hId, 'חשבון חדש לגמרי');
   });
+  await test('קבוצה מחברות שכבר במילה: הזמנה בתוך האפליקציה רק למי שכבר איתי בקבוצה, והצטרפות בלחיצה', async () => {
+    const Pp = new Client('P'), Q = new Client('Q'), R = new Client('R');
+    await Pp.login(`p.${stamp}@test.mila`, 'פזית'); await Pp.profile('פזית'); await Q.login(`q.${stamp}@test.mila`, 'קרן'); await Q.profile('קרן'); await R.login(`r.${stamp}@test.mila`, 'רעות'); await R.profile('רעות');
+    const g1 = (await Pp.ok('createCircle', { name: 'ראשונה' })).circleId;
+    await Q.ok('acceptInvite', { token: (await Pp.ok('createInvite', { circleId: g1 })).token });
+    const qId = (await Q.state()).me, rId = (await R.state()).me;
+    const g2 = (await Pp.ok('createCircle', { name: 'שנייה' })).circleId;
+    await R.fail('inviteFriends', { circleId: g2, userIds: [qId] }, 'FORBIDDEN');                       // לא חברה בקבוצה
+    assert.strictEqual((await Pp.ok('inviteFriends', { circleId: g2, userIds: [qId, rId, 'nope'] })).invited, 1, 'רק מי שכבר איתי בקבוצה; זרה לא מקבלת הזמנה');
+    assert.ok(!(await R.state()).notifications.some(n => n.type === 'group_invite'), 'זרה לא קיבלה');
+    const n = (await Q.state()).notifications.find(x => x.type === 'group_invite');
+    assert.ok(n && /פזית מזמינה אותך לקבוצה/.test(n.title) && n.ref.circleId === g2 && n.ref.circleName === 'שנייה' && /^[A-Z0-9]{6}$/.test(n.ref.token));
+    assert.ok(!(await Q.state()).circles[g2], 'לא מצורפת בלי אישור');
+    await Q.ok('acceptInvite', { token: n.ref.token });
+    assert.ok((await Q.state()).circles[g2], 'אחרי ״אני בפנים״ היא בקבוצה');
+    assert.strictEqual((await Pp.ok('inviteFriends', { circleId: g2, userIds: [qId] })).invited, 0, 'כבר בקבוצה');
+    // מי שחסמה אותי לא מקבלת הזמנה ממני
+    const g3 = (await Pp.ok('createCircle', { name: 'שלישית' })).circleId;
+    await Q.ok('block', { userId: (await Pp.state()).me });
+    assert.strictEqual((await Pp.ok('inviteFriends', { circleId: g3, userIds: [qId] })).invited, 0);
+  });
   await test('ייצוא ומחיקת חשבון', async () => {
     const ex = await Z.ok('exportData'); assert.ok(ex.user && Array.isArray(ex.ledger));
     await Z.ok('deleteAccount'); const r = await Z.req('/api/state'); assert.strictEqual(r.status, 401);

@@ -396,6 +396,28 @@ export async function createInvite(env, user, b) {
   if (!b.circleId || !(await isMember(env, String(b.circleId), user.id))) throw err('FORBIDDEN', 'אין הרשאה', 403);
   const inv = await newInviteStmt(env, b.circleId, user.id, b); await inv.stmt.run(); return { token: inv.tok };
 }
+/* הזמנה לקבוצה של חברות שכבר איתי במילה (מי שנמצאת איתי עכשיו בקבוצה אחרת): בלי לשלוח קישור.
+   כל אחת מקבלת עדכון עם ״אני בפנים״, ומצטרפת רק אם אישרה. */
+export async function inviteFriends(env, user, b) {
+  const cid = String((b && b.circleId) || '');
+  const c = cid && await first(env, `select id, name from circles where id = ? and status = 'active'`, cid);
+  if (!c || !(await isMember(env, cid, user.id))) throw err('FORBIDDEN', 'אין הרשאה', 403);
+  const ids = [...new Set((Array.isArray(b.userIds) ? b.userIds : []).map(String))].filter(id => id && id !== user.id).slice(0, 20);
+  if (!ids.length) return { invited: 0 };
+  const P = ids.map(() => '?').join(',');
+  const friends = (await all(env, `select distinct m2.user_id from circle_memberships m1 join circle_memberships m2 on m2.circle_id = m1.circle_id join users u on u.id = m2.user_id
+    where m1.user_id = ? and m1.left_at is null and m2.left_at is null and u.status = 'active' and m2.user_id in (${P})`, user.id, ...ids)).map(r => r.user_id);
+  const skip = new Set([
+    ...(await all(env, `select user_id from circle_memberships where circle_id = ? and left_at is null and user_id in (${P})`, cid, ...ids)).map(r => r.user_id),
+    ...(await all(env, `select blocker_id as user_id from user_blocks where blocked_id = ? and blocker_id in (${P})`, user.id, ...ids)).map(r => r.user_id),
+  ]);
+  const targets = friends.filter(id => !skip.has(id));
+  if (!targets.length) return { invited: 0 };
+  const inv = await newInviteStmt(env, cid, user.id, { kind: 'follow' });
+  const day = localDate(user.timezone);
+  await runBatch(env, [inv.stmt, ...targets.map(id => notifyStmt(env, id, 'group_invite', `${user.display_name} מזמינה אותך לקבוצה ״${c.name}״`, 'נגיעה אחת, ואת בפנים.', { token: inv.tok, circleId: cid, circleName: c.name, inviterId: user.id }, day + cid))]);
+  return { invited: targets.length };
+}
 export async function revokeCircleInvites(env, user, b) {
   if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת יכולה לבטל קישורים', 403);
   const inv = await newInviteStmt(env, b.circleId, user.id);
