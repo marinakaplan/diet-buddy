@@ -5,7 +5,7 @@
 <title>מילה Reel</title>
 <!-- 1080x1920 promo reel for מילה, in the welcome-screen style (blobs, live logo, lime <mark>) with the app's mood faces.
      Timed to the voiceover: timing.js (written by audio/tighten.py). Reels safe zone: all content stays inside
-     x 60..940, y 220..1500 (top bar, bottom caption area and the right-side buttons stay clear).
+     x 140..940, y 220..1500 (top bar, bottom caption area and the right-side buttons stay clear).
      Preview: open in a browser (loops). Render: see SCRIPT.md. -->
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="timing.js"></script>
@@ -18,20 +18,20 @@
   .blobs i{position:absolute;width:820px;height:820px;border-radius:50%;filter:blur(120px);opacity:.5}
   .scene{position:absolute;inset:0;opacity:0}
   .abs{position:absolute}
-  .c{left:60px;right:140px;text-align:center}           /* safe zone width, centered at x=500 */
+  .c{left:140px;right:140px;text-align:center}          /* symmetric: centered at x=540, clear of the Reels buttons on the right */
   .h1{font-weight:900;font-size:112px;line-height:1.08;letter-spacing:-.03em}
   .h2{font-weight:900;font-size:84px;line-height:1.1;letter-spacing:-.03em}
   mark{background:linear-gradient(var(--lime),var(--lime)) no-repeat 100% 92% / var(--mw,100%) 42%;color:inherit;padding:0 6px}
   .card{background:var(--card);border:3px solid var(--line2);display:flex;align-items:center;gap:28px;padding:24px 30px}
-  .promise{left:70px;right:150px;font-size:48px;font-weight:600;line-height:1.22;opacity:0}
+  .promise{left:140px;right:140px;font-size:44px;font-weight:600;line-height:1.22;opacity:0}
   .promise b{font-weight:900}
-  .promise .x{position:absolute;right:130px;top:50%;height:9px;width:0;background:var(--ink);margin-top:-4px}
-  .phone{position:absolute;left:265px;width:470px;height:1017px;border-radius:56px;overflow:hidden;background:#fff;
+  .promise .x{position:absolute;right:120px;top:50%;height:9px;width:0;background:var(--ink);margin-top:-4px}
+  .phone{position:absolute;left:305px;width:470px;height:1017px;border-radius:56px;overflow:hidden;background:#fff;
     border:3px solid var(--line2);box-shadow:0 30px 80px rgba(28,26,31,.12)}
   .phone img{position:absolute;left:0;top:0;width:100%;display:block}
   .tap{position:absolute;width:100px;height:100px;margin:-50px 0 0 -50px;border-radius:50%;border:7px solid var(--ink);opacity:0}
   .chip{display:inline-flex;align-items:center;gap:14px;font-weight:800;padding:12px 24px;background:#fff;border:3px solid var(--line2);font-size:40px}
-  #cc{position:absolute;left:60px;right:140px;top:1385px;text-align:center;z-index:40}
+  #cc{position:absolute;left:140px;right:140px;top:1385px;text-align:center;z-index:40}
   #cc span{display:inline-block;background:#fff;color:var(--ink);border:3px solid var(--line2);font-weight:700;font-size:42px;line-height:1.3;padding:12px 26px}
   .btn-dark{display:inline-block;background:var(--ink);color:#fff;font-weight:800;font-size:60px;padding:30px 60px}
 </style>
@@ -69,21 +69,21 @@
   <div class="scene" id="s3">
     <div class="abs c h2" id="s3t" style="top:225px">עמדת <mark>במילה</mark>?</div>
     <div class="phone" id="s3p" style="top:345px"><img src="shots/today.jpg"><img id="im_report" src="shots/report.jpg"><img id="im_done" src="shots/reported2.jpg"><div class="tap" id="tap"></div></div>
-    <div class="abs" id="plus" style="left:640px;top:640px;text-align:center"><span class="fc" data-mood="happy" data-size="170"></span><div dir="ltr" style="font-weight:900;font-size:76px;margin-top:-4px">+1</div></div>
+    <div class="abs c" id="plus" style="top:560px"><span class="fc" data-mood="happy" data-size="170"></span><div dir="ltr" style="font-weight:900;font-size:76px;margin-top:-4px">+1</div></div>
   </div>
 
   <!-- 4. LEADERBOARD -->
   <div class="scene" id="s4">
     <div class="abs c h2" id="s4t" style="top:225px">מי <mark>מובילה</mark>?</div>
     <div class="phone" id="s4p" style="top:345px"><img id="im_circle" src="shots/circle-full.jpg"></div>
-    <div class="abs chip" id="s4c" style="left:70px;top:920px"><span class="fc" data-mood="happy" data-size="60"></span>מקום 1</div>
+    <div class="abs c" id="s4w" style="top:1250px"><div class="chip" id="s4c"><span class="fc" data-mood="happy" data-size="60"></span>מקום 1</div></div>
   </div>
 
   <!-- 5. STREAK -->
   <div class="scene" id="s5">
     <div class="abs c h2" id="s5t" style="top:225px">הנקודות <mark id="m5">נשארות</mark>.</div>
     <div class="phone" id="s5p" style="top:345px"><img src="shots/word.jpg"></div>
-    <div class="abs chip" id="s5c" style="left:600px;top:960px"><span class="fc" data-mood="wink" data-size="60"></span>8 ימים ברצף</div>
+    <div class="abs c" id="s5w" style="top:1250px"><div class="chip" id="s5c"><span class="fc" data-mood="wink" data-size="60"></span>8 ימים ברצף</div></div>
   </div>
 
   <!-- 6. NO MONEY -->
@@ -199,10 +199,10 @@ function render(t){
   // 4 leaderboard (short scene: quick scroll)
   up($('s4t'),t,L[11],.25); phoneIn($('s4p'),t,L[11]);
   const x=lin(t,L[11]+.15,L[11]+.85),sc=x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2; $('im_circle').style.transform=`translateY(${-sc*560}px)`;
-  drawFaces($('s4'),t); pop($('s4c'),t,L[11]+.85); $('s4c').style.transform+=' rotate(-5deg)';
+  drawFaces($('s4'),t); pop($('s4c'),t,L[11]+.85);
   // 5 streak
   up($('s5t'),t,L[12],.3); phoneIn($('s5p'),t,L[12]); markW($('m5'),t,L[12]+3.1);
-  drawFaces($('s5'),t); pop($('s5c'),t,L[12]+1.1); $('s5c').style.transform+=' rotate(4deg)';
+  drawFaces($('s5'),t); pop($('s5c'),t,L[12]+1.1);
   // 6 no money
   up($('s6a'),t,L[13],.3); up($('s6b'),t,L[13]+1.55,.3); up($('s6c'),t,L[14],.3); markW($('m6'),t,L[14]+.3);
   // 7 end
