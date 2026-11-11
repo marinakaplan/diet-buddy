@@ -60,6 +60,7 @@ const Api = (() => {
   /* מעקב זול: כל אירוע נשלח לכל היותר פעם ביום מכל מכשיר */
   function track(name) {
     if (!enabled) return;
+    if (window.MilaA11y && MilaA11y.consent() === 'essential') return; // ״רק הכרחי״: בלי מונה אנונימי
     try { const k = `mila.t.${name}`; const day = new Date().toISOString().slice(0, 10); if (localStorage.getItem(k) === day) return; localStorage.setItem(k, day); } catch (e) { /* בלי אחסון: שולחות בכל זאת */ }
     call('track', { method: 'POST', body: { name, visitor: visitorId() } }).catch(() => {});
   }

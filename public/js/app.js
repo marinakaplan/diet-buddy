@@ -105,7 +105,7 @@ const App = (() => {
     const el = $('#sheet');
     el.innerHTML = `<div class="sheet-handle"></div>${html}`;
     $('#sheet-backdrop').classList.add('open');
-    requestAnimationFrame(() => el.classList.add('open'));
+    requestAnimationFrame(() => { el.classList.add('open'); const f = el.querySelector('button, a[href], input, textarea, select'); if (f) { try { f.focus({ preventScroll: true }); } catch (e) { } } });
   }
   function closeSheet(immediate = false) {
     $('#sheet').classList.remove('open');
@@ -208,6 +208,7 @@ const App = (() => {
       <div class="hero-cta w2-cta">${cta}
         <button class="btn text" onclick="App.howSheet()">איך זה עובד?</button>
         <div class="disclaimer">כניסה עם Google · מגיל 18 · חינם · בטא</div>
+        <nav class="legal-links" aria-label="מידע משפטי"><a href="/accessibility">נגישות</a><a href="/privacy">פרטיות</a><a href="/terms">תנאי שימוש</a></nav>
       </div>
     </div>`;
   };
@@ -285,7 +286,7 @@ const App = (() => {
       <h1 class="ob-title">נעים להכיר!<br>איך קוראים לך?</h1>
       <p class="ob-sub">ככה החברות יראו אותך.</p>
       <input class="input ob-input" id="pf-name" placeholder="השם שלך" maxlength="30" value="${esc(authForm.name || (Api.me && Api.me.name) || '')}" oninput="App.authSet('name', this.value)">
-      <div class="checkbox-row ob-agree ${agreed ? 'on' : ''}" onclick="App.authAgree()"><span class="box">${agreed ? icon('check', 16) : ''}</span><span>אני בת 18 ומעלה ומסכימה ל<a href="#" onclick="event.preventDefault(); event.stopPropagation(); App.termsSheet()">תנאי השימוש</a></span></div>
+      <div class="checkbox-row ob-agree ${agreed ? 'on' : ''}" onclick="App.authAgree()"><span class="box">${agreed ? icon('check', 16) : ''}</span><span>אני בת 18 ומעלה ומסכימה ל<a href="/terms" target="_blank" rel="noopener" onclick="event.stopPropagation()">תנאי השימוש</a> ול<a href="/privacy" target="_blank" rel="noopener" onclick="event.stopPropagation()">מדיניות הפרטיות</a></span></div>
       <div class="ob-foot"><button class="btn primary" id="pf-go" ${busy ? 'disabled' : ''} onclick="App.completeProfile()">${busy ? 'רגע…' : 'ממשיכה'}</button>
       <button class="btn text" onclick="App.signOut()">יציאה</button></div>
     </div>`;
@@ -1452,17 +1453,22 @@ const App = (() => {
   SCREENS.settings = () => {
     const u = Mila.me(); const s = u.settings; const S = Mila.getState();
     const blocked = Mila.blockedUsers();
-    const tog = (k, t, m) => `<div class="toggle-row"><div><div class="t">${t}</div><div class="m">${m}</div></div><button class="switch ${s[k] ? 'on' : ''}" role="switch" aria-checked="${!!s[k]}" onclick="App.setSetting('${k}', ${!s[k]})"></button></div>`;
+    const tog = (k, t, m) => `<div class="toggle-row"><div><div class="t">${t}</div><div class="m">${m}</div></div><button class="switch ${s[k] ? 'on' : ''}" role="switch" aria-checked="${!!s[k]}" aria-label="${t}" onclick="App.setSetting('${k}', ${!s[k]})"></button></div>`;
     return `${topbar({ title: 'הגדרות' })}
       ${isCloud() && Api.me && Api.me.isAdmin ? `<div class="card tight clickable admin-entry" onclick="App.go('admin')"><div style="display:flex;align-items:center;gap:12px"><span class="tile lime">${icon('chart', 22)}</span><div style="flex:1"><div class="bold">אנליטיקה</div><div class="small muted">צמיחה, הזמנות, שימור, אתגרים וקבוצות</div></div>${icon('chev', 20)}</div></div>` : ''}
       <div class="card tight clickable treat-entry" onclick="App.go('treat')"><div style="display:flex;align-items:center;gap:12px">${heartArt(44)}<div style="flex:1"><div class="bold">רוצה לפרגן? 💛</div><div class="small muted">עוזרת לנבחרת לטוס לתחרות בפורטוגל</div></div>${icon('chev', 20)}</div></div>
       ${phoneCard()}
-      <div class="card tight"><div class="field" style="margin:6px 0 10px"><label>שם תצוגה</label><input class="input" value="${esc(u.name)}" maxlength="30" onchange="App.rename(this.value)"></div>
+      <div class="card tight"><div class="field" style="margin:6px 0 10px"><label>שם תצוגה</label><input class="input" aria-label="שם תצוגה" value="${esc(u.name)}" maxlength="30" onchange="App.rename(this.value)"></div>
         <div class="kv"><span class="k">${icon('clock', 18)} אזור זמן</span><span class="v">${esc(u.timezone)}</span></div>
-        <div class="kv"><span class="k">${icon('bell', 18)} שעת תזכורת</span><input class="input ltr" type="time" value="${s.reminderTime}" style="width:auto;padding:8px 12px" onchange="App.setSetting('reminderTime', this.value)"></div></div>
+        <div class="kv"><span class="k">${icon('bell', 18)} שעת תזכורת</span><input class="input ltr" type="time" aria-label="שעת תזכורת" value="${s.reminderTime}" style="width:auto;padding:8px 12px" onchange="App.setSetting('reminderTime', this.value)"></div></div>
       <div class="card tight">${tog('pushReminders', 'תזכורת לדווח', `ב-${esc(s.reminderTime || '20:00')} אם עוד לא דיווחת, וב-9:00 אם אתמול נשאר פתוח`)}${tog('socialDigest', 'עדכונים מהחברות', 'מי עקפה אותך, מי הצטרפה, מילה טובה')}${tog('hideFromLeaderboard', 'בלי אותי בדירוג', 'משחקת, לא מתחרה')}${tog('lockScreenPrivacy', 'מסך נעילה דיסקרטי', 'בלי שמות של אתגרים בהתראות')}</div>
       <div class="card tight"><div class="card-title">בטיחות</div>${blocked.length ? blocked.map(b => `<div class="list-row">${avatar(b, 32)}<div class="body"><div class="t">${esc(b.name)}</div><div class="m">חסומה</div></div><button class="btn xs soft" onclick="App.unblock('${b.id}')">ביטול חסימה</button></div>`).join('') : '<div class="small muted">אף אחת לא חסומה.</div>'}</div>
       <div class="card tight"><div class="card-title">איך זה עובד</div><div class="small muted">עד 3 אתגרים ל-14 יום. כל ערב מסמנת אם עמדת באתגר.<br>עמדת? נקודה. פספסת? הרצף של האתגר מתאפס, הנקודות נשארות.<br>הדירוג בקבוצה לפי אחוז ההתמדה, מ-${Mila.RULES.MIN_RANKED_EVENTS} דיווחים ומעלה. בסוף 14 הימים יש מנצחת.</div></div>
+      <div class="card tight"><div class="card-title">נגישות ומידע משפטי</div>
+        <div class="list-row clickable" onclick="MilaA11y.open()"><span class="tile sm sky">${icon('eye', 18)}</span><div class="body"><div class="t">תפריט נגישות</div><div class="m">טקסט גדול, ניגודיות, בלי אנימציות</div></div>${icon('chev', 18)}</div>
+        <a class="list-row clickable" href="/accessibility"><span class="tile sm gray">${icon('info', 18)}</span><div class="body"><div class="t">הצהרת נגישות</div></div>${icon('chev', 18)}</a>
+        <a class="list-row clickable" href="/privacy"><span class="tile sm gray">${icon('lock', 18)}</span><div class="body"><div class="t">מדיניות פרטיות</div></div>${icon('chev', 18)}</a>
+        <a class="list-row clickable" href="/terms"><span class="tile sm gray">${icon('book', 18)}</span><div class="body"><div class="t">תנאי שימוש</div></div>${icon('chev', 18)}</a></div>
       <div class="card tight"><div class="list-row clickable" onclick="App.exportData()"><span class="tile sm sky">${icon('download', 18)}</span><div class="body"><div class="t">ייצוא הנתונים שלי</div><div class="m">קובץ עם המילים והדיווחים</div></div></div>
         ${S.meta.demo ? `<div class="list-row clickable" onclick="App.resetDemo()"><span class="tile sm peach">${icon('repeat', 18)}</span><div class="body"><div class="t">איפוס הדוגמה</div><div class="m">ולהתחיל באמת</div></div></div>` : ''}
         ${isCloud() ? `<div class="list-row clickable" onclick="App.signOut()"><span class="tile sm gray">${icon('logout', 18)}</span><div class="body"><div class="t">יציאה מהחשבון</div><div class="m">${esc((Api.session && Api.session.user && Api.session.user.email) || '')}</div></div></div>` : ''}

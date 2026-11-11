@@ -16,6 +16,7 @@ const B = { name: 'נועה', email: `e2e.b.${stamp}@test.mila` };
 
 async function phone(browser, label) {
   const ctx = await browser.newContext({ ...devices['iPhone 13'], locale: 'he-IL', timezoneId: 'Asia/Jerusalem', bypassCSP: true, ignoreHTTPSErrors: true });
+  await ctx.addInitScript(() => { try { localStorage.setItem('mila.consent', '"all"'); } catch (e) { } }); // הודעת העוגיות כבר אושרה
   const page = await ctx.newPage();
   page.on('pageerror', e => console.log(`[${label}] PAGEERROR`, e.message));
   page.on('console', m => { if (m.type() === 'error' && !/ERR_|favicon|fonts|net::/.test(m.text())) console.log(`[${label}] console`, m.text()); });
