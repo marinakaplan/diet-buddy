@@ -405,7 +405,7 @@ const App = (() => {
       const n = ob.done; const friend = ob.friend; ob = null; busy = false;
       stack = [{ name: 'today', params: {} }]; render();
       stamp(n === 1 ? 'נתתי מילה.' : `${n} אתגרים. נתתי מילה.`, '14 יום. כל ערב רק מסמנת אם עמדת בזה.');
-      // ישר להודעה המוכנה לחברה (בלי שלב הבחירות): ״תראי אם אני עומדת במילה שלי״
+      // ישר להודעה המוכנה לחברה (בלי שלב הבחירות): ״בואי תראי אם עמדתי במילה שלי״
       if (friend && circleId) setTimeout(() => { inviteFlow({ circleId, kind: 'follow', created: true }); inv.step = 2; render(); }, 2700);
       else afterFirstCommit();
     } catch (e) { busy = false; render(); fail(e); }
@@ -796,7 +796,7 @@ const App = (() => {
       ${fresh ? `<div class="note lime">${icon('sparkle', 18)}<span>מתחיל ${Mila.relDay(c.startDate)}. דיווח עד ${Mila.RULES.GRACE_HOUR}:00 למחרת.</span></div>` : ''}
       <div class="stat-grid mb"><div class="stat lime"><div class="n">${st.success}</div><div class="l">עמדתי</div></div><div class="stat pink"><div class="n">${st.miss}</div><div class="l">פספסתי</div></div><div class="stat lav"><div class="n">${st.current}${icon('flame', 18)}</div><div class="l">ברצף</div></div></div>
       ${c.reward ? `<div class="card tight pastel-lav"><div class="tiny muted">${mine ? 'אם אצליח, אני…' : `${esc(Mila.user(c.userId).name)} הבטיחה לעצמה`}</div><div class="bold">${esc(c.reward)}</div></div>` : ''}
-      ${mine && c.status === 'active' ? `<div class="btn-row mb word-invite"><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'follow' })">תראי אם אני עומדת במילה שלי</button><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'same' })">בואי, שתינו צריכות את זה</button></div>` : ''}
+      ${mine && c.status === 'active' ? `<div class="btn-row mb word-invite"><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'follow' })">בואי תראי אם עמדתי במילה שלי</button><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'same' })">בואי, שתינו צריכות את זה</button></div>` : ''}
       <div class="card"><div class="card-title">14 הימים <span class="link">${c.status === 'active' ? `יום ${Math.max(st.dayIndex, 1)}` : `${Mila.fmtDate(c.startDate)} – ${Mila.fmtDate(c.endDate)}`}</span></div>${days14(id)}</div>
       ${mine && todayOb && !todayOb.outcome && Mila.isOpenNow(todayOb) ? `<button class="btn primary mb" onclick="App.reportSheet('${todayOb.id}')">${icon('check', 20)} דיווח על היום</button>` : ''}
       <div class="card tight">
@@ -1030,23 +1030,25 @@ const App = (() => {
   }
   /* שלושה סוגי הזמנה. הטקסט נבנה מתבניות (בלי בינה מלאכותית) ואפשר לערוך לפני השליחה. */
   const INVITE_KINDS = {
-    follow: { title: 'תראי אם אני עומדת במילה שלי 😂', sub: 'חברה רואה את ההתקדמות שלך.', cta: 'אני רוצה להזמין חברה', icon: 'eye', tile: 'lav' },
+    follow: { title: 'בואי תראי אם עמדתי במילה שלי', sub: 'חברה רואה את ההתקדמות שלך.', cta: 'אני רוצה להזמין חברה', icon: 'eye', tile: 'lav' },
     compete: { title: 'נראה אותך עומדת בזה יותר ממני', sub: 'חברה בוחרת 3 אתגרים משלה. מתחרות על התמדה.', cta: 'אני רוצה להזמין לתחרות', icon: 'trophy', tile: 'lime' },
     same: { title: 'בואי, שתינו צריכות את זה', sub: 'חברה לוקחת את אותו אתגר.', cta: 'אני רוצה לאתגר חברה', icon: 'users', tile: 'pink' },
   };
+  /* הודעות מוכנות להזמנה. הטון בטוח בעצמו: ״בואי תראי אם עמדתי במילה שלי״, לא ״תראי אם אני נכשלת״. */
+  const SEE_ME = 'בואי תראי אם עמדתי במילה שלי.';
   const INVITE_BY_LIBRARY = {
-    food_no_delivery: ['שוב נשבעתי שאני מפסיקה עם המשלוחים. תראי אם הפעם זה מחזיק.', '14 ימים בלי להזמין אוכל. את מוזמנת לפקח על הנס.', 'הפעם אני רצינית. כנראה. בואי תראי.'],
-    move_8000_steps: ['8,000 צעדים ביום. בואי נראה מי זזה יותר.', 'אנחנו הולכות על זה? תרתי משמע.'],
-    move_no_phone_bed: ['14 לילות בלי טלפון במיטה. תראי אם אני שורדת.', 'הטלפון ישן בסלון. אני במיטה. 14 יום. נראה אותך.'],
-    hab_no_impulse_buy: ['14 ימים בלי לקנות שטויות. אני בפנים. את באה?', 'בלי קניות אימפולסיביות. שתינו יודעות שאנחנו צריכות את זה.'],
-    food_no_sweets_evening: ['בלי מתוק אחרי ארוחת ערב. 14 יום. תראי אם אני מחזיקה.', 'הקינוח נדחה ב-14 יום. את מוזמנת לפקח.'],
+    food_no_delivery: { follow: [`14 ימים בלי להזמין אוכל. ${SEE_ME}`, 'נפרדתי מהמשלוחים ל-14 יום. בואי תראי אותי עומדת בזה.'], same: ['14 ימים בלי להזמין אוכל. אני בפנים. את באה?'] },
+    move_8000_steps: { follow: [`8,000 צעדים ביום, 14 יום. ${SEE_ME}`], same: ['8,000 צעדים ביום. בואי נראה מי זזה יותר.', 'אנחנו הולכות על זה? תרתי משמע.'] },
+    move_no_phone_bed: { follow: [`14 לילות בלי טלפון במיטה. ${SEE_ME}`], same: ['הטלפון ישן בסלון. אני במיטה. 14 יום. נראה אותך.'] },
+    hab_no_impulse_buy: { follow: [`14 ימים בלי לקנות שטויות. ${SEE_ME}`], same: ['14 ימים בלי לקנות שטויות. אני בפנים. את באה?', 'בלי קניות אימפולסיביות. שתינו יודעות שאנחנו צריכות את זה.'] },
+    food_no_sweets_evening: { follow: [`בלי מתוק אחרי ארוחת ערב, 14 יום. ${SEE_ME}`, 'הקינוח נדחה ב-14 יום. בואי תראי אותי עומדת בזה.'], same: ['בלי מתוק אחרי ארוחת ערב, 14 יום. אני בפנים. את באה?'] },
   };
   function inviteMessages(kind, w, libraryId) {
     const n = Math.min(Math.max(Mila.me() ? Mila.activeCommitments().length : 3, 1), 3); const nA = n === 1 ? 'אתגר אחד' : `${n} אתגרים`;
-    const special = libraryId && INVITE_BY_LIBRARY[libraryId];
+    const special = (libraryId && INVITE_BY_LIBRARY[libraryId]) || {};
     if (kind === 'compete') return [`אני בחרתי ${nA} ל-14 יום. בואי תבחרי גם. נראה מי מתמידה יותר.`, '14 ימים, 3 אתגרים, אחת מאיתנו מנצחת. באה?', 'אני בטוחה שאני מתמידה יותר ממך. תוכיחי שלא.'];
-    if (kind === 'same') return [...(special || []), ...(w ? [`14 ימים של ${w}. אני בפנים. את באה?`, `${w}. שתינו יודעות שאנחנו צריכות את זה.`, `${w} ל-14 יום. בואי נראה מי מחזיקה יותר.`] : ['אותו אתגר, 14 יום, שתינו. באה?'])];
-    return [...(special || []), ...(w ? [`החלטתי: ${w}, 14 יום. נראה לך שאצליח?`, `שוב נשבעתי: ${w}. תראי אם הפעם זה מחזיק.`, `14 ימים של ${w}. את מוזמנת לפקח על הנס.`] : [`החלטתי על ${nA} ל-14 יום. נראה לך שאצליח?`, `14 ימים. ${nA}. את מוזמנת לפקח על הנס.`, 'הפעם אני רצינית. כנראה. בואי תראי.'])];
+    if (kind === 'same') return [...(special.same || []), ...(w ? [`14 ימים של ${w}. אני בפנים. את באה?`, `${w}. שתינו יודעות שאנחנו צריכות את זה.`, `${w} ל-14 יום. בואי נראה מי מתמידה יותר.`] : ['אותו אתגר, 14 יום, שתינו. באה?'])];
+    return [...(special.follow || []), ...(w ? [`נתתי מילה: ${w}, 14 יום. ${SEE_ME}`, `14 ימים של ${w}. בואי תראי אותי עומדת בזה.`, `${w}, 14 יום. אמרתי, ואני עושה. בואי תהיי עדה.`] : [`לקחתי על עצמי ${nA} ל-14 יום. ${SEE_ME}`, `14 ימים, ${nA}. בואי תראי אותי עומדת בזה.`, 'אמרתי, ואני עושה. בואי תהיי עדה.'])];
   }
   /* ============================================================
      הזמנת חברה — 3 צעדים: מה היא תעשה → ההודעה → נשלח (קישור וקוד תמיד גלויים)
