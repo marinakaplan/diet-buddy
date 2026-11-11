@@ -269,7 +269,7 @@ const invariants = async (c) => {
     assert.strictEqual(joined.payload.inviterId, (await C.state()).me, 'אירוע ההצטרפות זוכר מי הזמינה');
     const r = await C.req('/api/admin/stats'); assert.strictEqual(r.status, 403, 'פאנל ניהול רק למנהלת מערכת');
   });
-  await test('קבוצות: מנהלת נוספת, הסרה עוצרת אתגרים, סגירת קבוצה (רק מנהלת) מוציאה את כולן ושומרת נקודות', async () => {
+  await test('קבוצות: מנהלת נוספת, סגירת קבוצה (רק מנהלת) מוציאה את כולן, עוצרת רק אתגר משותף ושומרת נקודות', async () => {
     await D.fail('setMemberRole', { circleId: c2, userId: (await C.state()).me, role: 'member' }, 'FORBIDDEN');
     const sD0 = await D.state(); const dId = sD0.me; const cId = (await C.state()).me;
     await C.ok('setMemberRole', { circleId: c2, userId: dId, role: 'admin' });
@@ -278,10 +278,12 @@ const invariants = async (c) => {
     await C.fail('setMemberRole', { circleId: c2, userId: cId, role: 'member' }, 'VALIDATION');
     const pointsD = (await D.state()).ledger.filter(t => t.userId === dId && t.type === 'EARN').length;
     await D.fail('deleteCircle', { circleId: c2 }, 'FORBIDDEN');
+    const personalBefore = Object.values(sD0.commitments).filter(k => k.userId === dId && k.status === 'active' && sD0.wordDefs[k.defId].kind === 'personal').map(k => k.id);
     await C.ok('deleteCircle', { circleId: c2 });
     const sC = await C.state(); const sD = await D.state();
     assert.ok(!sC.circles[c2] && !sD.circles[c2], 'הקבוצה לא מופיעה יותר');
-    assert.ok(Object.values(sD.commitments).filter(k => k.userId === dId).every(k => k.status !== 'active'), 'האתגרים של מ בקבוצה נעצרו');
+    assert.ok(Object.values(sD.commitments).filter(k => k.userId === dId && sD.wordDefs[k.defId].kind === 'group' && sD.wordDefs[k.defId].circleId === c2).every(k => k.status !== 'active'), 'האתגר המשותף של הקבוצה שנסגרה נעצר');
+    assert.ok(personalBefore.every(id => sD.commitments[id] && sD.commitments[id].status === 'active'), 'האתגרים האישיים של מ ממשיכים');
     assert.strictEqual(sD.ledger.filter(t => t.userId === dId && t.type === 'EARN').length, pointsD, 'הנקודות נשארות');
     assert.ok(sD.notifications.some(n => n.type === 'circle_closed'), 'מ קיבלה הודעה שהקבוצה נסגרה');
     assert.strictEqual((await D.ok('previewInvite', { token: tokCompete })).ok, false, 'ההזמנות בוטלו');
@@ -368,27 +370,35 @@ const invariants = async (c) => {
     await Q.ok('block', { userId: (await Pp.state()).me });
     assert.strictEqual((await Pp.ok('inviteFriends', { circleId: g3, userIds: [qId] })).invited, 0);
   });
-  await test('להביא אתגר קיים לקבוצה: רק חברה בקבוצה, רק אתגר שלה שעוד לא בקבוצה, והחברות רואות אותו', async () => {
+  await test('אתגר אישי מופיע בכל קבוצה שאני חברה בה: בלי להביא ובלי לבחור; ״רק אני״ ותחום רגיש נשארים פרטיים; עזיבה לא עוצרת אותו', async () => {
     const H = new Client('H'), J = new Client('J'), K = new Client('K');
     await H.login(`h.${stamp}@test.mila`, 'הילה'); await H.profile('הילה'); await J.login(`j.${stamp}@test.mila`, 'יעלי'); await J.profile('יעלי'); await K.login(`k.${stamp}@test.mila`, 'כרמל'); await K.profile('כרמל');
-    const g = (await H.ok('createCircle', { name: 'מביאות' })).circleId;
-    const w = await J.ok('createPersonalWord', { libraryId: 'hab_read_10' });
-    await J.fail('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] }, 'FORBIDDEN');     // עוד לא חברה
+    const g = (await H.ok('createCircle', { name: 'של הילה' })).circleId;
+    const w = await J.ok('createPersonalWord', { libraryId: 'hab_read_10' });                           // נוצר לפני שיש לה קבוצה
+    const mine = await J.ok('createPersonalWord', { title: 'משהו שלי', rule: 'כל יום', private: true }); // בחרה ״רק אני״
+    const sees = async (cl, defId) => Object.values((await cl.state()).wordDefs).some(d => d.id === defId);
+    assert.ok(!(await sees(H, w.defId)), 'לפני שיש קבוצה משותפת, אף אחת לא רואה');
     await J.ok('acceptInvite', { token: (await H.ok('createInvite', { circleId: g })).token });
-    await J.fail('shareToCircle', { circleId: g, commitmentIds: [] }, 'VALIDATION');
-    assert.ok(!Object.values((await H.state()).wordDefs).some(d => d.id === w.defId), 'לפני: החברה לא רואה אתגר פרטי');
-    await K.ok('acceptInvite', { token: (await H.ok('createInvite', { circleId: g })).token });
-    assert.strictEqual((await K.ok('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] })).shared, 0, 'אי אפשר להביא אתגר של מישהי אחרת');
-    assert.strictEqual((await J.ok('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] })).shared, 1);
-    const d = Object.values((await H.state()).wordDefs).find(x => x.id === w.defId);
-    assert.ok(d && d.circleId === g, 'אחרי: החברה רואה את האתגר בקבוצה');
-    assert.strictEqual((await J.ok('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] })).shared, 0, 'פעם שנייה לא עושה כלום');
-    // אתגר שנמצא בקבוצה אחרת שלי עובר לקבוצה שאליה אני מביאה אותו
-    const g2 = (await J.ok('createCircle', { name: 'הקבוצה של יעלי' })).circleId;
-    assert.strictEqual((await J.ok('shareToCircle', { circleId: g2, commitmentIds: [w.commitmentId] })).shared, 1);
-    assert.ok(!Object.values((await H.state()).wordDefs).some(x => x.id === w.defId), 'בקבוצה הקודמת כבר לא רואים אותו');
-    assert.strictEqual((await J.ok('shareToCircle', { circleId: g, commitmentIds: [w.commitmentId] })).shared, 1, 'ואפשר להחזיר');
-    assert.ok((await H.state()).socialEvents.some(e => e.type === 'word_committed' && e.payload.defId === w.defId), 'נרשם בעדכוני הקבוצה');
+    const sH = await H.state();
+    assert.ok(sH.wordDefs[w.defId], 'הצטרפה, והאתגר שלה כבר מופיע אצל החברה');
+    assert.ok(Object.values(sH.commitments).some(k => k.defId === w.defId) && Object.values(sH.obligations).some(o => o.userId === (sH.memberships.find(m => m.userId !== sH.me) || {}).userId), 'כולל הימים שלו');
+    assert.ok(!sH.wordDefs[mine.defId], '״רק אני״ נשאר פרטי');
+    // קבוצה שנייה: אותו אתגר מופיע גם בה, והדיווח מגיע לעדכונים של שתיהן
+    const g2 = (await K.ok('createCircle', { name: 'של כרמל' })).circleId;
+    await J.ok('acceptInvite', { token: (await K.ok('createInvite', { circleId: g2 })).token });
+    assert.ok(await sees(K, w.defId), 'מופיע גם בקבוצה השנייה'); assert.ok(!(await sees(K, mine.defId)));
+    const sJ = await J.state(); const ob = Object.values(sJ.obligations).find(o => o.userId === sJ.me && o.commitmentId === w.commitmentId && o.status === 'open');
+    await J.ok('report', { obligationId: ob.id, outcome: 'success' });
+    for (const cl of [H, K]) assert.ok((await cl.state()).socialEvents.some(e => e.type === 'day_success' && e.payload.defId === w.defId), 'הדיווח מופיע בעדכונים של כל קבוצה');
+    // לב מהקבוצה השנייה עובד (האתגר לא ״שייך״ רק לקבוצה אחת)
+    await K.ok('sendEncouragement', { circleId: g2, toUserId: sJ.me, reaction: 'heart', obligationId: ob.id });
+    // עזיבת קבוצה: האתגר ממשיך, והחברה שם כבר לא רואה אותו
+    await J.ok('leaveCircle', { circleId: g });
+    assert.strictEqual((await J.state()).commitments[w.commitmentId].status, 'active', 'עזיבה לא עוצרת אתגר אישי');
+    assert.ok(!(await sees(H, w.defId)), 'מי שנשארה בקבוצה שעזבתי כבר לא רואה אותו'); assert.ok(await sees(K, w.defId));
+    // אתגר חדש נוצר גלוי לחברות גם בלי לציין קבוצה
+    const w2 = await J.ok('createPersonalWord', { libraryId: 'food_8_water' });
+    assert.ok(await sees(K, w2.defId));
   });
 
   await test('״נו, מה איתך?״: רק בין חברות קבוצה, רק למי שעוד לא דיווחה היום, ופעם ב-6 שעות', async () => {

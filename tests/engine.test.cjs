@@ -325,34 +325,60 @@ test('״המהפך״: עקיפה בדירוג יוצרת אירוע והתראה
 });
 
 
-test('קבוצות: הסרת חברה עוצרת את האתגרים שלה בקבוצה; מנהלת נוספת; לא מורידים את המנהלת האחרונה', () => {
+test('אתגר אישי מופיע בכל הקבוצות של מי שלקחה אותו; פרטי לא מופיע באף אחת; הדירוג סופר אותו בכל קבוצה', () => {
+  const me = fresh('דנה');
+  const loose = Mila.createPersonalWord({ libraryId: 'move_walk_30' }).commitment;                      // עוד בלי קבוצה
+  const c1 = Mila.createCircle({ name: 'אחת' }).circle; const c2 = Mila.createCircle({ name: 'שתיים' }).circle;
+  const priv = Mila.createPersonalWord({ title: 'משהו שלי', rule: 'כל יום', private: true }).commitment;
+  const d = Mila.wordDef(loose.defId), dp = Mila.wordDef(priv.defId);
+  assert.ok(Mila.inCircle(d, c1.id) && Mila.inCircle(d, c2.id), 'מופיע בשתי הקבוצות, גם אם נוצר לפניהן');
+  assert.ok(d.circleId, 'קיבל עוגן');
+  assert.ok(!Mila.inCircle(dp, c1.id) && !Mila.inCircle(dp, c2.id) && dp.visibility === 'private', '״רק אני״ נשאר פרטי');
+  assert.deepStrictEqual(Mila.defCircles(d).sort(), [c1.id, c2.id].sort()); assert.deepStrictEqual(Mila.defCircles(dp), []);
+  Mila.report(Mila.obligationsOf(loose.id).find(o => o.localDate === today).id, 'success');
+  for (const c of [c1, c2]) assert.strictEqual(Mila.leaderboard(c.id).rows.find(r => r.user.id === me.id).success, 1, 'נספר בדירוג של כל קבוצה');
+  assert.ok(Mila.feed(c1.id, 20).some(e => e.type === 'day_success') && Mila.feed(c2.id, 20).some(e => e.type === 'day_success'), 'והדיווח מופיע בעדכונים של שתיהן');
+  Mila.leaveCircle(c1.id);
+  assert.strictEqual(Mila.commitment(loose.id).status, 'active', 'עזיבת קבוצה לא עוצרת אתגר אישי');
+  assert.ok(Mila.inCircle(Mila.wordDef(loose.defId), c2.id) && !Mila.inCircle(Mila.wordDef(loose.defId), c1.id));
+  checkInvariants();
+});
+
+test('קבוצות: הסרת חברה עוצרת אצלה רק את האתגר המשותף, האתגרים האישיים שלה ממשיכים; מנהלת נוספת; לא מורידים את המנהלת האחרונה', () => {
   const me = fresh('דנה');
   const c = Mila.createCircle({ name: 'ק' }).circle;
   const f = Mila.createUser({ name: 'נועה', ageConfirmed: true });
   Mila.getState().memberships.push({ id: 'm_f2', circleId: c.id, userId: f.id, role: 'member', joinedAt: Mila.nowISO(), leftAt: null });
   const S = Mila.getState();
-  S.me = f.id; const kf = Mila.createPersonalWord({ libraryId: 'move_walk_30', circleId: c.id }).commitment; S.me = me.id;
+  const gdef = Mila.proposeGroupWord(c.id, { title: 'ריצה יחד', rule: '20 דק', startDate: today });
+  S.me = f.id; const kf = Mila.createPersonalWord({ libraryId: 'move_walk_30', circleId: c.id }).commitment; const kg = Mila.adoptGroupWord(gdef.id); S.me = me.id;
   Mila.setMemberRole(c.id, f.id, 'admin'); assert.ok(Mila.isAdmin(c.id, f.id));
   Mila.setMemberRole(c.id, f.id, 'member'); assert.ok(!Mila.isAdmin(c.id, f.id));
   assert.throws(() => Mila.setMemberRole(c.id, me.id, 'member'), /לפחות מנהלת אחת/);
   Mila.removeMember(c.id, f.id);
-  assert.strictEqual(S.commitments[kf.id].status, 'ended_early'); assert.strictEqual(S.commitments[kf.id].endReason, 'removed_from_circle');
-  assert.ok(Mila.obligationsOf(kf.id).filter(o => !o.outcome).every(o => o.status === 'cancelled'));
+  assert.strictEqual(S.commitments[kg.id].status, 'ended_early'); assert.strictEqual(S.commitments[kg.id].endReason, 'removed_from_circle');
+  assert.ok(Mila.obligationsOf(kg.id).filter(o => !o.outcome).every(o => o.status === 'cancelled'));
+  assert.strictEqual(S.commitments[kf.id].status, 'active', 'האתגר האישי שלה ממשיך');
+  assert.ok(!Mila.inCircle(Mila.wordDef(S.commitments[kf.id].defId), c.id), 'אבל כבר לא מופיע בקבוצה שממנה הוסרה');
+  assert.ok(!Mila.leaderboard(c.id).rows.some(r => r.user.id === f.id));
   checkInvariants();
 });
 
-test('קבוצות: סגירת קבוצה עוצרת אתגרים אצל כולן, מבטלת הזמנות ומוציאה את כולן; קבוצה אחרת לא נפגעת', () => {
+test('קבוצות: סגירת קבוצה עוצרת את האתגר המשותף, מבטלת הזמנות ומוציאה את כולן; אתגרים אישיים ממשיכים ועוברים לקבוצה אחרת', () => {
   const me = fresh('דנה');
   const c1 = Mila.createCircle({ name: 'אחת' }).circle; const c2 = Mila.createCircle({ name: 'שתיים' }).circle;
   const k1 = Mila.createPersonalWord({ libraryId: 'move_walk_30', circleId: c1.id }).commitment;
   const k2 = Mila.createPersonalWord({ libraryId: 'food_8_water', circleId: c2.id }).commitment;
   const inv = Mila.createInvite(c1.id);
+  const kg = Mila.adoptGroupWord(Mila.proposeGroupWord(c1.id, { title: 'ריצה יחד', rule: '20 דק', startDate: Mila.addDays(today, 20) }).id, { silent: true }) || Object.values(Mila.getState().commitments).find(k => Mila.wordDef(k.defId).kind === 'group');
   Mila.report(Mila.obligationsOf(k1.id).find(o => o.localDate === today).id, 'success');
   const pointsBefore = Mila.bankSummary().earnedTotal;
   Mila.deleteCircle(c1.id);
   const S = Mila.getState();
   assert.strictEqual(S.circles[c1.id].status, 'archived'); assert.ok(!Mila.isMember(c1.id));
-  assert.strictEqual(S.commitments[k1.id].status, 'ended_early'); assert.strictEqual(S.invites[inv.token].status, 'revoked');
+  assert.strictEqual(S.commitments[kg.id].status, 'ended_early', 'האתגר המשותף של הקבוצה שנסגרה נעצר'); assert.strictEqual(S.invites[inv.token].status, 'revoked');
+  assert.strictEqual(S.commitments[k1.id].status, 'active', 'האתגר האישי ממשיך'); assert.strictEqual(Mila.wordDef(S.commitments[k1.id].defId).circleId, c2.id, 'והעוגן שלו עבר לקבוצה שנשארה');
+  assert.ok(Mila.inCircle(Mila.wordDef(S.commitments[k1.id].defId), c2.id));
   assert.strictEqual(S.commitments[k2.id].status, 'active'); assert.deepStrictEqual(Mila.myCircles().map(c => c.id), [c2.id]);
   assert.strictEqual(Mila.bankSummary().earnedTotal, pointsBefore, 'הנקודות נשארות');
   checkInvariants();

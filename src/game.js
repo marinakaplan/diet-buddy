@@ -40,6 +40,16 @@ function grantStmts(env, userId, type, src, tz) {
 }
 /* כל עדכון שנוצר נרשם גם לשליחת התראה לטלפון אחרי שהפעולה הצליחה (index.js → push.social) */
 const notifyStmt = (env, userId, type, title, body, ref, day) => ((env.__notified || (env.__notified = new Set())).add(userId), S(env, `insert or ignore into notifications(id, user_id, type, title, body, ref, dedupe_key) values (?,?,?,?,?,?,?)`, uid(), userId, type, title, body || '', JSON.stringify(ref || {}), `${type}|${title}|${day}`));
+/* ---------- אתגר אישי שייך למי שלקחה אותו, ומופיע בכל הקבוצות שהיא חברה בהן ----------
+   (אלא אם הוא פרטי: תחום רגיש שלא נבחר לשתף.) ה-circle_id שלו הוא רק ״עוגן״: הקבוצה שבה נרשמים העדכונים והנקודות שלו.
+   מי רואה אותו נקבע לפי חברות בקבוצה משותפת, לא לפי העוגן. */
+/* כשקבוצה נעלמת מבחינתה (עזבה, הוסרה, הקבוצה נסגרה) האתגרים האישיים ממשיכים, והעוגן עובר לקבוצה אחרת שלה (או מתרוקן) */
+const rehomeStmt = (env, circleId, userId = null) => S(env, `update word_definitions set circle_id = (select m.circle_id from circle_memberships m where m.user_id = word_definitions.owner_id and m.left_at is null and m.circle_id <> ? order by m.joined_at limit 1)
+  where kind = 'personal' and circle_id = ?${userId ? ' and owner_id = ?' : ''}`, ...(userId ? [circleId, circleId, userId] : [circleId, circleId]));
+/* כשהיא נכנסת לקבוצה: האתגרים האישיים שלה (שאינם פרטיים) מקבלים עוגן אם אין להם. ״רק אני״ נשאר פרטי תמיד. */
+const joinStmts = (env, circleId, userId, cond = '1 = 1') => [
+  S(env, `update word_definitions set circle_id = ? where owner_id = ? and kind = 'personal' and circle_id is null and visibility <> 'private' and status <> 'cancelled' and ${cond}`, circleId, userId),
+];
 const eventStmt = (env, circleId, actorId, type, payload) => S(env, `insert into social_events(id, circle_id, actor_id, type, payload) values (?,?,?,?,?)`, uid(), circleId, actorId, type, JSON.stringify(payload || {}));
 
 /* ---------- ולידציה ---------- */
@@ -103,10 +113,13 @@ export async function createPersonalWord(env, user, b) {
   let circleId = b.circleId || null;
   // תחום רגיש (זוגיות ואינטימיות): מגיל 18 בלבד, ונאכף כאן ולא רק בממשק
   if (lib && MilaLibrary.isSensitive(lib.id) && !isAdultUser(user, today)) throw err('ADULT_ONLY', 'התחום הזה מגיל 18.', 403);
-  // אתגר רגיש: פרטי כברירת מחדל; שיתוף עם קבוצה רק בבחירה מפורשת
-  if (lib && MilaLibrary.isSensitive(lib.id) && b.shareSensitive !== true) circleId = null;
+  // אתגר רגיש: פרטי כברירת מחדל; שיתוף עם החברות רק בבחירה מפורשת
+  const priv = !!(lib && MilaLibrary.isSensitive(lib.id) && b.shareSensitive !== true) || b.private === true;   // או בחירה מפורשת ב״רק אני״
+  if (priv) circleId = null;
   if (circleId && !(await isMember(env, circleId, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
-  const vis = circleId ? 'status' : 'private';   // בקבוצה כולן רואות הכול; בלי קבוצה – רק אני
+  // כל אתגר אחר מופיע בכל הקבוצות שלה. העוגן: הקבוצה שממנה נוצר, או הראשונה שלה (אם יש)
+  if (!priv && !circleId) circleId = (await myCircleIds(env, user.id))[0] || null;
+  const vis = priv ? 'private' : 'status';
   const reward = String(b.reward || '').trim().slice(0, 80) || null;
   const rewardShared = reward && b.rewardShared === true ? 1 : 0;
   const cap = await capInfo(env, user.id, start);
@@ -264,7 +277,7 @@ export async function overtake(env, user, b) {
   const cid = String(b.circleId || ''), other = String(b.passedUserId || '');
   if (!cid || !other || other === user.id || !(await isMember(env, cid, user.id)) || !(await isMember(env, cid, other))) throw err('FORBIDDEN', 'אין הרשאה', 403);
   const today = localDate(user.timezone);
-  const fresh = await first(env, `select 1 as x from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id where o.user_id = ? and o.local_date >= ? and o.outcome = 'success' and d.circle_id = ? limit 1`, user.id, addDays(today, -1), cid);
+  const fresh = await first(env, `select 1 as x from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id where o.user_id = ? and o.local_date >= ? and o.outcome = 'success' and ((d.kind = 'personal' and d.visibility <> 'private') or d.circle_id = ?) limit 1`, user.id, addDays(today, -1), cid);
   if (!fresh) throw err('VALIDATION', 'אין דיווח חדש');
   const dup = await first(env, `select 1 as x from social_events where circle_id = ? and created_at > ? and actor_id = ? and type = 'overtake' and payload like ? limit 1`, cid, new Date(Date.now() - 20 * 3600000).toISOString(), user.id, `%${other}%`);
   if (dup) return { ok: true, duplicate: true };
@@ -397,6 +410,7 @@ export async function createCircle(env, user, b) {
     S(env, `insert into circles(id, name, description, owner_id, color, who_can_propose, max_members, round_start) values (?,?,?,?,?,?,?,?)`, cid, name, String(b.description || '').trim().slice(0, 120), user.id, COLORS.has(b.color) ? b.color : 'pink', b.whoCanPropose === 'admins' ? 'admins' : 'all', maxMembers, roundStart),
     S(env, `insert into circle_memberships(id, circle_id, user_id, role) values (?,?,?,'admin')`, uid(), cid, user.id),
     inv.stmt, eventStmt(env, cid, user.id, 'circle_created', {}), ...grantStmts(env, user.id, 'first_circle', cid),
+    ...joinStmts(env, cid, user.id),
   ]);
   return { circleId: cid, inviteToken: inv.tok };
 }
@@ -475,6 +489,7 @@ export async function acceptInvite(env, user, b) {
       S(env, `update circle_memberships set via_invite = ? where circle_id = ? and user_id = ? and left_at is null and via_invite is null`, hash, cid, user.id),
       S(env, `update users set invited_by = ?, invited_via = ? where id = ? and invited_by is null and id <> ? and ${joined}`, p.inviter.id, hash, user.id, p.inviter.id),
       S(env, `insert into social_events(id, circle_id, actor_id, type, payload) select ?, ?, ?, 'member_joined', ? where ${joined}`, uid(), cid, user.id, JSON.stringify({ inviterId: p.inviter.id })), ...grantStmts(env, user.id, 'first_circle', cid),
+      ...joinStmts(env, cid, user.id, joined),
       // ההזמנה עבדה: עדכון למי ששלחה אותה
       S(env, `insert or ignore into notifications(id, user_id, type, title, body, ref, dedupe_key) select ?, ?, 'invite', ?, 'ההזמנה שלך עבדה.', ?, ? where ${joined}`, uid(), p.inviter.id, `${user.display_name} הצטרפה ל${p.circle.name} 🎉`, JSON.stringify({ circleId: cid }), `invite|${user.id}|${cid}|${localDate(user.timezone)}`),
     ]);
@@ -493,8 +508,10 @@ export async function leaveCircle(env, user, b) {
     else stmts.push(S(env, `update circles set status = 'archived' where id = ?`, b.circleId));
   }
   stmts.push(S(env, `update circle_memberships set left_at = ? where id = ?`, nowISO(), m.id));
-  const ks = await all(env, `select k.id from word_commitments k join word_definitions d on d.id = k.definition_id where k.user_id = ? and k.status = 'active' and d.circle_id = ?`, user.id, b.circleId);
+  // אתגר משותף של הקבוצה נעצר אצלה; האתגרים האישיים שלה ממשיכים
+  const ks = await all(env, `select k.id from word_commitments k join word_definitions d on d.id = k.definition_id where k.user_id = ? and k.status = 'active' and d.kind = 'group' and d.circle_id = ?`, user.id, b.circleId);
   for (const k of ks) stmts.push(...endCommitmentStmts(env, k.id, user.id, 'left_circle'));
+  stmts.push(rehomeStmt(env, b.circleId, user.id));
   stmts.push(eventStmt(env, b.circleId, user.id, 'member_left', {}));
   await runBatch(env, stmts);
 }
@@ -503,9 +520,10 @@ export async function removeMember(env, user, b) {
   if (b.userId === user.id) throw err('VALIDATION', 'כדי לצאת בעצמך השתמשי ב״לעזוב את הקבוצה״');
   const stmts = [S(env, `update circle_memberships set left_at = ?, removed_by = ? where circle_id = ? and user_id = ? and left_at is null`, nowISO(), user.id, b.circleId, b.userId), eventStmt(env, b.circleId, user.id, 'member_removed', { userId: b.userId }),
     S(env, `update circle_invites set status = 'revoked' where circle_id = ? and inviter_id = ? and status = 'active'`, b.circleId, b.userId)];
-  // האתגרים שלה בקבוצה הזו נעצרים (הנקודות נשארות שלה)
-  const ks = await all(env, `select k.id from word_commitments k join word_definitions d on d.id = k.definition_id where k.user_id = ? and k.status = 'active' and d.circle_id = ?`, b.userId, b.circleId);
+  // האתגר המשותף של הקבוצה נעצר אצלה; האתגרים האישיים שלה נשארים שלה וממשיכים
+  const ks = await all(env, `select k.id from word_commitments k join word_definitions d on d.id = k.definition_id where k.user_id = ? and k.status = 'active' and d.kind = 'group' and d.circle_id = ?`, b.userId, b.circleId);
   for (const k of ks) stmts.push(...endCommitmentStmts(env, k.id, b.userId, 'removed_from_circle'));
+  stmts.push(rehomeStmt(env, b.circleId, b.userId));
   await runBatch(env, stmts);
 }
 /* מנהלת יכולה להפוך חברה למנהלת, או להחזיר מנהלת אחרת לחברה רגילה (לא את עצמה אם היא היחידה) */
@@ -525,14 +543,14 @@ export async function setMemberRole(env, user, b) {
   ]);
   return { ok: true };
 }
-/* סגירת קבוצה (מנהלת בלבד): האתגרים בקבוצה נעצרים אצל כולן, ההזמנות מבוטלות,
+/* סגירת קבוצה (מנהלת בלבד): האתגרים המשותפים של הקבוצה נעצרים אצל כולן (האישיים ממשיכים), ההזמנות מבוטלות,
    החברות יוצאות והקבוצה נשמרת בארכיון. הנקודות וההיסטוריה של כל אחת נשארות. */
 export async function deleteCircle(env, user, b) {
   if (!(await isAdmin(env, b.circleId, user.id))) throw err('FORBIDDEN', 'רק מנהלת יכולה לסגור את הקבוצה', 403);
   const c = await first(env, `select * from circles where id = ? and status = 'active'`, b.circleId);
   if (!c) throw err('NOT_FOUND', 'קבוצה לא נמצאה', 404);
   const members = await all(env, `select user_id from circle_memberships where circle_id = ? and left_at is null`, c.id);
-  const ks = await all(env, `select k.id, k.user_id from word_commitments k join word_definitions d on d.id = k.definition_id where k.status = 'active' and d.circle_id = ?`, c.id);
+  const ks = await all(env, `select k.id, k.user_id from word_commitments k join word_definitions d on d.id = k.definition_id where k.status = 'active' and d.kind = 'group' and d.circle_id = ?`, c.id);
   const day = localDate(user.timezone); const at = nowISO();
   const stmts = [];
   for (const k of ks) stmts.push(...endCommitmentStmts(env, k.id, k.user_id, 'circle_deleted'));
@@ -540,6 +558,7 @@ export async function deleteCircle(env, user, b) {
   stmts.push(S(env, `update circle_invites set status = 'revoked' where circle_id = ? and status = 'active'`, c.id));
   stmts.push(S(env, `update circle_memberships set left_at = ? where circle_id = ? and left_at is null`, at, c.id));
   stmts.push(S(env, `update circles set status = 'archived' where id = ?`, c.id));
+  stmts.push(rehomeStmt(env, c.id));   // האתגרים האישיים של כולן ממשיכים
   for (const m of members) if (m.user_id !== user.id) stmts.push(notifyStmt(env, m.user_id, 'circle_closed', `הקבוצה ${c.name} נסגרה`, `${user.display_name} סגרה את הקבוצה. הנקודות שלך נשארות.`, {}, day));
   await runBatch(env, stmts);
   return { ok: true };
@@ -563,7 +582,7 @@ export async function sendEncouragement(env, user, b) {
   if (sentToday >= 6) return;   // מספיק מילים טובות לחצי יום: בלי הצפה
   /* פרגון על יום מסוים באתגר שלה (הלב שבשורה): פעם אחת לכל יום, וההתראה אומרת על מה */
   if (b.obligationId) {
-    const o = await first(env, `select o.id, o.outcome, d.title from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id where o.id = ? and o.user_id = ? and d.circle_id = ? and d.visibility <> 'private' and o.outcome in ('success','miss')`, String(b.obligationId), b.toUserId, b.circleId);
+    const o = await first(env, `select o.id, o.outcome, d.title from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id where o.id = ? and o.user_id = ? and (d.kind = 'personal' or d.circle_id = ?) and d.visibility <> 'private' and o.outcome in ('success','miss')`, String(b.obligationId), b.toUserId, b.circleId);
     if (!o) throw err('NOT_FOUND', 'היום הזה לא נמצא', 404);
     if (await first(env, `select 1 as x from social_events where circle_id = ? and actor_id = ? and type = 'encouragement' and payload like ? limit 1`, b.circleId, user.id, `%${o.id}%`)) return { already: true };
     const name = String(user.display_name || '').split(' ')[0] || 'חברה';

@@ -159,6 +159,8 @@ async function pingStamp(env, user) {
   const parts = [`select 'n' as k, created_at as t from (select created_at from notifications where user_id = ? order by created_at desc limit 1)`];
   const binds = [user.id];
   for (const c of cids.slice(0, 20)) { parts.push(`select 'e' as k, created_at as t from (select created_at from social_events where circle_id = ? order by created_at desc limit 1)`); binds.push(c); }
+  if (cids.length) { const cs = cids.slice(0, 20); const P = cs.map(() => '?').join(',');
+    parts.push(`select 'f' as k, max(e.created_at) as t from social_events e where e.actor_id in (select user_id from circle_memberships where circle_id in (${P}) and left_at is null) and e.created_at > ?`); binds.push(...cs, new Date(Date.now() - 2 * 86400000).toISOString()); }
   const rows = (await env.DB.prepare(parts.join(' union all ')).bind(...binds).all()).results;
   return [cids.join(','), ...rows.map(r => r.t)].join('|');
 }

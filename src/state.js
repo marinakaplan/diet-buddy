@@ -25,9 +25,13 @@ export async function myState(env, user) {
   const [memberships, circles, defs, invites, events, achievements, notifications, blocks, myHistory] = await Promise.all([
     q(env, `select * from circle_memberships where circle_id in (${P})`, cids),
     q(env, `select * from circles where id in (${P})`, cids),
-    q(env, `select * from word_definitions where (owner_id = ? and (end_date is null or end_date >= ?)) or (circle_id in (${P}) and status <> 'cancelled' and (kind = 'group' or visibility <> 'private') and (end_date is null or end_date >= ?))`, [user.id, since90, ...cids, since30]),
+    // שלי: הכול. של אחרות: אתגר משותף בקבוצות שלי, ואתגר אישי (לא פרטי) של כל מי שחברה איתי עכשיו בקבוצה כלשהי
+    q(env, `select * from word_definitions where (owner_id = ? and (end_date is null or end_date >= ?))
+      or (kind = 'group' and circle_id in (${P}) and status <> 'cancelled' and (end_date is null or end_date >= ?))
+      or (kind = 'personal' and visibility <> 'private' and status <> 'cancelled' and (end_date is null or end_date >= ?) and owner_id in (select user_id from circle_memberships where circle_id in (${P}) and left_at is null))`, [user.id, since90, ...cids, since30, since30, ...cids]),
     q(env, `select token_hint, circle_id, inviter_id, created_at, expires_at, status, uses, max_uses, kind from circle_invites where circle_id in (${P}) and status = 'active' and expires_at > ?`, [...cids, nowISO()]),
-    q(env, `select * from social_events where circle_id in (${P}) and created_at > ? order by created_at desc limit 120`, [...cids, evSince]),
+    // עדכוני הקבוצות שלי, ועדכוני ההתקדמות האישית של החברות שלי (גם אם נרשמו בקבוצה אחרת שלהן)
+    q(env, `select * from social_events where created_at > ? and (circle_id in (${P}) or (type in ('day_success','day_miss','day_excused','streak','word_committed') and actor_id in (select user_id from circle_memberships where circle_id in (${P}) and left_at is null))) order by created_at desc limit 160`, [evSince, ...cids, ...cids]),
     q(env, `select * from achievements where user_id = ?`, [user.id]),
     q(env, `select * from notifications where user_id = ? order by created_at desc limit 40`, [user.id]),
     q(env, `select * from user_blocks where blocker_id = ?`, [user.id]),
@@ -35,7 +39,7 @@ export async function myState(env, user) {
   ]);
   const defIds = defs.map(d => d.id);
   // של אחרות: רק בקבוצות שאני חברה בהן עכשיו (גם אם אני זו שפתחה את האתגר ועזבתי)
-  const commitments = await qIn(env, defIds, (DP) => `select k.* from word_commitments k join word_definitions d on d.id = k.definition_id where k.definition_id in (${DP}) and ((k.user_id = ? and (k.status = 'active' or k.end_date >= ?)) or (d.circle_id in (${P}) and k.status <> 'cancelled' and d.visibility <> 'private' and (k.status = 'active' or k.end_date >= ?)))`, (part) => [...part, user.id, since90, ...cids, since30]);
+  const commitments = await qIn(env, defIds, (DP) => `select k.* from word_commitments k join word_definitions d on d.id = k.definition_id where k.definition_id in (${DP}) and ((k.user_id = ? and (k.status = 'active' or k.end_date >= ?)) or (k.status <> 'cancelled' and d.visibility <> 'private' and (k.status = 'active' or k.end_date >= ?) and ((d.kind = 'group' and d.circle_id in (${P})) or (d.kind = 'personal' and k.user_id in (select user_id from circle_memberships where circle_id in (${P}) and left_at is null)))))`, (part) => [...part, user.id, since90, since30, ...cids, ...cids]);
   const [obligations, ledger, encouragements] = await Promise.all([
     loadObligations(env, commitments, user.id, today),
     q(env, `select * from virtual_ledger where user_id = ? order by created_at`, [user.id]),

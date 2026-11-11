@@ -140,6 +140,27 @@ const Mila = (() => {
   function isAdmin(circleId, userId = state.me) { const m = membership(circleId, userId); return !!m && m.role === 'admin'; }
   function circleMembers(circleId) { return activeMemberships(circleId).map(m => ({ ...state.users[m.userId], role: m.role, joinedAt: m.joinedAt })); }
 
+  /* ---------- אתגר אישי שייך למי שלקחה אותו, ומופיע בכל הקבוצות שהיא חברה בהן ----------
+     (אלא אם הוא פרטי.) circleId של אתגר אישי הוא רק ״עוגן״ לעדכונים; מי רואה אותו נקבע לפי חברות בקבוצה. */
+  const PROGRESS_EVENTS = ['day_success', 'day_miss', 'day_excused', 'streak', 'word_committed'];
+  function inCircle(def, circleId) { if (!def || !circleId) return false; return def.kind === 'group' ? def.circleId === circleId : def.visibility !== 'private' && !!membership(circleId, def.ownerId); }
+  function defCircles(def) { if (!def) return []; if (def.kind === 'group') return def.circleId ? [def.circleId] : []; if (def.visibility === 'private') return []; return state.memberships.filter(m => m.userId === def.ownerId && !m.leftAt && state.circles[m.circleId] && state.circles[m.circleId].status === 'active').map(m => m.circleId); }
+  function eventInCircle(e, circleId) {
+    if (!PROGRESS_EVENTS.includes(e.type)) return e.circleId === circleId;
+    const d = e.payload && e.payload.defId ? state.wordDefs[e.payload.defId] : null;
+    return d ? inCircle(d, circleId) : e.circleId === circleId;
+  }
+  /* נכנסתי לקבוצה: האתגרים האישיים שלי (שאינם פרטיים) מקבלים עוגן אם אין להם. ״רק אני״ נשאר פרטי תמיד. */
+  function afterJoin(circleId) {
+    Object.values(state.wordDefs).filter(d => d.kind === 'personal' && d.ownerId === state.me && d.status !== 'cancelled' && !d.circleId && d.visibility !== 'private').forEach(d => { d.circleId = circleId; });
+  }
+  /* הקבוצה נעלמה מבחינתה: האתגרים האישיים ממשיכים, והעוגן עובר לקבוצה אחרת שלה (או מתרוקן) */
+  function rehome(circleId, userId = null) {
+    Object.values(state.wordDefs).filter(d => d.kind === 'personal' && d.circleId === circleId && (!userId || d.ownerId === userId)).forEach(d => {
+      const other = state.memberships.find(m => m.userId === d.ownerId && !m.leftAt && m.circleId !== circleId);
+      d.circleId = other ? other.circleId : null;
+    });
+  }
   function createCircle({ name, description = '', color, whoCanPropose = 'all', maxMembers = RULES.MAX_MEMBERS_DEFAULT, roundStart = today() }) {
     if (!name || !name.trim()) throw err('שם הקבוצה לא יכול להיות ריק');
     if (name.trim().length > 50) throw err('שם הקבוצה ארוך מדי (עד 50 תווים)');
@@ -151,6 +172,7 @@ const Mila = (() => {
     };
     state.circles[id] = circle;
     state.memberships.push({ id: uid('m'), circleId: id, userId: state.me, role: 'admin', joinedAt: nowISO(), leftAt: null });
+    afterJoin(id);
     const invite = createInvite(id);
     addEvent(id, state.me, 'circle_created', {});
     grant(state.me, 'first_circle', id);
@@ -220,6 +242,7 @@ const Mila = (() => {
     if (p.alreadyMember) return state.circles[p.circle.id];
     if (p.memberCount >= p.maxMembers) throw err('הקבוצה מלאה. אפשר לבקש ממנהלת הקבוצה להגדיל את מספר המקומות.');
     state.memberships.push({ id: uid('m'), circleId: p.circle.id, userId: state.me, role: 'member', joinedAt: nowISO(), leftAt: null });
+    afterJoin(p.circle.id);
     p.inv.uses += 1;
     addEvent(p.circle.id, state.me, 'member_joined', {});
     grant(state.me, 'first_circle', p.circle.id);
@@ -240,9 +263,10 @@ const Mila = (() => {
     }
     m.leftAt = nowISO();
     if (endWords) {
-      // סיום מוקדם של מילים פעילות בקבוצה – ההיסטוריה נשמרת, אירועים עתידיים מבוטלים
-      myCommitments().filter(c => (state.wordDefs[c.defId] || {}).circleId === circleId && c.status === 'active').forEach(c => endCommitment(c.id, 'left_circle'));
+      // האתגר המשותף של הקבוצה נעצר אצלי (ההיסטוריה נשמרת); האתגרים האישיים שלי ממשיכים
+      myCommitments().filter(c => { const d = state.wordDefs[c.defId] || {}; return d.kind === 'group' && d.circleId === circleId && c.status === 'active'; }).forEach(c => endCommitment(c.id, 'left_circle'));
     }
+    rehome(circleId, state.me);
     addEvent(circleId, state.me, 'member_left', {});
     save();
   }
@@ -253,12 +277,13 @@ const Mila = (() => {
     m.leftAt = nowISO();
     m.removedBy = state.me;
     endCircleCommitments(circleId, userId, 'removed_from_circle');
+    rehome(circleId, userId);
     addEvent(circleId, state.me, 'member_removed', { userId });
     save();
   }
-  /* עוצרת את האתגרים הפעילים בקבוצה (של משתמשת אחת, או של כולן) */
+  /* עוצרת את האתגרים המשותפים של הקבוצה (אצל משתמשת אחת, או אצל כולן). אתגרים אישיים ממשיכים. */
   function endCircleCommitments(circleId, userId, reason) {
-    Object.values(state.commitments).filter(c => c.status === 'active' && (!userId || c.userId === userId) && (state.wordDefs[c.defId] || {}).circleId === circleId).forEach(c => {
+    Object.values(state.commitments).filter(c => { const d = state.wordDefs[c.defId] || {}; return c.status === 'active' && (!userId || c.userId === userId) && d.kind === 'group' && d.circleId === circleId; }).forEach(c => {
       c.status = 'ended_early'; c.endReason = reason;
       obligationsOf(c.id).filter(o => !o.outcome && ['scheduled', 'open'].includes(o.status)).forEach(o => { o.status = 'cancelled'; });
     });
@@ -275,6 +300,7 @@ const Mila = (() => {
   function deleteCircle(circleId) {
     if (!isAdmin(circleId)) throw err('רק מנהלת יכולה לסגור את הקבוצה');
     endCircleCommitments(circleId, null, 'circle_deleted');
+    rehome(circleId);
     Object.values(state.wordDefs).filter(d => d.circleId === circleId && d.status === 'proposed').forEach(d => { d.status = 'cancelled'; });
     Object.values(state.invites).filter(i => i.circleId === circleId).forEach(i => { i.status = 'revoked'; });
     activeMemberships(circleId).forEach(m => { m.leftAt = nowISO(); });
@@ -363,22 +389,25 @@ const Mila = (() => {
     save();
     return { shared };
   }
-  function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, visibility = circleId ? 'status' : 'private', libraryId = null, reward = '', rewardShared = false, shareSensitive = false }) {
+  function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, libraryId = null, reward = '', rewardShared = false, shareSensitive = false, private: onlyMe = false }) {
     let lib = null, category = null, sensitive = false;
     if (libraryId) {
       lib = LIB.get(libraryId);
       if (!lib) throw err('האתגר לא נמצא בספרייה');
       title = lib.title; rule = lib.rule; icon = lib.icon; category = lib.cat; sensitive = LIB.isSensitive(libraryId);
       if (sensitive && !isAdult()) throw Object.assign(err('התחום הזה מגיל 18.'), { code: 'ADULT_ONLY' });
-      // אתגר רגיש: פרטי כברירת מחדל. שיתוף עם קבוצה רק בבחירה מפורשת.
-      if (sensitive && !shareSensitive) circleId = null;
     }
     validateWordInput({ title, rule });
+    // פרטי: תחום רגיש שלא נבחר לשתף, או בחירה מפורשת ב״רק אני״. כל השאר מופיע בכל הקבוצות שלי.
+    const priv = (sensitive && !shareSensitive) || onlyMe === true;
+    if (priv) circleId = null;
     if (circleId && !isMember(circleId)) throw err('את לא חברה בקבוצה הזו');
+    if (!priv && !circleId) circleId = (myCircles()[0] || {}).id || null;
+    const visibility = priv ? 'private' : 'status';
     reward = String(reward || '').trim().slice(0, 80);
     const cap = capCheck(state.me, startDate);
     if (!cap.ok) throw Object.assign(err('כבר יש לך 3 אתגרים בימים האלה'), { code: 'CAP', cap });
-    const def = { id: uid('w'), kind: 'personal', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility: circleId ? visibility : 'private', version: 1, startDate, status: 'active', createdAt: nowISO(), libraryId: libraryId || null, category, sensitive };
+    const def = { id: uid('w'), kind: 'personal', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility, version: 1, startDate, status: 'active', createdAt: nowISO(), libraryId: libraryId || null, category, sensitive };
     state.wordDefs[def.id] = def;
     const c = createCommitment(def.id, state.me, startDate);
     c.reward = reward; c.rewardShared = !!(reward && rewardShared);
@@ -518,9 +547,9 @@ const Mila = (() => {
       if (excusesUsed(o.commitmentId) >= RULES.MAX_EXCUSES_PER_ROUND) throw err(`כבר השתמשת ב-${RULES.MAX_EXCUSES_PER_ROUND} ימים חריגים בסבב הזה`);
     }
     const def = state.wordDefs[state.commitments[o.commitmentId].defId];
-    const before = def.circleId ? leaderboard(def.circleId).rows : null;
+    const cids = outcome === 'success' ? defCircles(def) : []; const before = cids.map(cid => leaderboard(cid).rows);
     resolve(o, outcome, { reason: 'self_report', actorId: state.me, note });
-    if (before && outcome === 'success') overtakes(def.circleId, before, leaderboard(def.circleId).rows, def);
+    cids.forEach((cid, i) => overtakes(cid, before[i], leaderboard(cid).rows, def));
     save();
     return { obligation: o, duplicate: false };
   }
@@ -707,7 +736,7 @@ const Mila = (() => {
   function leaderboard(circleId, round = circleRound(circleId)) {
     const members = circleMembers(circleId);
     const rows = members.map(u => {
-      const cs = myCommitments(u.id).filter(c => (state.wordDefs[c.defId] || {}).circleId === circleId && c.status !== 'cancelled');
+      const cs = myCommitments(u.id).filter(c => inCircle(state.wordDefs[c.defId], circleId) && c.status !== 'cancelled');
       const obs = cs.flatMap(c => obligationsOf(c.id)).filter(o => o.status !== 'cancelled' && o.localDate >= round.start && o.localDate <= round.end);
       const success = obs.filter(o => o.outcome === 'success').length;
       const miss = obs.filter(o => o.outcome === 'miss').length;
@@ -748,14 +777,16 @@ const Mila = (() => {
   }
   function feed(circleId, limit = 40) {
     const blocked = new Set(state.blocks.filter(b => b.blockerId === state.me).map(b => b.blockedId));
-    return state.socialEvents.filter(e => e.circleId === circleId && !blocked.has(e.actorId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)
+    return state.socialEvents.filter(e => eventInCircle(e, circleId) && !blocked.has(e.actorId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)
       .map(e => ({ ...e, actor: state.users[e.actorId] || { name: 'משתתפת' }, reactions: state.encouragements.filter(x => x.eventId === e.id) }));
   }
   function myFeedDigest(limit = 3) {
     const ids = new Set(myCircles().map(c => c.id));
     const blocked = new Set(state.blocks.filter(b => b.blockerId === state.me).map(b => b.blockedId));
-    return state.socialEvents.filter(e => ids.has(e.circleId) && e.actorId !== state.me && !blocked.has(e.actorId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)
-      .map(e => ({ ...e, actor: state.users[e.actorId], circle: state.circles[e.circleId] }));
+    // גם התקדמות של חברה שנרשמה בקבוצה אחרת שלה: מוצגת תחת קבוצה שמשותפת לשתינו
+    const shared = (e) => (ids.has(e.circleId) ? e.circleId : [...ids].find(id => eventInCircle(e, id))) || null;
+    return state.socialEvents.map(e => ({ e, cid: shared(e) })).filter(({ e, cid }) => cid && e.actorId !== state.me && !blocked.has(e.actorId)).sort((a, b) => b.e.createdAt.localeCompare(a.e.createdAt)).slice(0, limit)
+      .map(({ e, cid }) => ({ ...e, actor: state.users[e.actorId], circle: state.circles[cid] }));
   }
   const REACTIONS = ['clap', 'heart', 'muscle', 'fire', 'star'];
   function encourage(eventId, reaction) {
@@ -858,7 +889,7 @@ const Mila = (() => {
     createCircle, updateCircle, myCircles, membership, isMember, isAdmin, circleMembers, circleRound, leaveCircle, removeMember, setMemberRole, deleteCircle,
     createInvite, currentInvite, revokeInvite, revokeCircleInvites, inviteUrl, previewInvite, acceptInvite,
     wordDef, commitment, myCommitments, activeCommitments, obligationsOf, capCheck, activeWordsOn,
-    isAdult, setBirthDate, createPersonalWord, shareToCircle, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment,
+    isAdult, setBirthDate, createPersonalWord, shareToCircle, inCircle, defCircles, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment,
     windowOf, isOpenNow, refreshStatuses, excusesUsed, report, canCorrect, correct,
     activeLedger, bankSummary, circlePool, circlePoolAllTime, streak, commitmentStats,
     todayCards, decorate, upcomingWords, wordHistory, leaderboard, rankInsight, previousRoundWinner,

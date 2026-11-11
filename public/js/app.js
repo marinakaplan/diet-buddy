@@ -575,7 +575,7 @@ const App = (() => {
       ${groupInvites().slice(0, 1).map(groupInviteCard).join('')}
       ${sharedWaiting.slice(0, 1).map(sharedInviteCard).join('')}
       ${rankAll.length ? `<div class="card tight my-ranks"><div class="card-title">${rankAll.length === 1 ? 'הקבוצה שלך' : 'הקבוצות שלך'}</div>${rankAll.map(({ c, ri }) => {
-        const hasWord = active.some(k => (Mila.wordDef(k.defId) || {}).circleId === c.id);
+        const hasWord = active.some(k => Mila.inCircle(Mila.wordDef(k.defId), c.id));
         const status = ri.place ? `מקום ${ri.place} מתוך ${ri.total}` : !hasWord ? 'אין לך אתגר כאן' : 'עוד לא בדירוג';
         return `<div class="rk-row" onclick="App.go('circle',{id:'${c.id}'})"><span class="rk-name">${esc(c.name)}</span><span class="rk-status">${status}</span>${icon('chev', 16)}</div>`; }).join('')}</div>` : ''}
 
@@ -645,17 +645,20 @@ const App = (() => {
     try {
       // ״המהפך״ בענן: הדירוג מחושב בטלפון (לפני ואחרי), והשרת רק רושם את העקיפה
       const ob0 = Mila.getState().obligations[id]; const k0 = ob0 && Mila.commitment(ob0.commitmentId); const d0 = k0 && Mila.wordDef(k0.defId);
-      const cid = isCloud() && outcome === 'success' && d0 && d0.circleId ? d0.circleId : null;
-      const before = cid ? Mila.leaderboard(cid).rows.filter(r => r.ranked).map(r => r.user.id) : null;
+      const ranked = (cid) => Mila.leaderboard(cid).rows.filter(r => r.ranked).map(r => r.user.id);
+      const cids = isCloud() && outcome === 'success' && d0 ? Mila.defCircles(d0) : [];   // אתגר אישי נספר בכל הקבוצות שלי
+      const befores = cids.map(ranked);
       const { obligation, duplicate } = await Store().report(id, outcome, { note });
-      if (cid && !duplicate) {
-        const after = Mila.leaderboard(cid).rows.filter(r => r.ranked).map(r => r.user.id);
-        const meId = Mila.me().id; const myAfter = after.indexOf(meId); const myBefore = before.indexOf(meId);
-        if (myAfter >= 0) {
+      if (cids.length && !duplicate) {
+        const meId = Mila.me().id; let first = null;
+        cids.forEach((cid, n) => {
+          const before = befores[n], after = ranked(cid); const myAfter = after.indexOf(meId); const myBefore = before.indexOf(meId);
+          if (myAfter < 0) return;
           const passed = after.filter((u, i) => u !== meId && i > myAfter && (myBefore < 0 ? before.includes(u) : before.indexOf(u) >= 0 && before.indexOf(u) < myBefore));
           passed.forEach(u => Api.cloud.overtake(cid, u).catch(() => {}));
-          if (passed.length) setTimeout(() => toast(`עקפת את ${Mila.user(passed[0]).name}. עכשיו נראה אם היא תיתן לך להישאר שם 😏`, 'lime'), 1600);
-        }
+          if (passed.length && !first) first = passed[0];
+        });
+        if (first) setTimeout(() => toast(`עקפת את ${Mila.user(first).name}. עכשיו נראה אם היא תיתן לך להישאר שם 😏`, 'lime'), 1600);
       }
       closeSheet(true);
       render();
@@ -722,7 +725,7 @@ const App = (() => {
     return `${header}${steps}
       <div class="step-title">מוכנה?</div><div class="step-sub">14 יום, מהיום. כל ערב מסמנת אם עמדת באתגר.</div>
       <div class="card"><div style="display:flex;gap:12px;align-items:center">${wordTile({ title: wiz.title, icon: wiz.icon }, 'lg')}<div><div class="bold" style="font-size:1.15rem">${esc(wiz.title)}</div><div class="small muted">${esc(wiz.rule)}</div></div></div></div>
-      ${circles.length ? `<div class="field"><label>עם מי?</label><div class="chips"><button class="chip select ${!wiz.circleId ? 'on' : ''}" onclick="App.wizSet('circleId', null); App.refresh()">${icon('lock', 14)} רק אני</button>${circles.map(c => `<button class="chip select ${wiz.circleId === c.id ? 'on' : ''}" onclick="App.wizSet('circleId','${c.id}'); App.refresh()">${icon('users', 14)} ${esc(c.name)}</button>`).join('')}</div></div>` : ''}
+      ${circles.length ? `<div class="field"><label>מי רואה?</label><div class="chips"><button class="chip select ${!wiz.private ? 'on' : ''}" onclick="App.wizSet('private', false); App.refresh()">${icon('users', 14)} החברות שלי</button><button class="chip select ${wiz.private ? 'on' : ''}" onclick="App.wizSet('private', true); App.refresh()">${icon('lock', 14)} רק אני</button></div></div>` : ''}
       <div class="field"><label for="w-reward">אם אצליח, אני…</label><input class="input" id="w-reward" maxlength="80" placeholder="למשל: קונה לעצמי משהו נחמד" value="${esc(wiz.reward || '')}" oninput="App.wizSet('reward', this.value)"><div class="hint">לא חובה.</div></div>
       ${!cap.ok ? `<div class="note warn">${icon('info', 18)}<span>יש לך כבר 3 אתגרים, וזה המקסימום. כשאחד מהם נגמר אפשר להתחיל את זה. שמרנו לך את הניסוח.</span></div>` : ''}
       <button class="btn primary mt" ${cap.ok ? '' : 'disabled'} onclick="App.wizCommit()">מתחילה</button>`;
@@ -748,7 +751,7 @@ const App = (() => {
   function wizCancel() { Mila.getState().drafts.word = { ...wiz }; Mila.save(); wiz = null; back(); if (Mila.getState().drafts.word && Mila.getState().drafts.word.title) toast('שמרנו טיוטה.'); }
   const wizCommit = once(async () => {
     try {
-      const { def, commitment } = await Store().createPersonalWord({ title: wiz.title, rule: wiz.rule, icon: wiz.icon, startDate: wiz.startDate, circleId: wiz.circleId, reward: wiz.reward || '' });
+      const { def, commitment } = await Store().createPersonalWord({ title: wiz.title, rule: wiz.rule, icon: wiz.icon, startDate: wiz.startDate, circleId: wiz.circleId, private: !!wiz.private, reward: wiz.reward || '' });
       wiz = null; pick = null;
       stack = [{ name: 'today', params: {} }];
       go('word', { id: commitment.id, fresh: true });
@@ -925,14 +928,16 @@ const App = (() => {
     if (!c) return `${topbar({ title: 'אתגר' })}${emptyState({ mood: 'oops', title: 'האתגר הזה כבר לא כאן', text: 'אולי הוא נמחק, או שהקישור ישן.', actions: backBtn(), card: false })}`;
     const def = Mila.wordDef(c.defId);
     const st = Mila.commitmentStats(id);
-    const circle = def.circleId ? Mila.getState().circles[def.circleId] : null;
+    const circle = def.kind === 'group' && def.circleId ? Mila.getState().circles[def.circleId] : null;
+    // אתגר אישי: החברות בכל הקבוצות שלי רואות אותו, אלא אם הוא פרטי
+    const seenBy = def.kind === 'group' ? (circle ? esc(circle.name) : 'רק אני') : def.visibility === 'private' ? 'רק אני' : Mila.defCircles(def).length ? 'החברות בקבוצות שלי' : 'רק אני, עד שתהיה לי קבוצה';
     const todayOb = Mila.obligationsOf(id).find(o => o.localDate === Mila.today());
     const obs = Mila.obligationsOf(id).filter(o => o.status !== 'cancelled');
     const correctable = obs.filter(o => Mila.canCorrect(o));
     const mine = c.userId === Mila.me().id;
     return `${topbar({ title: '', end: mine ? `<button class="icon-btn" aria-label="עוד" onclick="App.wordMenu('${id}')">${icon('more', 22)}</button>` : '' })}
       <div class="sheet-hero" style="margin-top:-6px">${wordTile(def, 'lg')}<div class="sheet-title">${esc(def.title)}</div><div class="sheet-sub" style="margin-bottom:6px">${esc(def.rule)}</div>
-        <div class="chips">${def.kind === 'group' ? `<span class="chip lav">${icon('users', 13)} אתגר משותף</span>` : `<span class="chip">${icon('user', 13)} אישי</span>`}${circle ? `<span class="chip outline" onclick="App.go('circle',{id:'${circle.id}'})">${esc(circle.name)}</span>` : '<span class="chip outline">רק אני</span>'}${c.status !== 'active' ? `<span class="chip outline">${c.status === 'completed' ? 'נגמר' : 'נעצר'}</span>` : ''}</div></div>
+        <div class="chips">${def.kind === 'group' ? `<span class="chip lav">${icon('users', 13)} אתגר משותף</span>` : `<span class="chip">${icon('user', 13)} אישי</span>`}${circle ? `<span class="chip outline" onclick="App.go('circle',{id:'${circle.id}'})">${esc(circle.name)}</span>` : def.kind !== 'group' && def.visibility === 'private' ? '<span class="chip outline">רק אני</span>' : ''}${c.status !== 'active' ? `<span class="chip outline">${c.status === 'completed' ? 'נגמר' : 'נעצר'}</span>` : ''}</div></div>
       ${fresh ? `<div class="note lime">${icon('sparkle', 18)}<span>מתחיל ${Mila.relDay(c.startDate)}. דיווח עד ${Mila.RULES.GRACE_HOUR}:00 למחרת.</span></div>` : ''}
       <div class="stat-grid mb"><div class="stat lime"><div class="n">${st.success}</div><div class="l">עמדתי</div></div><div class="stat pink"><div class="n">${st.miss}</div><div class="l">פספסתי</div></div><div class="stat lav"><div class="n">${st.current}${icon('flame', 18)}</div><div class="l">ברצף</div></div></div>
       ${c.reward ? `<div class="card tight pastel-lav"><div class="tiny muted">${mine ? 'אם אצליח, אני…' : `${esc(Mila.user(c.userId).name)} הבטיחה לעצמה`}</div><div class="bold">${esc(c.reward)}</div></div>` : ''}
@@ -944,7 +949,7 @@ const App = (() => {
         <div class="kv"><span class="k">${icon('chart', 18)} הצלחה</span><span class="v">${st.rate === null ? 'עוד מוקדם' : pct(st.rate)}</span></div>
         <div class="kv"><span class="k">${icon('minus', 18)} ימים חריגים</span><span class="v">${st.excused} מתוך ${Mila.RULES.MAX_EXCUSES_PER_ROUND}</span></div>
         <div class="kv"><span class="k">${icon('flame', 18)} הרצף הכי ארוך</span><span class="v">${st.best} ימים</span></div>
-        <div class="kv"><span class="k">${icon('eye', 18)} מי רואה</span><span class="v">${!circle ? 'רק אני' : esc(circle.name)}</span></div>
+        <div class="kv"><span class="k">${icon('eye', 18)} מי רואה</span><span class="v">${seenBy}</span></div>
       </div>
       ${correctable.length && mine ? `<div class="section-title">הימים האחרונים <small>אפשר לתקן 24 שעות</small></div><div class="card tight">${correctable.map(o => `<div class="list-row clickable" onclick="App.reportSheet('${o.id}')"><span class="tile sm ${o.outcome === 'success' ? 'lime' : o.outcome === 'miss' ? 'pink' : 'lav'}">${icon(o.outcome === 'success' ? 'check' : o.outcome === 'miss' ? 'x' : 'minus', 18)}</span><div class="body"><div class="t">${Mila.relDay(o.localDate)} · ${o.outcome === 'success' ? 'עמדתי' : o.outcome === 'miss' ? 'פספסתי' : 'יום חריג'}</div><div class="m">${o.resolveReason === 'auto_unreported' ? 'לא דיווחת, נספר כפספוס' : o.correctedAt ? 'תוקן' : Mila.fmtTime(o.resolvedAt)}</div></div>${icon('edit', 18)}</div>`).join('')}</div>` : ''}
     `;
@@ -987,7 +992,7 @@ const App = (() => {
     return `${topbar({ title: 'הקבוצות שלי', back: false, end: `<button class="icon-btn lime" aria-label="קבוצה חדשה" onclick="App.circleAddSheet()">${icon('plus', 22)}</button>` })}
       ${circles.length ? circles.map(c => {
         const members = Mila.circleMembers(c.id);
-        const words = Object.values(S.wordDefs).filter(d => d.circleId === c.id && d.status !== 'cancelled' && (d.kind === 'group' ? (d.endDate || '9999') >= Mila.today() : d.visibility !== 'private' && Object.values(S.commitments).some(k => k.defId === d.id && k.status === 'active'))).length;
+        const words = Object.values(S.wordDefs).filter(d => Mila.inCircle(d, c.id) && d.status !== 'cancelled' && (d.kind === 'group' ? (d.endDate || '9999') >= Mila.today() : d.visibility !== 'private' && Object.values(S.commitments).some(k => k.defId === d.id && k.status === 'active'))).length;
         const ri = Mila.rankInsight(c.id); const rd = Mila.circleRound(c.id);
         return `<div class="row-card" onclick="App.go('circle',{id:'${c.id}'})">${avatarStack(members, 34, 3)}<div class="body"><div class="t">${esc(c.name)}</div><div class="m">${ri && ri.place ? `מקום ${ri.place} מתוך ${ri.total} · ` : ''}יום ${rd.dayIndex}${Mila.isAdmin(c.id) ? ' · את מנהלת' : ''}</div></div>${icon('chev', 20)}</div>`;
       }).join('') : emptyState({ mood: 'wink', title: 'עם חברות קל יותר לעמוד במילה', text: 'פותחת קבוצה ומזמינה חברות. כל אחת בוחרת אתגרים משלה, ורואות יחד מי מתמידה.', actions: `<button class="btn primary" onclick="App.go('circleNew')">פותחת קבוצה</button><button class="btn ghost" onclick="App.joinByCodeSheet()">יש לי קוד מחברה</button>` })}
@@ -1104,9 +1109,8 @@ const App = (() => {
     const today = Mila.today();
     // מי עשתה מה היום: לכל חברה, האתגרים שלה בקבוצה הזו ומה דיווחה
     const todayObs = Object.values(S.obligations).filter(o => o.localDate === today && o.status !== 'cancelled');
-    const itemsOf = (uid) => todayObs.filter(o => o.userId === uid).map(o => { const k = Mila.commitment(o.commitmentId); const d = k && Mila.wordDef(k.defId); return d && d.circleId === id ? { o, d } : null; }).filter(Boolean);
+    const itemsOf = (uid) => todayObs.filter(o => o.userId === uid).map(o => { const k = Mila.commitment(o.commitmentId); const d = k && Mila.wordDef(k.defId); return d && Mila.inCircle(d, id) ? { o, d } : null; }).filter(Boolean);
     const stateOf = (o) => o.outcome === 'success' ? ['done', 'עמדה'] : o.outcome === 'miss' ? ['miss', 'פספסה'] : o.outcome === 'excused' ? ['skip', 'יום חריג'] : ['wait', 'עוד לא דיווחה'];
-    const loose = looseMine(id);
     // פרגונים על ימים מסוימים: מה שאני שלחתי (הלב מתמלא), ומה שקיבלתי (מונה קטן בשורה שלי)
     const hearts = S.socialEvents.filter(e => e.type === 'encouragement' && e.payload && e.payload.obligationId);
     const cheered = (obId) => cheeredNow.has(obId) || hearts.some(e => e.actorId === meId && e.payload.obligationId === obId);
@@ -1128,9 +1132,8 @@ const App = (() => {
         const loved = cheered(o.id);
         return `<button class="tg-item ${cls} ${loved ? 'loved' : ''}" ${loved ? 'disabled' : ''} aria-label="${loved ? 'פירגנת' : `לפרגן ל${esc(u.name)} על ${esc(d.title)}`}" onclick="App.cheer('${id}','${u.id}','${o.id}')"><span class="tg-t">${esc(d.title)}</span><span class="tg-s">${txt}</span><span class="tg-a">${icon('heart', 16)}</span></button>`;
       }).join('')
-        : `<div class="tg-none">${mine ? (loose.length ? 'האתגרים שלך עוד לא בקבוצה.' : `אין לך אתגר בקבוצה. <a href="#" onclick="event.preventDefault(); App.openPick([], { circleId: '${id}' })">להוסיף</a>`) : 'עוד אין לה אתגר בקבוצה'}</div>`;
-      const bring = mine && loose.length ? `<button class="btn soft sm tg-bring" onclick="App.bringSheet('${id}')">${icon('plus', 16)} להביא לכאן אתגרים שלי</button>` : '';
-      return `<div class="tg-row ${mine ? 'me' : ''}">${avatar(u, 36, items.length && doneN === items.length ? 'happy' : '')}<div class="tg-body"><div class="tg-name"><span>${mine ? 'את' : esc(u.name)}</span>${items.length ? `<span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</div>${list}${bring}</div></div>`;
+        : `<div class="tg-none">${mine ? `עוד אין לך אתגר. <a href="#" onclick="event.preventDefault(); App.openPick([], { circleId: '${id}' })">לבחור</a>` : 'עוד אין לה אתגר'}</div>`;
+      return `<div class="tg-row ${mine ? 'me' : ''}">${avatar(u, 36, items.length && doneN === items.length ? 'happy' : '')}<div class="tg-body"><div class="tg-name"><span>${mine ? 'את' : esc(u.name)}</span>${items.length ? `<span class="tg-sum">${doneN} מתוך ${items.length}</span>` : ''}</div>${list}</div></div>`;
     }).join('');
     // דירוג פשוט
     const { rows } = Mila.leaderboard(id);
@@ -1407,7 +1410,9 @@ const App = (() => {
     const kind = INVITE_KINDS[p.kind] ? p.kind : 'follow';
     const title = p.wordTitle || (p.challenge && p.challenge.title) || '';
     const hero = { inviter: p.inviter, circleName: p.circle.name, members: p.memberCount, message: p.message || '', kind, wordTitle: title };
-    const next = kind === 'follow' ? `תראי כל יום אם ${esc(String(p.inviter.name || '').split(' ')[0])} עמדה במילה שלה. בלי התחייבות מצדך.` : kind === 'compete' ? 'אחרי ההצטרפות בוחרת עד 3 אתגרים משלך, ונכנסת לדירוג.' : `אחרי ההצטרפות מתחילה את ${title ? `״${esc(title)}״` : 'אותו אתגר'} ל-14 יום.`;
+    // כבר יש לה אתגרים: הם מופיעים בכל קבוצה שלה, ולכן אומרות לה את זה לפני שהיא מצטרפת (ולא מבקשות לבחור שוב)
+    const shared = Mila.me() ? Mila.activeCommitments().filter(k => { const d = Mila.wordDef(k.defId); return d && d.kind === 'personal' && d.visibility !== 'private'; }).length : 0;
+    const next = shared && kind !== 'same' ? `${shared === 1 ? 'האתגר שלך יופיע' : `${shared} האתגרים שלך יופיעו`} בקבוצה, והחברות יראו את הדיווחים שלך.` : kind === 'follow' ? `תראי כל יום אם ${esc(String(p.inviter.name || '').split(' ')[0])} עמדה במילה שלה. בלי התחייבות מצדך.` : kind === 'compete' ? 'אחרי ההצטרפות בוחרת עד 3 אתגרים משלך, ונכנסת לדירוג.' : `אחרי ההצטרפות מתחילה את ${title ? `״${esc(title)}״` : 'אותו אתגר'} ל-14 יום.`;
     return `${topbar({ title: 'הזמנה' })}
       <div class="inv-screen">${inviteHero(hero, { what: false })}</div>
       <div class="note lime">${icon('info', 18)}<span>${next}</span></div>
@@ -1420,7 +1425,7 @@ const App = (() => {
       const c = await Store().acceptInvite(token);
       clearInvite();
       stack = [{ name: 'circles', params: {} }, { name: 'circle', params: { id: c.id } }];
-      if (looseMine(c.id).length && p.kind !== 'same') { render(); window.scrollTo({ top: 0 }); bringSheet(c.id); return; }   // כבר יש לה אתגרים: מביאה אותם לקבוצה
+      if (Mila.activeCommitments().length && p.kind !== 'same') { render(); window.scrollTo({ top: 0 }); toast('את בפנים. האתגרים שלך כבר בקבוצה.', 'lime'); return; }   // אין מה לבחור או להביא: הם מופיעים בכל קבוצה שלה
       if (p.kind === 'compete') { render(); openPick([], { circleId: c.id }); toast('את בפנים. עכשיו האתגרים שלך.', 'lime'); return; }
       if (p.kind === 'same') {
         if (p.libraryId) { render(); openPick([p.libraryId], { circleId: c.id }); }
@@ -1458,29 +1463,6 @@ const App = (() => {
     } catch (e) { fail(e); }
   });
 
-  /* להביא לקבוצה אתגרים שכבר רצים אצלי מחוץ לכל קבוצה. אתגר מהתחום הרגיש לא מסומן מראש. */
-  /* האתגרים האישיים שלי שלא נמצאים בקבוצה הזו: בלי קבוצה בכלל, או בקבוצה אחרת שלי (ואז הם עוברים) */
-  function looseMine(circleId) { return Mila.me() ? Mila.activeCommitments().map(k => ({ k, d: Mila.wordDef(k.defId) })).filter(x => x.d && x.d.kind === 'personal' && (circleId ? x.d.circleId !== circleId : !x.d.circleId)) : []; }
-  let bsel = null;
-  function bringSheet(circleId) {
-    const list = looseMine(circleId); const S = Mila.getState(); const c = S.circles[circleId]; if (!list.length || !c) return;
-    const sens = (d) => !!(d.libraryId && Mila.LIBRARY.isSensitive(d.libraryId));
-    const from = (d) => (d.circleId && S.circles[d.circleId]) || null;
-    const others = (d) => d.circleId ? Mila.circleMembers(d.circleId).length - 1 : 0;   // כמה חברות רואות אותו היום בקבוצה שבה הוא נמצא
-    // מסומנים מראש: מה שלא רגיש, ומה שלא ״נלקח״ מחברות בקבוצה אחרת
-    if (!bsel || bsel.circleId !== circleId) bsel = { circleId, ids: list.filter(x => !sens(x.d) && !others(x.d)).map(x => x.k.id) };
-    sheet(`<button class="icon-btn sheet-x" aria-label="סגירה" onclick="App.closeSheet()">${icon('x', 22)}</button>
-      <div class="sheet-title">להביא אתגרים ל״${esc(c.name)}״</div>
-      <div class="sheet-sub">החברות יראו אותם ואת מה שדיווחת, והם נכנסים לדירוג.</div>
-      ${list.map(({ k, d }) => { const on = bsel.ids.includes(k.id); return `<div class="pick-row friend-row ${on ? 'on' : ''}" onclick="App.bringToggle('${k.id}')"><span class="tile sm lime">${icon(d.icon, 18)}</span><div class="body"><div class="t">${esc(d.title)}</div>${sens(d) ? '<div class="m">אתגר פרטי. מסמנת רק אם את רוצה שיראו.</div>' : from(d) ? `<div class="m">עכשיו ב״${esc(from(d).name)}״. יעבור לכאן${others(d) ? ', והחברות שם כבר לא יראו אותו' : ''}.</div>` : ''}</div><span class="box">${on ? icon('check', 14) : ''}</span></div>`; }).join('')}
-      <button class="btn primary mt" ${bsel.ids.length ? '' : 'disabled'} onclick="App.bringGo()">להביא לקבוצה</button>`);
-  }
-  function bringToggle(id) { if (!bsel) return; bsel.ids = bsel.ids.includes(id) ? bsel.ids.filter(x => x !== id) : [...bsel.ids, id]; bringSheet(bsel.circleId); }
-  const bringGo = once(async () => {
-    if (!bsel || !bsel.ids.length) return;
-    try { const r = await Store().shareToCircle(bsel.circleId, bsel.ids); bsel = null; closeSheet(true); render(); toast(r.shared === 1 ? 'האתגר שלך בקבוצה.' : 'האתגרים שלך בקבוצה.', 'lime'); }
-    catch (e) { fail(e); }
-  });
 
   /* ============================================================
      S12 — הצעת מילה קבוצתית
@@ -2198,7 +2180,7 @@ const App = (() => {
     sendEncouragement, rotateInvite, openInvite, rename, unblock, ideasCat: setIdeasCat, ideasToggle,
     reportSheet, confirmMiss, excuseSheet, doReport, correctionSheet, _corrPick, doCorrect,
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
-    circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, encourageSheet, poke, cheer, bringSheet, bringToggle, bringGo, circleMenu, leaveCircle, copyText, removeMember, cmSet,
+    circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, encourageSheet, poke, cheer, circleMenu, leaveCircle, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, gwSet, gwTemplate, gwPropose, adopt, cancelProposal,
     again, retry, ageSubmit, friendsSheet, friendToggle, friendsInvite, cwFriend, groupInviteNo, groupInviteYes, teamSheet, supportHide, howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
