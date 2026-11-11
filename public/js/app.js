@@ -107,6 +107,42 @@ const App = (() => {
     if (POST[cur.name]) POST[cur.name](cur.params);
   }
   function refresh() { render(); }
+  /* משיכה למטה בראש המסך מרעננת את הנתונים. באפליקציה המותקנת אין רענון של דפדפן, אז זה הרענון. */
+  async function pullRefresh() {
+    if (navigator.serviceWorker) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});   // על הדרך: בודקות אם יש גרסה חדשה
+    if (current().name === 'admin') { adminData = await Api.adminStats(adminDays); adminErr = null; render(); return; }
+    if (Api.isCloud()) await Api.sync(); else render();
+  }
+  function initPull() {
+    const el = document.createElement('div'); el.id = 'ptr'; el.setAttribute('aria-hidden', 'true'); el.innerHTML = icon('refresh', 20); document.body.appendChild(el);
+    const MAX = 96, GO = 58; let y0 = null, x0 = 0, d = 0, pulling = false, busy = false;
+    const set = (px, smooth) => { el.classList.toggle('smooth', !!smooth); el.classList.toggle('ready', px >= GO); el.style.opacity = Math.min(1, px / 36); el.style.transform = `translate(-50%, ${px - 56}px) rotate(${busy ? 0 : Math.round(px * 3.2)}deg)`; };
+    const can = (e) => !busy && e.touches.length === 1 && window.scrollY <= 0 && stack.length && Mila.me() && !$('#sheet-backdrop').classList.contains('open') && !(e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'));
+    document.addEventListener('touchstart', (e) => { pulling = false; d = 0; if (can(e)) { y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; } else y0 = null; }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (y0 === null) return;
+      const dy = e.touches[0].clientY - y0, dx = Math.abs(e.touches[0].clientX - x0);
+      if (!pulling) {
+        if (dy < -4 || dx > 14 || window.scrollY > 0) { y0 = null; return; }   // גלילה רגילה או החלקה הצידה: לא שלנו
+        if (dy < 8 || dx > dy) return;
+        pulling = true;
+      }
+      if (e.cancelable) e.preventDefault();
+      const was = d; d = Math.min(MAX, Math.max(0, dy - 8) * .55);
+      if (was < GO && d >= GO && navigator.vibrate) { try { navigator.vibrate(8); } catch (err) { /* ignore */ } }
+      set(d);
+    }, { passive: false });
+    const run = async () => {
+      busy = true; set(GO, true); el.classList.add('spin');
+      const t = Date.now();
+      try { await pullRefresh(); } catch (e) { if (!e || e.status !== 401) toast(e && e.code === 'OFFLINE' ? 'אין חיבור. נסי שוב כשהרשת חוזרת.' : 'הרענון לא הצליח. נסי שוב.'); }
+      const wait = 450 - (Date.now() - t); if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      el.classList.remove('spin'); busy = false; set(0, true);
+    };
+    const end = (go) => { if (y0 === null) return; y0 = null; if (!pulling) return; pulling = false; if (go && d >= GO) run(); else set(0, true); };
+    document.addEventListener('touchend', () => end(true), { passive: true });
+    document.addEventListener('touchcancel', () => end(false), { passive: true });
+  }
   /* נגישות מקלדת וקוראי מסך: כל אלמנט לחיץ שאינו כפתור או קישור מקבל תפקיד, מקום בסדר הטאב והפעלה ב-Enter/רווח */
   function a11yFix(root) {
     root.querySelectorAll('[onclick]').forEach(el => {
@@ -1970,6 +2006,7 @@ const App = (() => {
     setInterval(() => { dayTick(); if (document.visibilityState === 'visible') probe(); }, 60000);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible' || !stack.length) return; if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); dayTick(); probe(); if (Api.isCloud()) Api.sync().catch(() => {}); });
     window.addEventListener('online', () => { if (Api.isCloud()) Api.sync().then(() => toast('החיבור חזר. הכול מעודכן.', 'lime')).catch(() => {}); else if (Api.enabled && ((Mila.getState().meta || {}).offline || (stack.length && current().name === 'error'))) location.reload(); });   // נפתחה בלי רשת מהעותק השמור: טוענות מחדש כשהרשת חוזרת
+    initPull();
     Api.track('visit');
     if (urlToken) { history.replaceState(null, '', location.pathname); Api.trackInviteOpen(urlToken); Api.track('visit_invite'); }
     const authError = params.get('auth_error');

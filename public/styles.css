@@ -1057,3 +1057,11 @@ body:has(#sheet.open) #a11y-btn { display: none; }
 .friend-row .body { flex: 1; min-width: 0; }
 .friend-row .box { flex: none; margin: 0; }
 .gi-no { padding-inline: 0; margin-top: 2px; }
+
+/* ---------- רענון במשיכה למטה ---------- */
+html { overscroll-behavior-y: contain; }   /* בלי הרענון המובנה של הדפדפן: אחרת שניהם קופצים יחד */
+#ptr { position: fixed; top: calc(env(safe-area-inset-top) + 10px); left: 50%; width: 40px; height: 40px; border-radius: 50%; background: var(--card); border: 1px solid var(--line-2); box-shadow: var(--shadow); display: grid; place-items: center; color: var(--ink-3); z-index: 35; transform: translate(-50%, -56px); opacity: 0; pointer-events: none; will-change: transform; }
+#ptr.smooth { transition: transform .26s cubic-bezier(.22,1,.36,1), opacity .26s ease !important; }
+#ptr.ready { color: var(--ink); border-color: var(--lime-deep); background: var(--lime-soft); }
+#ptr.spin svg { animation: ptr-spin .7s linear infinite !important; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }

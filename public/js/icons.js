@@ -12,6 +12,7 @@ const ICONS = (() => {
     coin: w('<circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.5h3.2a2 2 0 0 1 0 4H9.5M9.5 9.5v7M9.5 13.5h3"/>'),
     plus: w('<path d="M12 5v14M5 12h14"/>', 2.2),
     check: w('<path d="m5 12.5 4.5 4.5L19 7.5"/>', 2.4),
+    refresh: w('<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4.5h-4.5"/>', 2),
     x: w('<path d="M6 6l12 12M18 6 6 18"/>', 2.2),
     back: w('<path d="M9 5l7 7-7 7"/>', 2),           // RTL: חזרה מצביעה ימינה
     chev: w('<path d="M15 5l-7 7 7 7"/>', 2),         // RTL: המשך מצביע שמאלה

@@ -117,6 +117,27 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     assert.strictEqual(reports, 1);
   });
 
+  await test('משיכה למטה בראש המסך מרעננת את הנתונים; גלילה רגילה ומשיכה קצרה לא', async () => {
+    await A.page.waitForSelector('.today-head', { timeout: 20000 });
+    let states = 0; const onReq = (r) => { if (/\/api\/state(\?|$)/.test(r.url())) states++; }; A.page.on('request', onReq);
+    const cdp = await A.ctx.newCDPSession(A.page);
+    const drag = async (from, to) => {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 200, y: from }] });
+      for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 200, y: from + (to - from) * i / 8 }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    };
+    await A.page.evaluate(() => window.scrollTo(0, 0));
+    await drag(200, 250); await A.page.waitForTimeout(600);
+    assert.strictEqual(states, 0, 'משיכה קצרה לא מרעננת');
+    await drag(180, 420);
+    await A.page.waitForFunction(() => document.querySelector('#ptr').classList.contains('spin'), null, { timeout: 5000 });
+    await A.page.waitForFunction(() => !document.querySelector('#ptr').classList.contains('spin') && document.querySelector('#ptr').style.opacity === '0', null, { timeout: 15000 });
+    assert.strictEqual(states, 1, 'משיכה מלאה טוענת את המצב פעם אחת');
+    assert.ok(await A.page.$('.today-head'), 'נשארות באותו מסך');
+    A.page.off('request', onReq); await cdp.detach();
+    assert.deepStrictEqual(A.page.errors, []);
+  });
+
   await test('בלי רשת: האפליקציה נפתחת מהמטמון, ודיווח לא ״נשמר״ בשקט אלא מסביר שאין חיבור', async () => {
     await A.page.evaluate(async () => { await Api.sync(); });
     await A.ctx.setOffline(true);
