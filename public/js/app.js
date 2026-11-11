@@ -1477,7 +1477,7 @@ const App = (() => {
       <div class="sup-sky" aria-hidden="true"><svg class="sup-path" viewBox="0 0 300 60" preserveAspectRatio="none"><path d="M296 46 C 220 6, 90 6, 4 40" fill="none" stroke="#1C1A1F" stroke-width="1.6" stroke-dasharray="3 6" opacity=".35"/></svg>
         <svg class="sup-plane" width="26" height="26" viewBox="0 0 24 24"><path d="M2.5 13.2l7.6-1.6 4.6-7.8c.4-.7 1.5-.7 1.7.2l-1.2 7.1 4.7-1c1.2-.2 2.1.9 1.6 1.9-.2.4-.6.7-1 .8l-4.8 1-2.4 6.9c-.3.8-1.4.8-1.6 0l-.6-6.1-7.4 1.6c-.6.1-1-.6-.6-1.1l-.6-1.9z" fill="#1C1A1F" transform="scale(-1,1) translate(-24,0)"/></svg>
         <span class="sup-dest">פורטוגל</span></div>
-      <div class="sup-body">${heartArt(46)}<div><div class="sup-kicker">הפועל עירוני יבנה · אקרובטיקה</div><div class="bold sup-q">אם נעזור לך לעמוד במילה שלך, תעזרי לנו להגיע לתחרות בפורטוגל?</div><div class="small">הבנות עובדות מאוד קשה כדי להגיע לשם. האפליקציה נבנתה כדי לממן את הנסיעה, וכל פרגון קטן מקרב אותן לטיסה.</div></div></div>
+      <div class="sup-body">${heartArt(46)}<div><div class="sup-kicker">הפועל עירוני יבנה · אקרובטיקה</div><div class="bold sup-q">אם נעזור לך לעמוד במילה שלך, תעזרי לנו להגיע לתחרות בפורטוגל?</div></div></div>
       <div class="btn-row mt"><button class="btn primary" onclick="App.go('treat')">רוצה לפרגן</button><button class="btn soft" onclick="App.teamSheet()">על הנבחרת</button></div>
     </div>`;
   }
@@ -1490,7 +1490,7 @@ const App = (() => {
       <p>ישראל מביאה המון מדליות באקרובטיקה. הבנות של הנבחרת התחרותית שלנו עובדות מאוד מאוד קשה כדי להיות חלק מזה, ועכשיו הן בדרך לתחרות בפורטוגל.</p>
       <p>את כל המימון של הנסיעה מממנים ההורים.</p>
       <p class="team-you">אז פה את נכנסת לתמונה, ועוזרת לנו להגיע ליעד.</p>
-      <p class="small muted">והאפליקציה הזו נבנתה בשביל זה: את עומדת במילה שלך, וגם עוזרת לילדה להגשים חלום.</p>
+      <p class="small muted">האפליקציה הזו נבנתה כדי לממן את הנסיעה: את עומדת במילה שלך, וגם עוזרת לילדה להגשים חלום. כל פרגון קטן מקרב אותן לטיסה.</p>
       <button class="btn primary" onclick="App.closeSheet(); App.go('treat')">רוצה לפרגן</button>
     </div>`);
   }
@@ -1550,7 +1550,7 @@ const App = (() => {
         ${S.meta.demo ? `<div class="list-row clickable" onclick="App.resetDemo()"><span class="tile sm peach">${icon('repeat', 18)}</span><div class="body"><div class="t">איפוס הדוגמה</div><div class="m">ולהתחיל באמת</div></div></div>` : ''}
         ${isCloud() ? `<div class="list-row clickable" onclick="App.signOut()"><span class="tile sm gray">${icon('logout', 18)}</span><div class="body"><div class="t">יציאה מהחשבון</div><div class="m">${esc((Api.me && Api.me.email) || '')}</div></div></div>` : ''}
         <div class="list-row clickable" onclick="App.deleteAccount()"><span class="tile sm pink">${icon('trash', 18)}</span><div class="body"><div class="t" style="color:var(--danger)">מחיקת חשבון</div><div class="m">סופי</div></div></div></div>
-      <div class="made-by">נבנה באהבה <span class="made-heart" aria-hidden="true">${icon('heart', 15)}</span> על ידי מרינה קפלן · <a href="https://www.linkedin.com/in/marinarudinsky/" target="_blank" rel="noopener">LinkedIn</a></div>
+      <div class="made-by">נבנה באהבה <span class="made-heart" aria-hidden="true">${icon('heart', 15)}</span> על ידי <a href="https://www.linkedin.com/in/marinarudinsky/" target="_blank" rel="noopener" aria-label="מרינה קפלן, פרופיל LinkedIn">מרינה קפלן</a></div>
       <div class="tiny muted center">מילה · בטא</div>`;
   };
   async function setSetting(k, v) { try { await Store().updateSettings({ [k]: v }); render(); } catch (e) { fail(e); } }
