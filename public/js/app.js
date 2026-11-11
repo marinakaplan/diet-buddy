@@ -1550,7 +1550,7 @@ const App = (() => {
         ${S.meta.demo ? `<div class="list-row clickable" onclick="App.resetDemo()"><span class="tile sm peach">${icon('repeat', 18)}</span><div class="body"><div class="t">איפוס הדוגמה</div><div class="m">ולהתחיל באמת</div></div></div>` : ''}
         ${isCloud() ? `<div class="list-row clickable" onclick="App.signOut()"><span class="tile sm gray">${icon('logout', 18)}</span><div class="body"><div class="t">יציאה מהחשבון</div><div class="m">${esc((Api.me && Api.me.email) || '')}</div></div></div>` : ''}
         <div class="list-row clickable" onclick="App.deleteAccount()"><span class="tile sm pink">${icon('trash', 18)}</span><div class="body"><div class="t" style="color:var(--danger)">מחיקת חשבון</div><div class="m">סופי</div></div></div></div>
-      <div class="made-by">נבנה באהבה <span class="made-heart" aria-hidden="true">${icon('heart', 15)}</span> על ידי <a href="https://www.linkedin.com/in/marinarudinsky/" target="_blank" rel="noopener" aria-label="מרינה קפלן, פרופיל LinkedIn">מרינה קפלן</a></div>
+      <div class="made-by"><span>נבנה באהבה</span><span class="made-heart" aria-hidden="true">${icon('heart', 15)}</span><span>על ידי</span><a href="https://www.linkedin.com/in/marinarudinsky/" target="_blank" rel="noopener" aria-label="מרינה קפלן, פרופיל LinkedIn">מרינה קפלן</a></div>
       <div class="tiny muted center">מילה · בטא</div>`;
   };
   async function setSetting(k, v) { try { await Store().updateSettings({ [k]: v }); render(); } catch (e) { fail(e); } }
