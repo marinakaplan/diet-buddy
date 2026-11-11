@@ -2,7 +2,7 @@
    למה לא Better Auth: ברירת המחדל שלו ל-email/password היא scrypt, שחורגת בקלות מ-10ms CPU
    של Workers Free. אנחנו צריכות רק גוגל, ולכן שכבה קטנה וקריאה:
    אסימון סשן אקראי (32 בתים) נשמר כ-hash בלבד, בעוגיית HttpOnly/Secure/SameSite=Lax. */
-import { err, json, uid, nowISO, sha256hex, randomToken, parseCookies, cookie, isValidTz, cleanName } from './util.js';
+import { err, json, uid, nowISO, sha256hex, randomToken, parseCookies, cookie, isValidTz, cleanName, localDate } from './util.js';
 
 const SESSION_COOKIE = 'mila_session';
 const OAUTH_COOKIE = 'mila_oauth';
@@ -31,9 +31,19 @@ export async function logout(req, env) {
 }
 
 /* ---------- Google ---------- */
-export async function googleStart(req, env) {
+/* שלבי הכניסה נספרים כאן, בשרת: ספירה מהדפדפן רגע לפני מעבר ל-Google הולכת לאיבוד כי הדף כבר נטען מחדש.
+   מזהה המבקרת האנונימי מגיע בפרמטר v (רק אם אישרה מדידה), ושורה אחת נכתבת לכל מכשיר ליום. */
+const VISITOR = /^[a-z0-9-]{8,40}$/;
+async function note(env, name, v) {
+  if (!v || !VISITOR.test(v)) return;
+  try { await env.DB.prepare(`insert or ignore into track_events(day, name, visitor_id) values (?, ?, ?)`).bind(localDate('Asia/Jerusalem'), name, v).run(); } catch (e) { /* המדידה לא עוצרת כניסה */ }
+}
+
+export async function googleStart(req, env, count = true) {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) throw err('AUTH_NOT_CONFIGURED', 'התחברות עם גוגל עוד לא הוגדרה בסביבה הזו', 503);
   const url = new URL(req.url);
+  const v = count && VISITOR.test(url.searchParams.get('v') || '') ? url.searchParams.get('v') : null;
+  await note(env, 'signin_click', v);
   const state = randomToken(16);
   const verifier = randomToken(48);
   const challenge = base64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
@@ -42,7 +52,7 @@ export async function googleStart(req, env) {
     client_id: env.GOOGLE_CLIENT_ID, redirect_uri: `${url.origin}/api/auth/google/callback`, response_type: 'code',
     scope: 'openid email profile', state, code_challenge: challenge, code_challenge_method: 'S256', prompt: 'select_account', access_type: 'online',
   });
-  return new Response(null, { status: 302, headers: { location: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, 'set-cookie': cookie(OAUTH_COOKIE, JSON.stringify({ state, verifier, next }), { maxAge: 600, secure: isSecure(req) }) } });
+  return new Response(null, { status: 302, headers: { location: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, 'set-cookie': cookie(OAUTH_COOKIE, JSON.stringify({ state, verifier, next, v }), { maxAge: 600, secure: isSecure(req) }) } });
 }
 
 export async function googleCallback(req, env) {
@@ -50,12 +60,13 @@ export async function googleCallback(req, env) {
   const saved = safeJson(parseCookies(req)[OAUTH_COOKIE]);
   const code = url.searchParams.get('code'); const state = url.searchParams.get('state');
   const clear = cookie(OAUTH_COOKIE, '', { maxAge: 0, secure: isSecure(req) });
-  if (!saved || !code || !state || state !== saved.state) return redirect(`/?auth_error=state`, clear);
+  // חזרה בלי קוד = ביטלה אצל Google, או שהדפדפן (למשל בתוך אפליקציה אחרת) לא שמר את העוגייה שלנו
+  if (!saved || !code || !state || state !== saved.state) { await note(env, url.searchParams.get('error') ? 'google_cancel' : 'google_fail', saved && saved.v); return redirect(`/?auth_error=state`, clear); }
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ code, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, redirect_uri: `${url.origin}/api/auth/google/callback`, grant_type: 'authorization_code', code_verifier: saved.verifier }),
   });
-  if (!tokenRes.ok) return redirect(`/?auth_error=token`, clear);
+  if (!tokenRes.ok) { await note(env, 'google_fail', saved.v); return redirect(`/?auth_error=token`, clear); }
   const tok = await tokenRes.json();
   // ה-id_token התקבל ישירות מגוגל ב-TLS; לפי הנחיות גוגל אין צורך באימות חתימה במקרה הזה. בודקים aud ו-iss בכל זאת.
   const claims = decodeJwt(tok.id_token);

@@ -94,7 +94,7 @@ async function handleApi(req, env, ctx, url) {
     if (origin && origin !== url.origin) return json({ error: 'FORBIDDEN', hint: 'מקור לא מורשה' }, 403);
   }
   if (path === 'health') return json({ ok: true, env: env.APP_ENV, now: nowISO() });
-  if (path === 'auth/google' && req.method === 'GET') return auth.googleStart(req, env);
+  if (path === 'auth/google' && req.method === 'GET') return auth.googleStart(req, env, !(await limited(env, 'RL_PUBLIC', 'gstart|' + (req.headers.get('cf-connecting-ip') || ''), 30)) && anonBudget());
   if (path === 'auth/google/callback' && req.method === 'GET') return auth.googleCallback(req, env);
   if (path === 'auth/logout' && req.method === 'POST') return auth.logout(req, env);
   const ip = req.headers.get('cf-connecting-ip') || 'unknown';

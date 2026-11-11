@@ -76,10 +76,16 @@ export async function adminStats(env, daysParam) {
       sum(exists(select 1 from circle_memberships m where m.user_id = u.id)) as grouped,
       sum(u.invited_by is not null and u.status = 'active') as invited
     from users u where u.status <> 'deleted' and ${inRange('u.created_at')}`, start, today);
-  const [vis, clicks] = await Promise.all([
+  const [vis, clicks, inappVis, inappOpen, gFail, gCancel] = await Promise.all([
     one(`select count(distinct visitor_id) as n from track_events where name = 'visit' and day between ? and ?`, start, today),
     one(`select count(distinct visitor_id) as n from track_events where name = 'signin_click' and day between ? and ?`, start, today),
+    one(`select count(distinct visitor_id) as n from track_events where name = 'visit_inapp' and day between ? and ?`, start, today),
+    one(`select count(distinct visitor_id) as n from track_events where name = 'inapp_open' and day between ? and ?`, start, today),
+    one(`select count(distinct visitor_id) as n from track_events where name = 'google_fail' and day between ? and ?`, start, today),
+    one(`select count(distinct visitor_id) as n from track_events where name = 'google_cancel' and day between ? and ?`, start, today),
   ]);
+  // כניסות מתוך אפליקציה אחרת (אינסטגרם, פייסבוק…), ומה קרה אצל Google
+  const entry = { inapp: inappVis.n || 0, inappOpen: inappOpen.n || 0, googleFail: gFail.n || 0, googleCancel: gCancel.n || 0 };
   const funnel = [
     { key: 'visit', label: 'נכנסו לאתר', n: vis.n || 0 },
     { key: 'click', label: 'לחצו ״יאללה, אני בפנים״', n: clicks.n || 0 },
@@ -227,14 +233,14 @@ export async function adminStats(env, daysParam) {
   ]);
 
   return {
-    generatedAt: new Date().toISOString(), range, series, kpi, funnel, sources, viral, inviteKinds, referrers, invitersTotal: refsAll.length,
+    generatedAt: new Date().toISOString(), range, series, kpi, funnel, entry, sources, viral, inviteKinds, referrers, invitersTotal: refsAll.length,
     engagement, retention, challenges, categories, groups, social: socialOut, friendInvites, age, treats, app,
     safety: { reports: abuse, blocks: blocks.n || 0, pending: kpi.pending, deleted: kpi.deleted },
   };
 }
 
 /* מעקב אירועים זול: מבקרת ייחודית ליום לכל שם. שמות מותרים בלבד. */
-const TRACK = new Set(['visit', 'visit_invite', 'signin_click', 'treat:cookie', 'treat:espresso', 'treat:latte', 'support:18', 'support:50', 'support:100', 'support:180', 'support:360', 'support:other', 'app_open', 'install_sheet', 'install_prompt', 'installed', 'push_on', 'push_denied', 'err:server', 'err:quota', 'err:crash', 'err:notfound']);
+const TRACK = new Set(['visit', 'visit_invite', 'visit_inapp', 'inapp_open', 'signin_click', 'treat:cookie', 'treat:espresso', 'treat:latte', 'support:18', 'support:50', 'support:100', 'support:180', 'support:360', 'support:other', 'app_open', 'install_sheet', 'install_prompt', 'installed', 'push_on', 'push_denied', 'err:server', 'err:quota', 'err:crash', 'err:notfound']);
 export async function track(env, b) {
   const name = String(b.name || ''); const vis = String(b.visitor || '');
   if (!TRACK.has(name) || !/^[a-z0-9-]{8,40}$/.test(vis)) return { ok: false };

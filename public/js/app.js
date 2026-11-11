@@ -370,11 +370,24 @@ const App = (() => {
      S02b — כניסה אמיתית: Google OAuth (השרת מנהל את הסשן בעוגיית HttpOnly)
      ============================================================ */
   function googleMark() { return `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.2-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C41.4 35 44 30 44 24c0-1.2-.1-2.4-.4-3.5z"/></svg>`; }
-  function googleSignIn() {
-    Api.track('signin_click');
+  function googleSignIn(here) {
     if (!Api.config.google) return toast('התחברות עם גוגל עוד לא הוגדרה בסביבה הזו');
     const next = pendingInviteToken ? `/?invite=${encodeURIComponent(pendingInviteToken)}` : '/';
-    location.href = Api.googleUrl(next);
+    const d = I() ? I().detect() : null;
+    if (d && d.inapp && here !== true) return inappSheet(d, next);   // בתוך אינסטגרם/פייסבוק: קודם מציעות את הדפדפן הרגיל
+    location.href = Api.googleUrl(next);   // הלחיצה נספרת בשרת
+  }
+  /* נפתחה מתוך אפליקציה אחרת (אינסטגרם, פייסבוק, לינקדאין…): שם הכניסה עם Google לפעמים נחסמת, ובדרך כלל היא גם לא מחוברת שם ל-Google.
+     מציעות לפתוח בדפדפן הרגיל בלחיצה אחת (הקישור שומר על ההזמנה), ומשאירות אפשרות להמשיך מכאן. */
+  function inappSheet(d, next) {
+    const link = location.origin + next; const ios = d.os === 'ios';
+    const href = ios ? `x-safari-${link}` : `intent://${location.host}${next}#Intent;scheme=https;package=com.android.chrome;end`;
+    sheet(`<button class="icon-btn sheet-x" aria-label="סגירה" onclick="App.closeSheet()">${icon('x', 22)}</button>
+      <div class="sheet-title">את בתוך ${esc(d.inapp)}</div>
+      <div class="sheet-sub">מכאן הכניסה עם Google לפעמים נחסמת. בדפדפן הרגיל היא עובדת, ולוקחת 10 שניות.</div>
+      <a class="btn dark" href="${esc(href)}" onclick="Api.track('inapp_open')">פתיחה ב-${ios ? 'Safari' : 'Chrome'}</a>
+      <button class="btn soft mt" onclick="App.copyText('${esc(link)}')">${icon('copy', 18)} העתקת הקישור</button>
+      <button class="btn text mt" onclick="App.googleSignIn(true)">להמשיך מכאן</button>`);
   }
   function afterAuth() {
     busy = false;
@@ -1817,6 +1830,7 @@ const App = (() => {
       const v = d.viral, kinds = { follow: 'לעזור לי לעמוד במילה', compete: 'להתחרות', same: 'אותו אתגר' }; const fi = d.friendInvites || { sent: 0, joins: 0, rate: null };
       const src = d.sources, srcTot = src.invite + src.direct;
       body = `${adSec('משפך הרשמה', `בנות שנכנסו ב${per}, ומה הן עשו. האחוז בכל שלב: מתוך השלב הקודם, ובסוגריים מתוך הכניסה לאתר.`)}
+        ${(() => { const en = d.entry || {}; const bits = [en.inapp ? `${adN(en.inapp)} נכנסו מתוך אפליקציה אחרת (אינסטגרם, פייסבוק ודומות)${en.inappOpen ? `, ${adN(en.inappOpen)} מהן עברו לדפדפן הרגיל` : ''}` : '', en.googleCancel ? `${adN(en.googleCancel)} ביטלו במסך של Google` : '', en.googleFail ? `${adN(en.googleFail)} חזרו מ-Google בלי להיכנס` : ''].filter(Boolean); return bits.length ? `<div class="note mb">${icon('info', 18)}<span>${bits.join(' · ')}.</span></div>` : ''; })()}
         <div class="card">${adHBars('funnel', f, { sub: (r, i) => i === 0 ? 'מבקרות ייחודיות (לפי מכשיר)' : `${adP(f[i - 1].n ? Math.round((1000 * r.n) / f[i - 1].n) / 10 : null)} מהשלב הקודם (${adP(top ? Math.round((1000 * r.n) / top) / 10 : null)} מהכניסה)` })}</div>
         ${adSec('מאיפה הגיעו', 'בנות שנרשמו בתקופה: דרך הזמנה של חברה, או ישירות.')}
         <div class="card">${srcTot ? `<div class="ad-seg"><i style="width:${(100 * src.invite) / srcTot}%;background:${AD_C.blue}"><span>${Math.round((100 * src.invite) / srcTot)}%</span></i><i style="width:${(100 * src.direct) / srcTot}%;background:${AD_C.orange}"><span>${Math.round((100 * src.direct) / srcTot)}%</span></i></div><div class="ad-legend"><span><i style="background:${AD_C.blue}"></i>מהזמנה · ${adN(src.invite)}</span><span><i style="background:${AD_C.orange}"></i>ישירות · ${adN(src.direct)}</span></div>` : '<div class="small muted">עוד אין הרשמות בתקופה.</div>'}</div>
@@ -2037,6 +2051,7 @@ const App = (() => {
     window.addEventListener('online', () => { if (Api.isCloud()) Api.sync().then(() => toast('החיבור חזר. הכול מעודכן.', 'lime')).catch(() => {}); else if (Api.enabled && ((Mila.getState().meta || {}).offline || (stack.length && current().name === 'error'))) location.reload(); });   // נפתחה בלי רשת מהעותק השמור: טוענות מחדש כשהרשת חוזרת
     initPull();
     Api.track('visit');
+    if (I() && I().detect().inapp) Api.track('visit_inapp');
     if (urlToken) { history.replaceState(null, '', location.pathname); Api.trackInviteOpen(urlToken); Api.track('visit_invite'); }
     const authError = params.get('auth_error');
     if (authError) { history.replaceState(null, '', location.pathname); setTimeout(() => toast('הכניסה לא הושלמה. נסי שוב.'), 300); }

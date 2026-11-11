@@ -15,12 +15,12 @@ const Api = (() => {
   const previewCache = {};
   const listeners = new Set();
 
-  async function call(path, { method = 'GET', body } = {}) {
+  async function call(path, { method = 'GET', body, keepalive = false } = {}) {
     let res;
     try {
       // בלי תשובה תוך 20 שניות = כמו אין רשת (אחרת כפתור ״רגע…״ נתקע לנצח על רשת תקועה)
       const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null; const timer = ctl ? setTimeout(() => ctl.abort(), 20000) : null;
-      try { res = await fetch(`/api/${path}`, { method, credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, signal: ctl ? ctl.signal : undefined }); }
+      try { res = await fetch(`/api/${path}`, { method, credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, signal: ctl ? ctl.signal : undefined, ...(keepalive ? { keepalive: true } : {}) }); }
       finally { if (timer) clearTimeout(timer); }
     } catch (e) { const err = new Error('offline'); err.userMessage = 'אין חיבור לשרת. הדיווח לא נשמר. נסי שוב כשיש רשת.'; err.code = 'OFFLINE'; throw err; }
     let data = null; try { data = await res.json(); } catch (e) { data = null; }
@@ -46,7 +46,8 @@ const Api = (() => {
   function isCloud() { return enabled && !!me && me.status === 'active'; }
   function hasSession() { return enabled && !!me; }
   function userId() { return me ? me.id : null; }
-  function googleUrl(next) { return `/api/auth/google${next ? `?next=${encodeURIComponent(next)}` : ''}`; }
+  /* v = מזהה המבקרת האנונימי, כדי שהשרת יספור את הלחיצה על כניסה (רק אם אישרה מדידה) */
+  function googleUrl(next) { const q = new URLSearchParams(); if (next) q.set('next', next); if (!(window.MilaA11y && MilaA11y.consent() === 'essential')) q.set('v', visitorId()); const s = q.toString(); return `/api/auth/google${s ? '?' + s : ''}`; }
   async function completeProfile({ name, ageConfirmed, termsAccepted, inviteToken }) {
     await call('profile', { method: 'POST', body: { name, ageConfirmed, termsAccepted, inviteToken: inviteToken || undefined, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
     await init(); await sync();
@@ -70,7 +71,7 @@ const Api = (() => {
     if (!enabled) return;
     if (window.MilaA11y && MilaA11y.consent() === 'essential') return; // ״רק הכרחי״: בלי מונה אנונימי
     try { const k = `mila.t.${name}`; const day = new Date().toISOString().slice(0, 10); if (localStorage.getItem(k) === day) return; localStorage.setItem(k, day); } catch (e) { /* בלי אחסון: שולחות בכל זאת */ }
-    call('track', { method: 'POST', body: { name, visitor: visitorId() } }).catch(() => {});
+    call('track', { method: 'POST', body: { name, visitor: visitorId() }, keepalive: true }).catch(() => {});   // keepalive: נשלח גם אם הדף מתחלף מיד אחרי
   }
 
   /* ---------- סנכרון ---------- */
