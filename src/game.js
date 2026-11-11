@@ -101,6 +101,8 @@ export async function createPersonalWord(env, user, b) {
   if (start < today) throw err('VALIDATION', 'אי אפשר להתחיל בתאריך שעבר');
   if (diffDays(today, start) > 60) throw err('VALIDATION', 'אפשר לתכנן עד 60 יום קדימה');
   let circleId = b.circleId || null;
+  // תחום רגיש (זוגיות ואינטימיות): מגיל 18 בלבד, ונאכף כאן ולא רק בממשק
+  if (lib && MilaLibrary.isSensitive(lib.id) && !isAdultUser(user, today)) throw err('ADULT_ONLY', 'התחום הזה מגיל 18.', 403);
   // אתגר רגיש: פרטי כברירת מחדל; שיתוף עם קבוצה רק בבחירה מפורשת
   if (lib && MilaLibrary.isSensitive(lib.id) && b.shareSensitive !== true) circleId = null;
   if (circleId && !(await isMember(env, circleId, user.id))) throw err('FORBIDDEN', 'את לא חברה בקבוצה הזו', 403);
@@ -543,6 +545,21 @@ export async function updateSettings(env, user, b) {
   }
   await S(env, `update users set settings = ? where id = ?`, JSON.stringify(cur), user.id).run();
 }
+/* גיל: שואלות תאריך לידה רק כדי לפתוח תחום שמיועד לגיל 18 ומעלה. התאריך עצמו לא נשמר:
+   נשמר adult_from = '1900-01-01' (כבר בת 18) או התאריך שבו תהיה בת 18. מי שנרשמה כצעירה לא יכולה להזין תאריך אחר. */
+export const isAdultUser = (user, today) => !!user.adult_from && user.adult_from <= today;
+export async function setBirthDate(env, user, b) {
+  const bd = String((b && b.birthDate) || '');
+  const today = localDate(user.timezone);
+  if (!isValidDate(bd) || bd > today || bd < '1900-01-01') throw err('VALIDATION', 'תאריך הלידה לא תקין');
+  if (isAdultUser(user, today)) return { adult: true, adultFrom: null };
+  if (user.adult_from) throw err('VALIDATION', 'כבר רשום אצלנו מתי התחום נפתח לך. אם נפלה טעות, כתבי לנו.');
+  const [y, m, d] = bd.split('-');
+  let turns18 = `${Number(y) + 18}-${m}-${d}`; if (!isValidDate(turns18)) turns18 = `${Number(y) + 18}-03-01`;   // נולדה ב-29 בפברואר
+  const adult = turns18 <= today;
+  await S(env, `update users set adult_from = ? where id = ?`, adult ? '1900-01-01' : turns18, user.id).run();
+  return { adult, adultFrom: adult ? null : turns18 };
+}
 export async function rename(env, user, b) { const n = cleanName(b.name); if (!n || n.length > 30) throw err('VALIDATION', 'שם לא תקין'); await S(env, `update users set display_name = ? where id = ?`, n, user.id).run(); }
 export async function deleteAccount(env, user) {
   // כל הקבוצות שהייתה בהן אי פעם: רק שם יש עדכונים שמזכירים אותה בשם
@@ -559,7 +576,7 @@ export async function deleteAccount(env, user) {
     S(env, `update word_definitions set title = 'אתגר שנמחק', rule = 'נמחק', status = 'cancelled' where owner_id = ? and kind = 'personal' and library_id is null`, user.id),
     S(env, `update circle_invites set status = 'revoked', message = null, word_title = null where inviter_id = ?`, user.id),
     S(env, `update abuse_reports set details = null where reporter_id = ?`, user.id),
-    S(env, `update users set display_name = 'משתתפת שעזבה', email = null, google_sub = null, color = 'sky', status = 'deleted', settings = '{}', timezone = 'Asia/Jerusalem', invited_by = null, invited_via = null, last_seen_at = null, is_admin = 0, age_confirmed = 0, terms_accepted_at = null where id = ?`, user.id),
+    S(env, `update users set display_name = 'משתתפת שעזבה', email = null, google_sub = null, color = 'sky', status = 'deleted', settings = '{}', timezone = 'Asia/Jerusalem', invited_by = null, invited_via = null, last_seen_at = null, is_admin = 0, age_confirmed = 0, terms_accepted_at = null, adult_from = null where id = ?`, user.id),
     S(env, `delete from sessions where user_id = ?`, user.id), S(env, `delete from notifications where user_id = ?`, user.id),
     // עדכונים אצל חברות שמזכירים אותה בשם (״X עקפה אותך״) נמחקים גם הם
     ...(everCircles.length ? [S(env, `delete from notifications where (title like ? escape '\\' or body like ? escape '\\') and user_id <> ? and user_id in (select user_id from circle_memberships where circle_id in (${everCircles.map(() => '?').join(',')}))`, likeName, likeName, user.id, ...everCircles)] : []),

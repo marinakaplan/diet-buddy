@@ -111,7 +111,7 @@ const Mila = (() => {
     const id = uid('u');
     const user = {
       id, name: name.trim(), color: color || AVATAR_COLORS[hashStr(name) % AVATAR_COLORS.length],
-      createdAt: nowISO(), ageConfirmed,
+      createdAt: nowISO(), ageConfirmed, adult: ageConfirmed ? true : null, adultFrom: null,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       settings: { reminderTime: '20:00', pushReminders: true, socialDigest: true, hideFromLeaderboard: false, lockScreenPrivacy: true },
     };
@@ -337,6 +337,18 @@ const Mila = (() => {
     if (banned.test(title) || banned.test(rule)) throw err('הניסוח הזה עלול להיות מסוכן. נסי אתגר שמוסיף משהו טוב ליום, במקום להגביל בצורה קיצונית.');
   }
 
+  /* גיל: התחום הרגיש פתוח מגיל 18. תאריך הלידה עצמו לא נשמר (רק ״פתוח״ או מתי ייפתח). */
+  function isAdult() { const u = me(); return !!u && u.adult === true; }
+  function setBirthDate(birthDate) {
+    const u = me(); const t = today();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate || '') || birthDate > t || birthDate < '1900-01-01') throw err('תאריך הלידה לא תקין');
+    if (u.adult === true) return { adult: true, adultFrom: null };
+    if (u.adultFrom) throw err('כבר רשום אצלנו מתי התחום נפתח לך. אם נפלה טעות, כתבי לנו.');
+    const [y, m, d] = birthDate.split('-'); const turns18 = `${Number(y) + 18}-${m}-${d}`;
+    const adult = turns18 <= t;
+    u.adult = adult; u.adultFrom = adult ? null : turns18; save();
+    return { adult, adultFrom: u.adultFrom };
+  }
   /* יצירת מילה אישית (ואופציונלית – חשיפה לקבוצה אחד) */
   function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, visibility = circleId ? 'status' : 'private', libraryId = null, reward = '', rewardShared = false, shareSensitive = false }) {
     let lib = null, category = null, sensitive = false;
@@ -344,6 +356,7 @@ const Mila = (() => {
       lib = LIB.get(libraryId);
       if (!lib) throw err('האתגר לא נמצא בספרייה');
       title = lib.title; rule = lib.rule; icon = lib.icon; category = lib.cat; sensitive = LIB.isSensitive(libraryId);
+      if (sensitive && !isAdult()) throw Object.assign(err('התחום הזה מגיל 18.'), { code: 'ADULT_ONLY' });
       // אתגר רגיש: פרטי כברירת מחדל. שיתוף עם קבוצה רק בבחירה מפורשת.
       if (sensitive && !shareSensitive) circleId = null;
     }
@@ -830,7 +843,7 @@ const Mila = (() => {
     createCircle, updateCircle, myCircles, membership, isMember, isAdmin, circleMembers, circleRound, leaveCircle, removeMember, setMemberRole, deleteCircle,
     createInvite, currentInvite, revokeInvite, revokeCircleInvites, inviteUrl, previewInvite, acceptInvite,
     wordDef, commitment, myCommitments, activeCommitments, obligationsOf, capCheck, activeWordsOn,
-    createPersonalWord, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment,
+    isAdult, setBirthDate, createPersonalWord, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment,
     windowOf, isOpenNow, refreshStatuses, excusesUsed, report, canCorrect, correct,
     activeLedger, bankSummary, circlePool, circlePoolAllTime, streak, commitmentStats,
     todayCards, decorate, upcomingWords, wordHistory, leaderboard, rankInsight, previousRoundWinner,

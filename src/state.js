@@ -43,12 +43,14 @@ export async function myState(env, user) {
   ]);
   // פרופילים: אני + חברות המעגלים + מי שמופיעה באירועים
   const uids = new Set([user.id, ...memberships.map(m => m.user_id), ...events.map(e => e.actor_id)]);
-  const users = await qIn(env, [...uids], (UP) => `select id, display_name, color, status, settings, timezone, created_at, age_confirmed, email from users where id in (${UP})`);
+  const users = await qIn(env, [...uids], (UP) => `select id, display_name, color, status, settings, timezone, created_at, age_confirmed, email, adult_from from users where id in (${UP})`);
 
   const settingsOf = (u) => { const s = safe(u.settings); return u.id === user.id ? s : { hideFromLeaderboard: !!s.hideFromLeaderboard }; };
   return {
     me: user.id, serverNow: nowISO(),
-    users: obj(users, u => [u.id, { id: u.id, name: u.display_name, color: u.color, deleted: u.status === 'deleted', settings: settingsOf(u), timezone: u.id === user.id ? u.timezone : null, email: u.id === user.id ? u.email : null, createdAt: u.id === user.id ? u.created_at : null, ageConfirmed: u.id === user.id ? !!u.age_confirmed : true }]),
+    users: obj(users, u => [u.id, { id: u.id, name: u.display_name, color: u.color, deleted: u.status === 'deleted', settings: settingsOf(u), timezone: u.id === user.id ? u.timezone : null, email: u.id === user.id ? u.email : null, createdAt: u.id === user.id ? u.created_at : null, ageConfirmed: u.id === user.id ? !!u.age_confirmed : true,
+      // רק עליי: האם התחום שמגיל 18 פתוח לי (null = עוד לא נשאלתי), ואם לא — מתי ייפתח
+      ...(u.id === user.id ? { adult: u.adult_from ? u.adult_from <= today : null, adultFrom: u.adult_from && u.adult_from > today ? u.adult_from : null } : {}) }]),
     circles: obj(circles, c => [c.id, { id: c.id, name: c.name, description: c.description, ownerId: c.owner_id, color: c.color, whoCanPropose: c.who_can_propose, maxMembers: c.max_members, roundStart: c.round_start, status: c.status, createdAt: c.created_at }]),
     memberships: memberships.map(m => ({ id: m.id, circleId: m.circle_id, userId: m.user_id, role: m.role, joinedAt: m.joined_at, leftAt: m.left_at })),
     invites: obj(invites, (i, idx) => [`inv_${idx}`, { hint: i.token_hint, circleId: i.circle_id, inviterId: i.inviter_id, createdAt: i.created_at, expiresAt: i.expires_at, status: i.status, uses: i.uses, maxUses: i.max_uses, kind: i.kind || 'follow' }]),

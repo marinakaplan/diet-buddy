@@ -77,6 +77,28 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     assert.strictEqual(await A.page.locator('#screen img[src="x"]').count(), 0);
   });
 
+  await test('תחום מגיל 18: נעול, שואל תאריך לידה; צעירה נשארת נעולה, בוגרת נכנסת', async () => {
+    const yr = new Date().getFullYear();
+    // B (צעירה)
+    await B.page.evaluate(() => { App.closeSheet(); App.tab('today'); App.openPick(); });
+    await B.page.waitForSelector('.cat.locked'); assert.ok(/מגיל 18/.test(await B.page.innerText('.cat.locked')));
+    await B.page.click('.cat.locked .cat-head'); await B.page.waitForSelector('#age-bd');
+    assert.ok(/לא מתאימים למי שעוד לא בת 18/.test(await B.page.innerText('#sheet')));
+    await B.page.fill('#age-bd', `${yr - 16}-03-10`); await B.page.click('#sheet .btn.primary');
+    await B.page.waitForFunction(() => /ייפתח לך ב-/.test(document.querySelector('#sheet').innerText), null, { timeout: 15000 });
+    await B.page.evaluate(() => App.closeSheet());
+    assert.strictEqual(await B.page.locator('.cat.locked').count(), 1, 'נשאר נעול');
+    assert.strictEqual(await B.page.evaluate(async () => { try { await Api.call('action/createPersonalWord', { method: 'POST', body: { libraryId: 'cpl_hug_20' } }); return 'created'; } catch (e) { return e.code; } }), 'ADULT_ONLY', 'גם ישירות מול השרת');
+    await B.page.evaluate(() => App.pickCancel());
+    // A (בוגרת)
+    await A.page.evaluate(() => { App.tab('today'); App.openPick(); });
+    await A.page.click('.cat.locked .cat-head'); await A.page.waitForSelector('#age-bd');
+    await A.page.fill('#age-bd', '1988-07-01'); await A.page.click('#sheet .btn.primary');
+    await A.page.waitForFunction(() => document.querySelectorAll('.cat.locked').length === 0 && !!document.querySelector('.cat.open'), null, { timeout: 15000 });
+    assert.ok(/חיבוק של 20 שניות/.test(await A.page.innerText('.cat.open')), 'התחום נפתח');
+    await A.page.evaluate(() => App.pickCancel());
+  });
+
   await test('שורות לחיצות נגישות במקלדת: Enter על אתגר פותח את הדיווח', async () => {
     await A.page.evaluate(() => App.tab('today'));
     const row = A.page.locator('.word-row.tap').first();

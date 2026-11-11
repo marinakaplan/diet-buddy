@@ -14,7 +14,7 @@ const ACTIONS = {
   createCircle: game.createCircle, updateCircle: game.updateCircle, createInvite: game.createInvite, revokeCircleInvites: game.revokeCircleInvites,
   previewInvite: game.previewInvite, acceptInvite: game.acceptInvite, leaveCircle: game.leaveCircle, removeMember: game.removeMember, setMemberRole: game.setMemberRole, deleteCircle: game.deleteCircle, overtake: game.overtake,
   encourage: game.encourage, sendEncouragement: game.sendEncouragement, block: game.block, unblock: game.unblock, reportAbuse: game.reportAbuse,
-  markNotificationsRead: game.markNotificationsRead, markSummarySeen: game.markSummarySeen, updateSettings: game.updateSettings, rename: game.rename,
+  markNotificationsRead: game.markNotificationsRead, markSummarySeen: game.markSummarySeen, updateSettings: game.updateSettings, rename: game.rename, setBirthDate: game.setBirthDate,
   deleteAccount: game.deleteAccount, exportData: game.exportData,
 };
 

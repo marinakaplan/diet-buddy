@@ -112,7 +112,7 @@ export async function completeProfile(user, body, env) {
   if (name.length > 30) throw err('VALIDATION', 'השם ארוך מדי (עד 30 תווים)');
   if (!body.termsAccepted) throw err('VALIDATION', 'צריך לאשר את תנאי השימוש');
   const tz = isValidTz(body.timezone) ? body.timezone : 'Asia/Jerusalem';
-  await env.DB.prepare(`update users set display_name = ?, age_confirmed = 1, terms_accepted_at = coalesce(terms_accepted_at, ?), timezone = ?, status = 'active' where id = ?`).bind(name, nowISO(), tz, user.id).run();
+  await env.DB.prepare(`update users set display_name = ?, terms_accepted_at = coalesce(terms_accepted_at, ?), timezone = ?, status = 'active' where id = ?`).bind(name, nowISO(), tz, user.id).run();
   if (body.inviteToken) { const { attributeSignup } = await import('./game.js'); await attributeSignup(env, user, body.inviteToken); }
 }
 

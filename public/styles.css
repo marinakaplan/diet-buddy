@@ -1031,3 +1031,6 @@ body:has(#sheet.open) #a11y-btn { display: none; }
 /* שורת ההסכמה כולה לחיצה; הקישורים למסמכים בשורה נפרדת מתחתיה */
 .ob-legal { margin: -4px 0 0; padding-inline-start: 34px; font-size: .82rem; color: var(--ink-2); }
 .ob-legal a { color: inherit; text-decoration: underline; padding: 6px 2px; display: inline-block; }
+
+/* תחום נעול (מגיל 18) בספרייה */
+.cat.locked .cat-head .name { color: var(--ink-2); }

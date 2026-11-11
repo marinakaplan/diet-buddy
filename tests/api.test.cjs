@@ -192,6 +192,20 @@ const invariants = async (c) => {
   });
   await test('ספרייה: אתגר רגיש (זוגיות) נשאר פרטי גם עם circleId; בלי shareSensitive לא נכנס לקבוצה', async () => {
     await E.login(`e.${stamp}@test.mila`, 'רות'); await E.profile('רות');
+    // התחום מגיל 18: בלי תאריך לידה נחסם; צעירה נשארת חסומה ולא יכולה להזין תאריך אחר; בוגרת נכנסת. תאריך הלידה לא נשמר.
+    await E.fail('createPersonalWord', { libraryId: 'cpl_hug_20', startDate: today() }, 'ADULT_ONLY');
+    let sE0 = await E.state(); assert.strictEqual(sE0.users[sE0.me].adult, null, 'עוד לא נשאלה');
+    await E.fail('setBirthDate', { birthDate: '2031-02-30' }, 'VALIDATION');
+    const Y = new Client('Y'); await Y.login(`y.${stamp}@test.mila`, 'עדי'); await Y.profile('עדי');
+    const yr = new Date().getFullYear();
+    const minor = await Y.ok('setBirthDate', { birthDate: `${yr - 15}-06-15` }); assert.strictEqual(minor.adult, false); assert.strictEqual(minor.adultFrom, `${yr + 3}-06-15`);
+    await Y.fail('createPersonalWord', { libraryId: 'cpl_hug_20', startDate: today() }, 'ADULT_ONLY');
+    await Y.fail('setBirthDate', { birthDate: '1990-01-01' }, 'VALIDATION');
+    const sY = await Y.state(); assert.strictEqual(sY.users[sY.me].adult, false); assert.strictEqual(sY.users[sY.me].adultFrom, `${yr + 3}-06-15`);
+    assert.ok(!JSON.stringify(sY).includes(`${yr - 15}-06-15`) && !JSON.stringify(await Y.ok('exportData')).includes(`${yr - 15}-06-15`), 'תאריך הלידה עצמו לא נשמר');
+    assert.strictEqual((await E.ok('setBirthDate', { birthDate: '1990-05-05' })).adult, true);
+    sE0 = await E.state(); assert.strictEqual(sE0.users[sE0.me].adult, true); assert.ok(!JSON.stringify(sE0).includes('1990-05-05'));
+    assert.strictEqual(sE0.users[Object.keys(sE0.users).find(k => k !== sE0.me)] && sE0.users[Object.keys(sE0.users).find(k => k !== sE0.me)].adult, undefined, 'על אחרות לא נשלח');
     const r = await E.ok('createPersonalWord', { libraryId: 'cpl_hug_20', circleId: c2, startDate: today() });   // ר לא חברה בליגה; האתגר הרגיש נופל לפרטי לפני בדיקת החברות
     const s = await E.state(); assert.strictEqual(s.wordDefs[r.defId].circleId, null); assert.strictEqual(s.wordDefs[r.defId].visibility, 'private');
     const sC = await C.state(); assert.ok(!sC.wordDefs[r.defId], 'לא נחשף לחברות הליגה');

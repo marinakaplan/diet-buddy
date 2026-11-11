@@ -19,7 +19,7 @@ const App = (() => {
 
   /* Store: אותו ממשק פעולות, שני מימושים – מקומי (דמו) או שרת (Supabase). */
   const Local = {};
-  for (const k of ['updateSettings','renameMe','updateCircle','leaveCircle','removeMember','setMemberRole','deleteCircle','cancelProposal','endCommitment','report','correct','encourage','sendEncouragement','block','unblock','reportAbuse','markAllRead','markSummarySeen','deleteAccount','acceptInvite','adoptGroupWord','proposeGroupWord','createPersonalWord','createCircle','createInvite','previewInvite']) Local[k] = async (...a) => Mila[k](...a);
+  for (const k of ['updateSettings','setBirthDate','renameMe','updateCircle','leaveCircle','removeMember','setMemberRole','deleteCircle','cancelProposal','endCommitment','report','correct','encourage','sendEncouragement','block','unblock','reportAbuse','markAllRead','markSummarySeen','deleteAccount','acceptInvite','adoptGroupWord','proposeGroupWord','createPersonalWord','createCircle','createInvite','previewInvite']) Local[k] = async (...a) => Mila[k](...a);
   Local.inviteToken = (circleId) => (Mila.currentInvite(circleId) || {}).token || null;
   Local.cachedPreview = (token) => Mila.previewInvite(token);
   Local.revokeCircleInvites = async (circleId) => { Mila.revokeCircleInvites(circleId); return Mila.createInvite(circleId); };
@@ -178,7 +178,7 @@ const App = (() => {
   /* רעיונות למילה: תחומים כטאבים, רק התחום הפתוח מוצג, ואחרי בחירה הכול מתקפל לשורה אחת */
   let ideasCat = 0; let ideasOpen = true;
   function templateChips(handler, selectedTitle) {
-    const cats = [...new Set(Mila.TEMPLATES.map(t => t.cat))];
+    const cats = [...new Set(Mila.TEMPLATES.filter(t => !t.sensitive || Mila.isAdult()).map(t => t.cat))];
     if (selectedTitle && !ideasOpen) {
       return `<div class="ideas collapsed mb"><span class="small">${icon('check', 14)} <b>${esc(selectedTitle)}</b></span><button class="btn text xs" onclick="App.ideasToggle(true)">רעיון אחר</button></div>`;
     }
@@ -684,7 +684,8 @@ const App = (() => {
     const L = Mila.LIBRARY;
     const circles = Mila.myCircles();
     const startDate = Mila.today();
-    return { step: 1, selected: prefillIds.filter(id => L.get(id)).slice(0, Mila.RULES.DAILY_CAP), open: prefillIds.length ? L.get(prefillIds[0]).cat : L.CATEGORIES[0].id, rewards: {}, startDate, circleId: opts.circleId || (circles.length === 1 ? circles[0].id : null), visibility: 'status', shareSensitive: false, newCircleName: `הקבוצה של ${(Mila.me().name || '').split(' ')[0]}`, exStart: Math.floor(Math.random() * 10) };
+    prefillIds = prefillIds.filter(id => !L.isSensitive(id) || Mila.isAdult());   // אתגר מהתחום שמגיל 18 לא נבחר מראש למי שהוא לא פתוח לה
+    return { step: 1, selected: prefillIds.filter(id => L.get(id)).slice(0, Mila.RULES.DAILY_CAP), open: (L.get(prefillIds.find(id => L.get(id))) || {}).cat || L.CATEGORIES[0].id, rewards: {}, startDate, circleId: opts.circleId || (circles.length === 1 ? circles[0].id : null), visibility: 'status', shareSensitive: false, newCircleName: `הקבוצה של ${(Mila.me().name || '').split(' ')[0]}`, exStart: Math.floor(Math.random() * 10) };
   }
   function openPick(prefillIds = [], opts = {}) { pick = newPick(prefillIds, opts); go('pick', {}, { replace: stack.length > 0 && current().name === 'pick' }); }
   SCREENS.pick = () => {
@@ -700,9 +701,10 @@ const App = (() => {
       <div class="pick-head"><div class="step-sub" style="margin:0">בחרי עד 3 אתגרים ל-14 הימים הקרובים.</div><span class="chip ${n ? 'lime' : ''} lg">${n}/${Mila.RULES.DAILY_CAP}</span></div>
       ${free === 0 ? `<div class="note warn">${icon('info', 18)}<span>כבר יש לך 3 אתגרים בימים האלה. אפשר להתחיל חדש כשאחד נגמר.</span></div>` : free < Mila.RULES.DAILY_CAP ? `<div class="tiny muted mb">יש לך כבר ${Mila.RULES.DAILY_CAP - free}. נשאר מקום ל${free === 1 ? 'אתגר אחד' : `-${free}`}.</div>` : ''}
       ${L.CATEGORIES.map(cat => {
-        const items = L.inCategory(cat.id); const open = pick.open === cat.id; const chosen = items.filter(ch => pick.selected.includes(ch.id)).length;
-        return `<div class="cat ${open ? 'open' : ''}">
-          <button class="cat-head" onclick="App.pickCat('${cat.id}')"><span class="emoji">${cat.emoji}</span><span class="name">${esc(cat.name)}</span><span class="count">${chosen ? `<span class="chip lime">${chosen}</span>` : items.length}</span>${icon('chev', 18)}</button>
+        const locked = cat.sensitive && !Mila.isAdult();   // התחום שמגיל 18: נעול עד שנשאלה על תאריך הלידה
+        const items = L.inCategory(cat.id); const open = !locked && pick.open === cat.id; const chosen = items.filter(ch => pick.selected.includes(ch.id)).length;
+        return `<div class="cat ${open ? 'open' : ''} ${locked ? 'locked' : ''}">
+          <button class="cat-head" onclick="App.pickCat('${cat.id}')"><span class="emoji">${cat.emoji}</span><span class="name">${esc(cat.name)}</span><span class="count">${locked ? `<span class="chip">${icon('lock', 12)} מגיל 18</span>` : chosen ? `<span class="chip lime">${chosen}</span>` : items.length}</span>${icon('chev', 18)}</button>
           ${open ? `<div class="cat-body">${items.map(ch => { const on = pick.selected.includes(ch.id); const off = !on && n >= free; return `<div class="pick-row ${on ? 'on' : ''} ${off ? 'off' : ''}" onclick="App.pickToggle('${ch.id}')"><span class="box">${on ? icon('check', 14) : ''}</span><div class="body"><div class="t">${esc(ch.title)}</div>${on ? `<div class="m">${esc(ch.rule)}</div>` : ''}</div>${cat.sensitive ? `<span class="chip">${icon('lock', 12)} פרטי</span>` : ''}</div>`; }).join('')}</div>` : ''}
         </div>`;
       }).join('')}
@@ -750,8 +752,36 @@ const App = (() => {
       ${circles.map(c => opt(c.id, esc(c.name), `${Mila.circleMembers(c.id).length} חברות · נכנסת לדירוג`, circleTile(c, 'sm'))).join('')}
       ${opt('__new__', circles.length ? 'קבוצה חדשה עם חברות' : 'עם חברות', 'פותחת קבוצה, ומיד אחר כך מזמינה חברות', `<span class="tile sm pink">${icon('users', 18)}</span>`)}`);
   }
-  function pickCat(id) { pick.open = pick.open === id ? null : id; render(); }
+  function pickCat(id) {
+    const cat = Mila.LIBRARY.CATEGORIES.find(c => c.id === id);
+    if (cat && cat.sensitive && !Mila.isAdult()) return ageSheet(() => pickCat(id));
+    pick.open = pick.open === id ? null : id; render();
+  }
+  /* ---------- גיל: תחום ״זוגיות ואינטימיות״ פתוח מגיל 18 ---------- */
+  let ageAfter = null;
+  function ageSheet(after) {
+    ageAfter = after || null;
+    const u = Mila.me();
+    if (u.adult === false && u.adultFrom) {
+      return sheet(`<div class="sheet-hero">${moodFace('sleepy', 72)}<div class="sheet-title">התחום הזה ייפתח לך ב-<bdi>${u.adultFrom.split('-').reverse().map(Number).join('.')}</bdi></div><div class="sheet-sub">הוא מיועד לגיל 18 ומעלה. עד אז מחכים לך עשרות אתגרים אחרים.</div></div>
+        <button class="btn primary" onclick="App.closeSheet()">חזרה לאתגרים</button>`);
+    }
+    sheet(`<div class="sheet-hero">${moodFace('wink', 72)}<div class="sheet-title">התחום הזה מגיל 18</div><div class="sheet-sub">יש כאן אתגרים על זוגיות ואינטימיות, שלא מתאימים למי שעוד לא בת 18.</div></div>
+      <div class="field"><label for="age-bd">מה תאריך הלידה שלך?</label><input class="input ltr" id="age-bd" type="date" min="1900-01-01" max="${Mila.today()}" autocomplete="bday"></div>
+      <div class="tiny muted">תאריך הלידה עצמו לא נשמר אצלנו. נשמר רק שהתחום פתוח לך, או מתי הוא ייפתח.</div>
+      <div class="btn-row mt"><button class="btn soft" onclick="App.closeSheet()">ביטול</button><button class="btn primary" onclick="App.ageSubmit()">המשך</button></div>`);
+  }
+  const ageSubmit = once(async () => {
+    const el = $('#age-bd'); const v = el ? el.value : '';
+    if (!v) return toast('צריך לבחור תאריך לידה');
+    try {
+      const r = await Store().setBirthDate(v);
+      if (r && r.adult) { const f = ageAfter; ageAfter = null; closeSheet(true); render(); toast('התחום פתוח לך.', 'lime'); if (f) f(); }
+      else { render({ keepSheet: true }); ageSheet(); }
+    } catch (e) { fail(e); }
+  });
   function pickToggle(id) {
+    if (Mila.LIBRARY.isSensitive(id) && !Mila.isAdult()) return ageSheet(() => pickToggle(id));
     const i = pick.selected.indexOf(id);
     if (i >= 0) pick.selected.splice(i, 1);
     else { if (pick.selected.length >= freeSlots(pick.startDate)) return toast(freeSlots(pick.startDate) === 0 ? 'אין מקום פנוי בימים האלה.' : 'אפשר עד 3 אתגרים. כדי להוסיף, עצרי קודם אחד.'); pick.selected.push(id); }
@@ -1909,7 +1939,7 @@ const App = (() => {
     openWordWizard, wizSet, wizTemplate, wizNext, wizPrev, wizCancel, wizCommit, wordMenu, endWord,
     circleAddSheet, joinByCodeSheet, joinByCode, cwSet, cwCreate, encourageSheet, circleMenu, leaveCircle, copyText, removeMember, cmSet,
     acceptInvite, declineInvite, openGroupWizard, memberSheet, setRole, deleteCircle, openPick, pickCat, pickToggle, pickClear, pickSet, pickReward, pickNext, pickBack, pickCancel, pickCustom, pickCommit, inviteFlow, invSet, invWord, invNewCircle, invNext, invBack, inviteClose, inviteDone, inviteRotate, inviteMsg, inviteSend, gwSet, gwTemplate, gwPropose, adopt, cancelProposal,
-    again, retry, teamSheet, supportHide, howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
+    again, retry, ageSubmit, teamSheet, supportHide, howSheet, exitDemo, invHeadBack, pickHeadBack, wizHeadBack, obToggle, obNext, obBack, obFriend, obSkip, obMore, obCommit, authAgree, pickTomorrow, pickNewName, pickRewardOpen, pickRewardDone, pickWhoSheet, installSheet, installNow, installHide, pushEnable, pushOff, pushTest, shareLink, shareStory,
     bankFilter: setBankFilter, treatPick, loadAdmin, adminSetTab, adHover, adLeave, adCsv, setSetting, exportData, resetDemo, deleteAccount, safetySheet, doReportAbuse, blockUser,
   };
 })();

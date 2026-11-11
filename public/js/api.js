@@ -109,6 +109,7 @@ const Api = (() => {
   const cloud = {
     updateSettings: (patch) => after(action('updateSettings', { patch })),
     renameMe: (name) => after(action('rename', { name })),
+    setBirthDate: async (birthDate) => { const r = await action('setBirthDate', { birthDate }); await sync(); return r; },
     createCircle: async (o) => { const r = await action('createCircle', o); inviteTokens[r.circleId] = r.inviteToken; await sync(); return { circle: Mila.getState().circles[r.circleId], invite: { token: r.inviteToken } }; },
     updateCircle: (circleId, patch) => after(action('updateCircle', { circleId, patch })),
     createInvite: async (circleId, opts = {}) => { const r = await action('createInvite', { circleId, kind: opts.kind, message: opts.message, libraryId: opts.libraryId, wordTitle: opts.wordTitle }); inviteTokens[circleId] = r.token; await sync(); return { token: r.token, circleId }; },
