@@ -60,6 +60,8 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     await B.page.evaluate((t) => App.acceptInvite(t), token);
     await B.page.waitForFunction((id) => typeof Mila !== 'undefined' && !!Mila.getState().circles[id], circleId, { timeout: 20000 });
     assert.strictEqual(await B.page.evaluate(() => localStorage.getItem('mila.invite')), null, 'אחרי ההצטרפות ההזמנה השמורה נמחקת');
+    await B.page.reload(); await B.page.waitForSelector('.today-head, .tg-row, #nav:not(.hidden)', { timeout: 20000 });
+    assert.ok(!/באה איתי\?|הפעם לא/.test(await B.page.innerText('#screen')), 'מסך ההזמנה לא קופץ שוב בפתיחה הבאה');
   });
 
   await test('שם עם תווי HTML לא מריץ קוד אצל החברות', async () => {
@@ -67,7 +69,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     await A.page.evaluate(async (id) => { window.__x = 0; await Api.sync(); App.go('circle', { id }, { reset: true }); }, circleId);
     await A.page.waitForTimeout(800);
     assert.strictEqual(await A.page.evaluate(() => window.__x), 0);
-    assert.ok(!/[<>"]/.test(await A.page.evaluate(() => Object.values(Mila.getState().users).map(u => u.name).join(''))), 'השרת מנקה תווי HTML מהשם');
+    assert.ok(!/[<>]/.test(await A.page.evaluate(() => Object.values(Mila.getState().users).map(u => u.name).join(''))), 'השרת מנקה תווי HTML מהשם');
     assert.strictEqual(await A.page.locator('#screen img[src="x"]').count(), 0);
   });
 

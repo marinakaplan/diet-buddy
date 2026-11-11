@@ -171,7 +171,7 @@ export async function runReminders(env, now = Date.now()) {
   const due = (await env.DB.prepare(`select s.*, u.timezone, u.settings, u.status from push_subscriptions s join users u on u.id = s.user_id where s.next_at is not null and s.next_at <= ? order by s.next_at limit ?`).bind(now, MAX_SENDS).all()).results;
   const out = { due: due.length, sent: 0, skipped: 0 };
   if (!due.length) return out;
-  const stmts = []; const plan = new Map(); // user_id → { slotDay, morning, both }
+  const stmts = []; const nextStmts = []; const plan = new Map(); // user_id → { slotDay, morning, evening }
   for (const s of due) {
     let next = now + 6 * 3600000;   // אם החישוב נכשל: מנסות שוב בעוד 6 שעות, ולא נתקעות בראש התור
     try {
@@ -184,8 +184,10 @@ export async function runReminders(env, now = Date.now()) {
         plan.set(s.user_id, { slotDay: localDate(tz, new Date(s.next_at)), morning: isMorning, evening: isEvening || !isMorning });
       }
     } catch (e) { console.warn('reminder plan', String(e && e.message || e)); }
-    stmts.push(env.DB.prepare(`update push_subscriptions set next_at = ? where endpoint = ?`).bind(next, s.endpoint));
+    nextStmts.push(env.DB.prepare(`update push_subscriptions set next_at = ? where endpoint = ?`).bind(next, s.endpoint));
   }
+  // התור מתקדם לפני השליחה: אם הריצה נקטעת באמצע, אף אחת לא מקבלת את אותה תזכורת שוב כל 5 דקות. אם העדכון נכשל — לא שולחות.
+  await env.DB.batch(nextStmts);
   // כמה אתגרים עוד פתוחים לכל משתמשת, באתמול ובהיום של התזכורת: שאילתה אחת
   const open = new Map(); const users = [...plan.keys()];
   for (let i = 0; i < users.length; i += 30) {

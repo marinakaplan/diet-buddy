@@ -39,6 +39,7 @@ const Api = (() => {
     if (!enabled) return null;
     const r = await call('me');
     me = r.user; config = r.config || config;
+    if (!me) { try { localStorage.removeItem('mila.cache'); } catch (e) { /* ignore */ } }   // אין כניסה פעילה: לא משאירות עותק של חשבון קודם במכשיר
     return me;
   }
   function isCloud() { return enabled && !!me && me.status === 'active'; }

@@ -267,6 +267,7 @@ const App = (() => {
     else { ob = { step: 2, picks: [], friend: null }; go('onboard', {}, { reset: true }); }
   }
   let pendingInviteToken = null;
+  let lostOnce = false;   // כדי ש״החיבור פג״ יוצג פעם אחת, ולא בזמן יציאה יזומה
   /* קישור הזמנה שנפתח נשמר במכשיר עד שהיא מצטרפת או מוותרת (עד 7 ימים): רענון, סגירת הלשונית או כניסה שנכשלה לא מאבדים אותו */
   const INVITE_KEY = 'mila.invite';
   const saveInvite = (token) => { try { localStorage.setItem(INVITE_KEY, JSON.stringify({ token, at: Date.now() })); } catch (e) { /* בלי אחסון: נשאר רק בזיכרון */ } };
@@ -318,7 +319,7 @@ const App = (() => {
     try { await Api.completeProfile({ name, ageConfirmed: true, termsAccepted: true, inviteToken: pendingInviteToken }); afterAuth(); }
     catch (e) { busy = false; fail(e); render(); }
   }
-  async function signOut() { try { if (window.MilaInstall) await MilaInstall.onSignOut(); await Api.signOut(); } catch (e) { /* ignore */ } stack = []; pendingInviteToken = null; clearInvite(); go('welcome', {}, { reset: true }); }
+  async function signOut() { lostOnce = true; try { if (window.MilaInstall) await MilaInstall.onSignOut(); await Api.signOut(); } catch (e) { /* ignore */ } stack = []; pendingInviteToken = null; clearInvite(); go('welcome', {}, { reset: true }); lostOnce = false; }
 
   /* ============================================================
      S03 — התחלת משחק
@@ -849,7 +850,8 @@ const App = (() => {
   }
   /* טוען תצוגה מקדימה של הזמנה (בענן – מהשרת) ואז מנווט */
   async function openInvite(token) {
-    try { const p = await Store().previewInvite(token); if (p && (p.ok === false || p.alreadyMember)) clearInvite(); go('invite', { token }); } catch (e) { fail(e); }
+    // ההזמנה השמורה מוצגת פעם אחת למשתמשת מחוברת, ואז נמחקת מהמכשיר (לא קופצת שוב בכל פתיחה; הקישור עצמו עדיין עובד)
+    try { await Store().previewInvite(token); clearInvite(); go('invite', { token }); } catch (e) { clearInvite(); fail(e); }
   }
 
   /* ============================================================
@@ -1766,7 +1768,7 @@ const App = (() => {
     const urlToken = params.get('invite'); if (urlToken) saveInvite(urlToken);
     const token = urlToken || savedInvite();
     const goUrl = params.get('go') ? location.href : null;
-    if (params.get('go') || params.get('source')) history.replaceState(null, '', location.pathname + (token ? `?invite=${encodeURIComponent(token)}` : ''));
+    if (params.get('go') || params.get('source')) history.replaceState(null, '', location.pathname + (urlToken ? `?invite=${encodeURIComponent(urlToken)}` : ''));
     if (window.MilaInstall) {
       if (MilaInstall.detect().standalone) Api.track('app_open');
       MilaInstall.onChange(() => { if (stack.length && !sheetOpen() && ['today', 'settings'].includes(current().name)) render({ keepSheet: true }); });
@@ -1787,8 +1789,11 @@ const App = (() => {
       const changed = JSON.stringify(Object.values(Mila.getState().obligations).map(o => o.status)) !== before || lastDay !== Mila.today(); lastDay = Mila.today();
       if (changed && TOP.includes(current().name) && !sheetOpen() && !busy) render();
     };
-    setInterval(dayTick, 60000);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible' || !stack.length) return; if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); dayTick(); if (Api.isCloud()) Api.sync().catch(() => {}); });
+    /* נפתחה מהעותק השמור (אין תשובה מהשרת בהפעלה): בודקות שוב כשחוזרים לאפליקציה ופעם בדקה, וטוענות מחדש כשהשרת עונה */
+    let probing = false;
+    const probe = () => { if (probing || !Api.enabled || Api.hasSession() || !(Mila.getState().meta || {}).offline) return; probing = true; Api.init().then(u => { if (u) location.reload(); }).catch(() => {}).finally(() => { probing = false; }); };
+    setInterval(() => { dayTick(); if (document.visibilityState === 'visible') probe(); }, 60000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible' || !stack.length) return; if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {}); dayTick(); probe(); if (Api.isCloud()) Api.sync().catch(() => {}); });
     window.addEventListener('online', () => { if (Api.isCloud()) Api.sync().then(() => toast('החיבור חזר. הכול מעודכן.', 'lime')).catch(() => {}); else if (Api.enabled && (Mila.getState().meta || {}).offline) location.reload(); });   // נפתחה בלי רשת מהעותק השמור: טוענות מחדש כשהרשת חוזרת
     Api.track('visit');
     if (urlToken) { history.replaceState(null, '', location.pathname); Api.trackInviteOpen(urlToken); Api.track('visit_invite'); }
@@ -1807,7 +1812,9 @@ const App = (() => {
         if (Api.isCloud()) {
           await Api.sync();
           Api.startAutoSync();
-          go('today', {}, { reset: true }); if (token) openInvite(token); else if (goUrl) routeFromUrl(goUrl);
+          go('today', {}, { reset: true });
+          // קישור הזמנה שנפתח עכשיו קודם; אחריו יעד של התראה; הזמנה שמורה מפעם קודמת רק אם אין יעד אחר
+          if (urlToken) openInvite(urlToken); else if (goUrl) routeFromUrl(goUrl); else if (token) openInvite(token);
           if (window.MilaInstall) MilaInstall.refreshPush();
           return;
         }
@@ -1824,7 +1831,6 @@ const App = (() => {
     else { go('today', {}, { reset: true }); if (token) openInvite(token); }
   }
   /* הכניסה פגה (401) באמצע שימוש: חוזרות למסך הפתיחה עם הסבר, במקום להמשיך ״לשמור״ לשום מקום */
-  let lostOnce = false;
   function authLost() {
     if (lostOnce) return; lostOnce = true;
     Api.stopAutoSync(); wiz = gwiz = cwiz = pick = inv = ob = null; busy = false;

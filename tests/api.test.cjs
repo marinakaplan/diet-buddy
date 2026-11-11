@@ -156,7 +156,8 @@ const invariants = async (c) => {
     let s = await A.state(); assert.strictEqual(s.users[s.me].settings.reminderTime, '07:05'); assert.strictEqual(s.users[s.me].settings.socialDigest, false);
     await A.ok('updateSettings', { patch: { reminderTime: '20:00', socialDigest: true } });
     await A.ok('rename', { name: '"><img src=x onerror=alert(1)>' }); s = await A.state();
-    assert.ok(!/[<>"']/.test(s.users[s.me].name), 'שם בלי תווי HTML: ' + s.users[s.me].name);
+    assert.ok(!/[<>]/.test(s.users[s.me].name), 'שם בלי סוגריים זוויתיים: ' + s.users[s.me].name);
+    await A.ok('rename', { name: "ג'ני" }); s = await A.state(); assert.strictEqual(s.users[s.me].name, "ג'ני", 'גרש בשם נשמר');
     await A.ok('rename', { name: 'יעל' });
     await A.fail('rename', { name: '<<<>>>' }, 'VALIDATION');
     await A.fail('createInvite', {}, 'FORBIDDEN');

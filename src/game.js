@@ -3,7 +3,7 @@
    תקרת 3 ביום נבדקת כאן ונאכפת שוב בטריגר בתוך אותו batch. */
 import '../public/js/library.js';   // קובע globalThis.MilaLibrary (UMD; הקובץ משותף עם הדפדפן)
 const MilaLibrary = globalThis.MilaLibrary;
-import { err, uid, nowISO, localDate, addDays, diffDays, isValidDate, windowOf, ROUND_DAYS, DAILY_CAP, MAX_EXCUSES, CORRECTION_MS, sha256hex, inviteCode, cleanName } from './util.js';
+import { err, uid, nowISO, localDate, addDays, diffDays, isValidDate, windowOf, ROUND_DAYS, DAILY_CAP, MAX_EXCUSES, CORRECTION_MS, GRACE_HOUR, sha256hex, inviteCode, cleanName } from './util.js';
 
 const ACH = {
   first_word: ['נתתי מילה', 'בחרת את האתגר הראשון שלך'],
@@ -308,17 +308,30 @@ export async function settle(env, user) {
 }
 
 /* Cron: סגירת ימים שלא דווחו אצל כל המשתמשות, כדי שהדירוג בקבוצה יהיה הוגן גם כשמישהי לא פותחת את האפליקציה.
-   שאילתה אחת + batch אחד; עד limit ימים בכל ריצה (השאר בריצה הבאה, 5 דקות אחר כך). */
+   השאילתה מחזירה רק ימים שכבר אפשר לסגור (לפי אזור הזמן של כל התחייבות), כך שריצה בלי מה לסגור כמעט לא עולה כלום:
+   אינדקס חלקי על ימים פתוחים (מיגרציה 0007), רשימת אזורי הזמן נשמרת בזיכרון לחצי שעה, ועד limit ימים בכל ריצה. */
+let tzCache = { at: 0, list: [] };
 export async function settleAll(env, now = new Date(), limit = 60) {
-  const maxDate = addDays(localDate('UTC', now), -1) > addDays(localDate('Pacific/Kiritimati', now), -1) ? addDays(localDate('UTC', now), -1) : addDays(localDate('Pacific/Kiritimati', now), -1);
+  if (now.getTime() - tzCache.at > 30 * 60000 || !tzCache.list.length) {
+    tzCache = { at: now.getTime(), list: (await all(env, `select distinct timezone from word_commitments where status = 'active'`)).map(r => r.timezone).filter(Boolean).slice(0, 40) };
+  }
+  if (!tzCache.list.length) return { closed: 0 };
+  // יום D נסגר ב-10:00 של D+1 באזור הזמן שלו ⇒ נסגרו כל הימים עד (התאריך המקומי לפני GRACE_HOUR שעות) פחות יום
+  const cutoff = (tz) => addDays(localDate(tz, new Date(now.getTime() - GRACE_HOUR * 3600000)), -1);
+  const conds = tzCache.list.map(() => '(k.timezone = ? and o.local_date <= ?)').join(' or ');
+  const binds = tzCache.list.flatMap(tz => [tz, cutoff(tz)]);
+  // אזור זמן שעוד לא ברשימה: כל מה שנסגר בוודאות בכל מקום בעולם (לפני 46 שעות ומעלה)
+  const anywhere = addDays(localDate('UTC', new Date(now.getTime() - 22 * 3600000)), -1);
   const rows = await all(env, `select o.id, o.status, o.user_id, o.local_date, k.timezone, d.id as def_id, d.circle_id, d.visibility, d.title
     from daily_obligations o join word_commitments k on k.id = o.commitment_id join word_definitions d on d.id = k.definition_id
-    where o.outcome is null and o.status in ('scheduled','open') and k.status = 'active' and o.local_date <= ? order by o.local_date limit ?`, maxDate, limit);
-  const stmts = []; let n = 0;
+    where o.outcome is null and o.status in ('scheduled','open') and k.status = 'active' and (${conds} or o.local_date <= ?) order by o.local_date limit ?`, ...binds, anywhere, limit);
+  const stmts = []; let n = 0; const closesAt = new Map();
   for (const o of rows) {
-    const w = windowOf(o.local_date, o.timezone);
-    if (now < w.closes) continue;
-    stmts.push(...resolveStmts(env, o, { id: o.def_id, circle_id: o.circle_id, visibility: o.visibility, title: o.title }, 'miss', 'auto_unreported', null, w.closes.toISOString(), null)); n++;
+    const key = o.local_date + '|' + o.timezone;
+    if (!closesAt.has(key)) closesAt.set(key, windowOf(o.local_date, o.timezone).closes);   // חישוב אזור זמן יקר: פעם אחת לכל תאריך ואזור
+    const closes = closesAt.get(key);
+    if (now < closes) continue;
+    stmts.push(...resolveStmts(env, o, { id: o.def_id, circle_id: o.circle_id, visibility: o.visibility, title: o.title }, 'miss', 'auto_unreported', null, closes.toISOString(), null)); n++;
   }
   if (stmts.length) { try { await runBatch(env, stmts); } catch (e) { if (e.code !== 'CONFLICT') throw e; n = 0; } }
   return { closed: n };
@@ -525,6 +538,8 @@ export async function updateSettings(env, user, b) {
 }
 export async function rename(env, user, b) { const n = cleanName(b.name); if (!n || n.length > 30) throw err('VALIDATION', 'שם לא תקין'); await S(env, `update users set display_name = ? where id = ?`, n, user.id).run(); }
 export async function deleteAccount(env, user) {
+  // כל הקבוצות שהייתה בהן אי פעם: רק שם יש עדכונים שמזכירים אותה בשם
+  const everCircles = (await all(env, `select distinct circle_id from circle_memberships where user_id = ?`, user.id)).map(r => r.circle_id).slice(0, 40);
   for (const cid of await myCircleIds(env, user.id)) await leaveCircle(env, user, { circleId: cid });
   const likeName = String(user.display_name || '').replace(/[\\%_]/g, '\\$&') + ' %';
   // הפרופיל הופך לאנונימי וכל טקסט חופשי שהיא כתבה נמחק; הספירות ההיסטוריות (נקודות, ימים) נשארות אנונימיות
@@ -540,7 +555,7 @@ export async function deleteAccount(env, user) {
     S(env, `update users set display_name = 'משתתפת שעזבה', email = null, google_sub = null, color = 'sky', status = 'deleted', settings = '{}', timezone = 'Asia/Jerusalem', invited_by = null, invited_via = null, last_seen_at = null, is_admin = 0, age_confirmed = 0, terms_accepted_at = null where id = ?`, user.id),
     S(env, `delete from sessions where user_id = ?`, user.id), S(env, `delete from notifications where user_id = ?`, user.id),
     // עדכונים אצל חברות שמזכירים אותה בשם (״X עקפה אותך״) נמחקים גם הם
-    S(env, `delete from notifications where (title like ? escape '\\' or body like ? escape '\\') and user_id <> ?`, likeName, likeName, user.id),
+    ...(everCircles.length ? [S(env, `delete from notifications where (title like ? escape '\\' or body like ? escape '\\') and user_id <> ? and user_id in (select user_id from circle_memberships where circle_id in (${everCircles.map(() => '?').join(',')}))`, likeName, likeName, user.id, ...everCircles)] : []),
     S(env, `delete from user_blocks where blocker_id = ? or blocked_id = ?`, user.id, user.id),
     S(env, `delete from push_subscriptions where user_id = ?`, user.id),
     S(env, `delete from encouragements where user_id = ?`, user.id),

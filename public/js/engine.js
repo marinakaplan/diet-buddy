@@ -338,7 +338,7 @@ const Mila = (() => {
   }
 
   /* יצירת מילה אישית (ואופציונלית – חשיפה לקבוצה אחד) */
-  function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, visibility = 'private', libraryId = null, reward = '', rewardShared = false, shareSensitive = false }) {
+  function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, visibility = circleId ? 'status' : 'private', libraryId = null, reward = '', rewardShared = false, shareSensitive = false }) {
     let lib = null, category = null, sensitive = false;
     if (libraryId) {
       lib = LIB.get(libraryId);

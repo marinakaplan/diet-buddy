@@ -79,5 +79,5 @@ export function cookie(name, value, { maxAge, path = '/', httpOnly = true, secur
   return s;
 }
 
-/* שם תצוגה: טקסט פשוט בלבד (בלי תווי HTML ובלי תווי בקרה) */
-export const cleanName = (s) => String(s || '').replace(/[<>"'`&\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim();
+/* שם תצוגה: טקסט פשוט בלבד (בלי סוגריים זוויתיים, תווי בקרה ותווי כיווניות) */
+export const cleanName = (s) => String(s || '').replace(/[<>\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim();   // גרש ומירכאות נשארים (ג'ני, D'Angelo); הלקוח עושה escape בכל מקום
