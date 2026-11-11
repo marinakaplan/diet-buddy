@@ -1075,3 +1075,6 @@ html { overscroll-behavior-y: contain; }   /* בלי הרענון המובנה �
 .created-note .seats { margin: 10px 0 0; }
 .sheet-hero .seats { justify-content: center; margin-top: 14px; }
 @keyframes seat-in { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+
+/* ---------- סגירת חלונית ב-X (במקום כפתור טקסט בתחתית) ---------- */
+#sheet .sheet-x { position: absolute; top: 8px; inset-inline-end: 10px; z-index: 2; color: var(--ink-2); }

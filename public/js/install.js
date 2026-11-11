@@ -94,7 +94,21 @@
     if (sub) { try { await Api.call('push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } }); } catch (e) { } try { await sub.unsubscribe(); } catch (e) { } }
     pushState = { checked: true, on: false }; changed();
   }
-  async function testPush() { const sub = await subscription(); if (!sub) throw Object.assign(new Error('no'), { userMessage: 'ההתראות לא פעילות במכשיר הזה' }); return Api.call('push/test', { method: 'POST', body: { endpoint: sub.endpoint } }); }
+  async function testPush() {
+    const none = () => Object.assign(new Error('no'), { userMessage: 'ההתראות לא פעילות במכשיר הזה. כבי והפעילי אותן מחדש.' });
+    const send = (s) => Api.call('push/test', { method: 'POST', body: { endpoint: s.endpoint } });
+    let sub = await subscription();
+    if (!sub) { if (permission() !== 'granted') throw none(); await enablePush(); sub = await subscription(); if (!sub) throw none(); }   // יש הרשאה אבל המינוי נעלם: יוצרות אותו מחדש
+    try { return await send(sub); }
+    catch (e) {
+      if (e.code === 'NOT_SUBSCRIBED') { await save(sub); return send(sub); }   // השרת לא מכיר את המכשיר: רושמות אותו ושולחות
+      if (!e.gone) throw e;
+      // שירות ההתראות דחה את המינוי של המכשיר: יוצרות מינוי חדש ומנסות פעם אחת
+      try { await sub.unsubscribe(); } catch (x) { /* ignore */ }
+      await enablePush(); sub = await subscription(); if (!sub) throw e;
+      return send(sub);
+    }
+  }
   /* ביציאה מהחשבון: המכשיר מפסיק לקבל התראות של החשבון הזה */
   async function onSignOut() { try { const sub = await subscription(); if (sub) { await Api.call('push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } }).catch(() => {}); await sub.unsubscribe(); } } catch (e) { } pushState = { checked: true, on: false }; }
 

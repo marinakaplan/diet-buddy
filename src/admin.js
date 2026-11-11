@@ -216,6 +216,8 @@ export async function adminStats(env, daysParam) {
   // מסכי שגיאה שמכשירים ראו (מכשיר ייחודי ליום לכל סוג)
   const errRows = await many(`select name, count(*) as n from track_events where name like 'err:%' and day between ? and ? group by name`, start, today);
   app.errors = ['server', 'quota', 'crash', 'notfound'].map(k2 => ({ kind: k2, n: Number((errRows.find(r => r.name === `err:${k2}`) || {}).n || 0) }));
+  // למה שליחת התראה נכשלה (שירות:קוד:סיבה), כפי שענה שירות ההתראות
+  app.pushErrors = (await many(`select name, count(*) as n from track_events where name like 'pusherr:%' and day between ? and ? group by name order by n desc limit 8`, start, today)).map(r => ({ why: r.name.slice(8), n: Number(r.n) }));
   // גיל: התחום שמגיל 18 (תאריך הלידה עצמו לא נשמר)
   const ageRow = await one(`select sum(adult_from is not null and adult_from <= ?) as adults, sum(adult_from > ?) as minors, sum(adult_from is null) as unknown from users where status = 'active'`, today, today);
   const age = { adults: ageRow.adults || 0, minors: ageRow.minors || 0, unknown: ageRow.unknown || 0 };

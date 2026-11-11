@@ -70,14 +70,24 @@ export async function encryptPayload(p256dh, authSecret, payload) {
    כדי שמי שקוראת תריץ את כל העדכונים ב-batch אחד (פחות פניות ל-D1 בכל ריצת cron). 404/410 = המינוי כבר לא קיים → נמחק. */
 async function sendOne(env, sub, msg, { ttl = 6 * 3600, urgency = 'normal' } = {}) {
   const D = (sql, ...b) => env.DB.prepare(sql).bind(...b);
+  let why = '', note = null;   // מה ענה שירות ההתראות כשהשליחה נכשלה
+  /* סיבת הכישלון נרשמת כאירוע מעקב (שירות, קוד, סיבה; בלי כתובת המכשיר), כדי שאפשר יהיה לראות באנליטיקה למה התראות לא מגיעות */
+  const failNote = (s, status, text) => {
+    const host = new URL(s.endpoint).host; const svc = /apple/.test(host) ? 'apple' : /google/.test(host) ? 'fcm' : /mozilla/.test(host) ? 'mozilla' : /windows/.test(host) ? 'windows' : 'other';
+    let reason = ''; try { reason = String(JSON.parse(text).reason || ''); } catch { reason = text; }
+    reason = reason.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+    return D(`insert or ignore into track_events(day, name, visitor_id) values (?, ?, ?)`, localDate('Asia/Jerusalem'), `pusherr:${svc}:${status}${reason ? ':' + reason : ''}`, `${String(s.platform || 'x').slice(0, 20)}-${String(s.user_id).slice(0, 8)}`);
+  };
   try {
     const body = await encryptPayload(sub.p256dh, sub.auth, JSON.stringify(msg));
     const res = await fetch(sub.endpoint, { method: 'POST', body, headers: { authorization: await vapidHeader(env, sub.endpoint), 'content-encoding': 'aes128gcm', 'content-type': 'application/octet-stream', ttl: String(ttl), urgency, ...(msg.tag ? { topic: String(msg.tag).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32) } : {}) } });
-    if (res.status === 404 || res.status === 410) return { r: 'gone', stmts: [D(`delete from push_subscriptions where endpoint = ?`, sub.endpoint)] };
     if (res.ok) return { r: 'ok', stmts: [D(`update push_subscriptions set last_ok_at = ?, fails = 0 where endpoint = ?`, nowISO(), sub.endpoint)] };
-    console.warn('push', res.status, new URL(sub.endpoint).host, (await res.text()).slice(0, 200));
-  } catch (e) { console.warn('push error', String(e && e.message || e)); }
-  return { r: 'fail', stmts: [D(`update push_subscriptions set fails = fails + 1 where endpoint = ?`, sub.endpoint), D(`delete from push_subscriptions where endpoint = ? and fails >= 20`, sub.endpoint)] };
+    const text = (await res.text()).replace(/\s+/g, ' ').slice(0, 160);
+    why = `${res.status} ${text}`; note = failNote(sub, res.status, text);
+    console.warn('push', new URL(sub.endpoint).host, why);
+    if (res.status === 404 || res.status === 410) return { r: 'gone', why, stmts: [D(`delete from push_subscriptions where endpoint = ?`, sub.endpoint), note] };
+  } catch (e) { why = `error ${String(e && e.message || e).slice(0, 160)}`; note = failNote(sub, 0, 'fetch'); console.warn('push error', why); }
+  return { r: 'fail', why, stmts: [note, D(`update push_subscriptions set fails = fails + 1 where endpoint = ?`, sub.endpoint), D(`delete from push_subscriptions where endpoint = ? and fails >= 20`, sub.endpoint)] };
 }
 async function flush(env, stmts) { if (stmts.length) { try { await env.DB.batch(stmts); } catch (e) { console.warn('push bookkeeping', String(e && e.message || e)); } } }
 
@@ -130,9 +140,9 @@ export async function test(env, user, b) {
   if (!sub) throw err('NOT_SUBSCRIBED', 'ההתראות לא פעילות במכשיר הזה');
   if (sub.last_social_at && Date.now() - sub.last_social_at < 20000) throw err('SLOW_DOWN', 'רגע, עוד אחת כבר בדרך');
   await env.DB.prepare(`update push_subscriptions set last_social_at = ? where endpoint = ?`).bind(Date.now(), sub.endpoint).run();
-  const { r, stmts } = await sendOne(env, sub, { title: 'ככה זה ייראה 🙂', body: 'מילה תזכיר לך לדווח, ותגיד כשמישהי עוקפת אותך.', url: '/?go=today', tag: 'test' }, { ttl: 300, urgency: 'high' });
+  const { r, why, stmts } = await sendOne(env, sub, { title: 'ככה זה ייראה 🙂', body: 'מילה תזכיר לך לדווח, ותגיד כשמישהי עוקפת אותך.', url: '/?go=today', tag: 'test' }, { ttl: 300, urgency: 'high' });
   await flush(env, stmts);
-  if (r !== 'ok') throw err('PUSH_FAILED', r === 'gone' ? 'המכשיר ביטל את ההתראות. צריך להפעיל מחדש.' : 'השליחה לא הצליחה. נסי שוב בעוד רגע.');
+  if (r !== 'ok') throw err('PUSH_FAILED', r === 'gone' ? 'המכשיר ביטל את ההתראות. צריך להפעיל מחדש.' : 'השליחה לא הצליחה. נסי שוב בעוד רגע.', 400, { gone: r === 'gone', detail: why || undefined });
   return { ok: true };
 }
 

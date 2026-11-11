@@ -1545,11 +1545,10 @@ const App = (() => {
     const head = g.kind === 'installed'
       ? `<div class="inst-head"><img class="inst-icon" src="/icons/icon-192.png" alt=""><div><div class="sheet-title">מילה כבר על המסך הראשי 🎉</div><div class="sheet-sub">נפתחת כמו אפליקציה. עכשיו רק לוודא שהיא מזכירה לך.</div></div></div>`
       : `<div class="inst-head"><img class="inst-icon" src="/icons/icon-192.png" alt=""><div><div class="sheet-title">${intro || esc(g.title)}</div><div class="sheet-sub">${esc(g.sub || '')}</div></div></div>`;
-    sheet(`<div class="inst">${head}
+    sheet(`<button class="icon-btn sheet-x" aria-label="סגירה" onclick="App.closeSheet()">${icon('x', 22)}</button><div class="inst">${head}
       ${g.prompt ? `<button class="btn primary inst-go" onclick="App.installNow()">${I().G.install} התקנה בלחיצה</button><div class="inst-or">או ידנית</div>` : ''}
       ${steps}${extra}
       ${d.pushNeedsInstall && g.kind !== 'installed' ? '' : pushBlock(d)}
-      <button class="btn text mt" onclick="App.closeSheet()">${g.kind === 'installed' ? 'סגירה' : 'אחר כך'}</button>
       ${g.arrow ? '<div class="inst-arrow" aria-hidden="true"><span>כפתור השיתוף בשורה התחתונה</span><i>↓</i></div>' : ''}</div>`);
   }
   function pushBlock(d) {
@@ -1561,7 +1560,7 @@ const App = (() => {
     const perm = I().permission();
     if (perm === 'denied') return box('pink', 'ההתראות חסומות במכשיר הזה', 'ככה פותחת אותן:', `<ol class="inst-steps sm">${I().unblockSteps(d).map((x, i) => `<li><span class="n">${i + 1}</span><span class="g">${x.glyph}</span><div><div class="t">${x.title}</div></div></li>`).join('')}</ol>`);
     const rt = (Mila.me() && Mila.me().settings.reminderTime) || '20:00';
-    if (I().pushOn) return box('lime', 'התראות פעילות ✓', `תזכורת ב-${esc(rt)} אם עוד לא דיווחת. ועדכון כשמישהי עוקפת אותך.`, `<div class="btn-row"><button class="btn soft sm" onclick="App.pushTest()">שליחת התראת בדיקה</button><button class="btn text sm" onclick="App.pushOff()">כיבוי</button></div>`);
+    if (I().pushOn) return box('lime', 'התראות פעילות ✓', `תזכורת ב-${esc(rt)} אם עוד לא דיווחת. ועדכון כשמישהי עוקפת אותך.`, `<div class="btn-row"><button class="btn soft sm" id="push-test" onclick="App.pushTest()">שליחת התראת בדיקה</button><button class="btn text sm" onclick="App.pushOff()">כיבוי התראות</button></div>`);
     return box('lime', 'שמילה תזכיר לך?', `ב-${esc(rt)}, רק אם עוד לא דיווחת. ותגיד כשמישהי עוקפת אותך.`, `<button class="btn dark" onclick="App.pushEnable()">${icon('bell', 18)} להפעיל התראות</button>`);
   }
   async function installNow() { const r = await I().prompt(); if (r === 'accepted') { closeSheet(); toast('מילה על המסך הראשי 🎉', 'lime'); } else if (r === 'none') installSheet({ os: instOs }); }
@@ -1571,7 +1570,13 @@ const App = (() => {
     if (sheetOpen()) installSheet({ os: instOs }); else render();
   }
   async function pushOff() { await I().disablePush(); toast('ההתראות כבויות במכשיר הזה'); if (sheetOpen()) installSheet({ os: instOs }); else render(); }
-  async function pushTest() { try { await I().testPush(); toast('נשלחה. תוך כמה שניות.', 'lime'); } catch (e) { fail(e); } }
+  let pushTesting = false;
+  async function pushTest() {
+    if (pushTesting) return; pushTesting = true;
+    const b = $('#push-test'); if (b) { b.disabled = true; b.textContent = 'שולחת…'; }   // תגובה מיידית ללחיצה
+    try { await I().testPush(); toast('נשלחה. תגיע תוך כמה שניות.', 'lime'); } catch (e) { fail(e); }
+    pushTesting = false; const b2 = $('#push-test'); if (b2) { b2.disabled = false; b2.textContent = 'שליחת התראת בדיקה'; }
+  }
   async function shareLink() { const url = location.origin + '/'; try { if (navigator.share) { await navigator.share({ title: 'מילה', text: 'כולנו מבטיחות. בואי נראה מי מקיימת.', url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; } copyText(url); }
   /* תמונת סטורי לשיתוף (וואטסאפ/אינסטגרם) עם הקישור */
   async function shareStory() {
@@ -1904,6 +1909,7 @@ const App = (() => {
           ${adTile('הפעילו התראות', adN(a.pushOn))}
           ${adTile('חסמו התראות', adN(a.pushDenied))}
         </div>
+        ${(a.pushErrors || []).length ? `<div class="card tight"><div class="card-title">למה שליחות נכשלו</div><div class="tiny muted mb">מה ענה שירות ההתראות: שירות, קוד וסיבה.</div>${adHBars('pusherrs', a.pushErrors.map(x => ({ label: x.why, n: x.n })), { color: AD_C.orange })}</div>` : ''}
         ${a.platforms.length ? `<div class="card tight"><div class="card-title">לפי סוג מכשיר</div>${adHBars('pushplat', a.platforms.map(x => ({ label: x.platform, n: x.n })), { color: AD_C.teal })}</div>` : ''}
         ${adSec('תקלות שמשתמשות ראו', `מסכי שגיאה ב${per} (מכשיר נספר פעם ביום לכל סוג). ״אין חיבור״ לא נספר, כי בלי רשת אי אפשר לדווח עליו.`)}
         <div class="card">${(a.errors || []).some(x => x.n) ? adHBars('errs', (a.errors || []).map(x => ({ label: { server: 'תקלה בשרת', quota: 'המכסה היומית נגמרה', crash: 'מסך שנתקע', notfound: 'מסך לא קיים' }[x.kind], n: x.n })), { color: AD_C.orange }) : '<div class="small muted">לא נראו תקלות בתקופה.</div>'}</div>`;

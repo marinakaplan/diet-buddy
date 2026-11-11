@@ -28,6 +28,7 @@ const Api = (() => {
       const err = new Error((data && data.error) || `HTTP ${res.status}`);
       err.code = data && data.error; err.userMessage = (data && data.hint) || 'משהו השתבש. נסי שוב.'; err.status = res.status;
       if (data && data.cap) err.cap = data.cap;
+      if (data && data.gone) err.gone = true;
       if (res.status === 401 && me) { me = null; stopAutoSync(); try { localStorage.removeItem('mila.cache'); } catch (e) { /* ignore */ } notify(); }   // הכניסה פגה: האפליקציה חוזרת למסך הפתיחה (app.js → authLost)
       throw err;
     }
