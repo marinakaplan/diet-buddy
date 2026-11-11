@@ -428,7 +428,7 @@ export async function acceptInvite(env, user, b) {
       S(env, `update circle_invites set uses = uses + 1 where token_hash = ? and ${joined}`, hash),
       S(env, `update circle_memberships set via_invite = ? where circle_id = ? and user_id = ? and left_at is null and via_invite is null`, hash, cid, user.id),
       S(env, `update users set invited_by = ?, invited_via = ? where id = ? and invited_by is null and id <> ? and ${joined}`, p.inviter.id, hash, user.id, p.inviter.id),
-      S(env, `insert into social_events(id, circle_id, actor_id, type, payload) select ?, ?, ?, 'member_joined', '{}' where ${joined}`, uid(), cid, user.id), ...grantStmts(env, user.id, 'first_circle', cid),
+      S(env, `insert into social_events(id, circle_id, actor_id, type, payload) select ?, ?, ?, 'member_joined', ? where ${joined}`, uid(), cid, user.id, JSON.stringify({ inviterId: p.inviter.id })), ...grantStmts(env, user.id, 'first_circle', cid),
       // ההזמנה עבדה: עדכון למי ששלחה אותה
       S(env, `insert or ignore into notifications(id, user_id, type, title, body, ref, dedupe_key) select ?, ?, 'invite', ?, 'ההזמנה שלך עבדה.', ?, ? where ${joined}`, uid(), p.inviter.id, `${user.display_name} הצטרפה ל${p.circle.name} 🎉`, JSON.stringify({ circleId: cid }), `invite|${user.id}|${cid}|${localDate(user.timezone)}`),
     ]);
@@ -567,6 +567,21 @@ export async function exportData(env, user) {
     all(env, `select * from word_commitments where user_id = ?`, user.id), all(env, `select * from daily_obligations where user_id = ?`, user.id),
     all(env, `select * from virtual_ledger where user_id = ?`, user.id), all(env, `select * from achievements where user_id = ?`, user.id)]);
   return { user: { id: user.id, name: user.display_name, email: user.email, timezone: user.timezone, createdAt: user.created_at }, commitments, obligations, ledger, achievements };
+}
+
+/* הצצה להזמנה לפני הכניסה: מי מזמינה (שם פרטי בלבד), לאיזו קבוצה ומה היא כתבה.
+   ציבורי ובלי כתיבה למסד; מוגבל בקצב לפי IP (index.js), והקוד עצמו הוא 6 תווים אקראיים (כמיליארד אפשרויות). */
+export async function peekInvite(env, tokenRaw) {
+  const tok = String(tokenRaw || '').toUpperCase().trim();
+  if (!/^[A-Z0-9]{6}$/.test(tok)) return { ok: false };
+  const r = await first(env, `select i.kind, i.message, i.library_id, i.word_title, i.status, i.expires_at, i.uses, i.max_uses,
+      c.name as circle_name, c.status as circle_status, c.max_members, u.display_name, u.color, u.status as user_status,
+      (select count(*) from circle_memberships m where m.circle_id = i.circle_id and m.left_at is null) as members
+    from circle_invites i join circles c on c.id = i.circle_id join users u on u.id = i.inviter_id where i.token_hash = ?`, await sha256hex(tok));
+  if (!r || r.status !== 'active' || r.expires_at < nowISO() || r.uses >= r.max_uses || r.circle_status !== 'active' || r.user_status !== 'active') return { ok: false };
+  const lib = r.library_id ? MilaLibrary.get(r.library_id) : null;
+  return { ok: true, kind: INVITE_KINDS.has(r.kind) ? r.kind : 'follow', message: r.message || '', wordTitle: r.word_title || (lib ? lib.title : ''),
+    inviter: { name: String(r.display_name || '').split(' ')[0], color: r.color }, circleName: r.circle_name, members: r.members, full: r.members >= r.max_members };
 }
 
 /* פתיחת קישור הזמנה (גם בלי חשבון): מבקרת ייחודית לכל קישור. 2 קריאות, כתיבה אחת לכל היותר. */

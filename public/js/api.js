@@ -61,6 +61,8 @@ const Api = (() => {
   /* מבקרת אנונימית (לספירת פתיחות קישור הזמנה ייחודיות) */
   function visitorId() { try { let v = localStorage.getItem('mila.visitor'); if (!v) { v = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).toLowerCase(); localStorage.setItem('mila.visitor', v); } return v; } catch (e) { return 'anon-' + Math.random().toString(36).slice(2, 12); } }
   function trackInviteOpen(token) { if (!enabled || !token) return; if (window.MilaA11y && MilaA11y.consent() === 'essential') return; call('invite/open', { method: 'POST', body: { token, visitor: visitorId() } }).catch(() => {}); }
+  /* מי מזמינה ולאיזו קבוצה — לפני הכניסה (ציבורי, קריאה בלבד) */
+  const peekInvite = (token) => (enabled && token ? call(`invite/peek?token=${encodeURIComponent(token)}`) : Promise.resolve({ ok: false }));
   const adminStats = (days = 30) => call(`admin/stats?days=${days}`);
   /* מעקב זול: כל אירוע נשלח לכל היותר פעם ביום מכל מכשיר */
   function track(name) {
@@ -138,5 +140,5 @@ const Api = (() => {
     exportData: () => action('exportData'),
   };
 
-  return { enabled, init, isCloud, hasSession, userId, googleUrl, completeProfile, signOut, sync, trackInviteOpen, adminStats, track, loadCache, onSync, startAutoSync, stopAutoSync, cloud, call, get me() { return me; }, get config() { return config; } };
+  return { enabled, init, isCloud, hasSession, userId, googleUrl, completeProfile, signOut, sync, trackInviteOpen, peekInvite, adminStats, track, loadCache, onSync, startAutoSync, stopAutoSync, cloud, call, get me() { return me; }, get config() { return config; } };
 })();

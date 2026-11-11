@@ -71,8 +71,9 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
 
   console.log('3. ב פותחת את הקישור בטלפון שלה, נרשמת, רואה תצוגה מקדימה ומצטרפת');
   await signUpViaUi(b, B, `${BASE}/?invite=${token}`);
-  await b.page.waitForSelector('text=תראי אם אני עומדת במילה שלי', { timeout: 20000 });
-  await b.page.waitForSelector('text=מה קורה כשלוחצים', { timeout: 10000 });
+  await b.page.waitForSelector('.inv-screen', { timeout: 20000 });
+  assert.ok(/מזמינה אותך/.test(await b.page.innerText('.inv-screen')), 'מסך ההצטרפות מראה מי מזמינה');
+  await b.page.waitForSelector('text=בלי התחייבות מצדך', { timeout: 10000 });
   await shot(b, '04-b-invite-preview');
   await b.page.click('#screen button.btn.primary:has-text("אני בפנים")');
   await b.page.waitForSelector('text=מי מובילה?', { timeout: 20000 });

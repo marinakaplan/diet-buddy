@@ -969,3 +969,16 @@ body:has(#sheet.open) #a11y-btn { display: none; }
 
 /* רעיונות לאתגר: סגורים כברירת מחדל, נפתחים בלחיצה */
 .ideas-open { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 14px; padding-inline: 0; }
+
+/* ״יעל מזמינה אותך״: במסך הפתיחה (לפני הכניסה) ובמסך ההצטרפות */
+.w2-brand-sm { display: inline-flex; align-items: center; gap: 8px; font-size: 1.1rem; margin-bottom: 22px; }
+.w2-invite, .inv-screen { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; width: 100%; }
+.inv-screen { padding: 8px 0 16px; }
+.w2-invite { animation: w2up .6s cubic-bezier(.2, .8, .2, 1) .15s both; }
+.inv-h { margin: 12px 0 0; font-size: 1.9rem; font-weight: 800; line-height: 1.15; letter-spacing: -.02em; }
+.inv-h b { background: linear-gradient(var(--lime), var(--lime)) no-repeat 100% 92% / 100% 40%; padding: 0 2px; }
+.inv-g { font-size: 1.02rem; font-weight: 600; color: var(--ink-2); }
+.inv-bubble { position: relative; margin-top: 14px; max-width: 100%; padding: 12px 16px; background: var(--card); border: 1px solid var(--line-2); font-size: 1.05rem; line-height: 1.5; text-align: start; overflow-wrap: anywhere; }
+.inv-what { margin-top: 10px; font-size: .92rem; color: var(--ink-2); }
+@media (prefers-reduced-motion: reduce) { .w2-invite { animation-name: w2fade !important; } }
+@media (max-height: 700px) { .inv-h { font-size: 1.6rem; } }

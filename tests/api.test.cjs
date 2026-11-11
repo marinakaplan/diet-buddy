@@ -239,11 +239,20 @@ const invariants = async (c) => {
     assert.notStrictEqual((await C.req('/api/ping')).data.v, v1, 'אירוע חדש משנה חותמת');
     const t = (await C.ok('createInvite', { circleId: c2, kind: 'follow' })).token;
     const anon = new Client('anon');
+    // הצצה להזמנה בלי חשבון: שם פרטי של המזמינה, שם הקבוצה וההודעה; בלי מזהים, בלי אימייל
+    const tMsg = (await C.ok('createInvite', { circleId: c2, kind: 'same', libraryId: 'food_no_delivery', message: 'בואי איתי' })).token;
+    const peek = (await anon.req(`/api/invite/peek?token=${tMsg}`)).data;
+    assert.strictEqual(peek.ok, true); assert.strictEqual(peek.inviter.name, 'דנה'); assert.strictEqual(peek.circleName, 'ליגה'); assert.strictEqual(peek.message, 'בואי איתי'); assert.strictEqual(peek.kind, 'same'); assert.strictEqual(peek.wordTitle, 'בלי להזמין אוכל');
+    assert.ok(!JSON.stringify(peek).includes('@') && !peek.inviter.id && !peek.circleId, 'בלי מזהים ובלי אימייל');
+    assert.strictEqual((await anon.req('/api/invite/peek?token=ZZZZZZ')).data.ok, false);
+    assert.strictEqual((await anon.req('/api/invite/peek?token=' + encodeURIComponent("' or 1=1"))).data.ok, false);
     for (let i = 0; i < 3; i++) assert.strictEqual((await anon.req('/api/invite/open', { method: 'POST', body: { token: t, visitor: `visitor-${stamp}` } })).data.ok, true);
     assert.strictEqual((await anon.req('/api/invite/open', { method: 'POST', body: { token: 'ZZZZZZ', visitor: `visitor-${stamp}` } })).data.ok, false);
     const F = new Client('F'); await F.login(`f.${stamp}@test.mila`, 'שירה');
     await F.req('/api/profile', { method: 'POST', body: { name: 'שירה', ageConfirmed: true, termsAccepted: true, timezone: 'Asia/Jerusalem', inviteToken: t } });
     await F.ok('acceptInvite', { token: t });
+    const joined = (await C.state()).socialEvents.find(e => e.type === 'member_joined' && e.actorId === (F.uid || (F.uid = null)) ) || (await C.state()).socialEvents.filter(e => e.type === 'member_joined').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    assert.strictEqual(joined.payload.inviterId, (await C.state()).me, 'אירוע ההצטרפות זוכר מי הזמינה');
     const r = await C.req('/api/admin/stats'); assert.strictEqual(r.status, 403, 'פאנל ניהול רק למנהלת מערכת');
   });
   await test('קבוצות: מנהלת נוספת, הסרה עוצרת אתגרים, סגירת קבוצה (רק מנהלת) מוציאה את כולן ושומרת נקודות', async () => {

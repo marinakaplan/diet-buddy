@@ -51,17 +51,21 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
 
   await test('קישור הזמנה שורד רענון של הדף לפני הכניסה, והחברה החדשה מגיעה למסך ההצטרפות', async () => {
     token = await A.page.evaluate(async (id) => (await Api.cloud.createInvite(id, { kind: 'follow', message: 'בואי' })).token, circleId);
-    await B.page.goto(`${BASE}/?invite=${token}`); await B.page.waitForSelector('.w2-inv');
-    await B.page.reload(); await B.page.waitForSelector('.w2-inv');   // הכתובת כבר בלי ?invite=, ועדיין זוכרות
+    await B.page.goto(`${BASE}/?invite=${token}`); await B.page.waitForSelector('.w2-invite');
+    let txt = await B.page.innerText('.w2-invite'); assert.ok(/מיכל מזמינה אותך/.test(txt) && /הקבוצה של מיכל/.test(txt) && /בואי/.test(txt), 'לפני הכניסה רואים מי מזמינה, לאיזו קבוצה ומה כתבה: ' + txt.replace(/\s+/g, ' '));
+    await B.page.reload(); await B.page.waitForSelector('.w2-invite');   // הכתובת כבר בלי ?invite=, ועדיין זוכרות
     await login(B.page, `reg.b.${stamp}@test.mila`, 'שני'); await B.page.reload();
-    await B.page.waitForSelector('#pf-name'); await B.page.click('.ob-agree'); await B.page.click('#pf-go');
-    await B.page.waitForSelector('text=באה איתי', { timeout: 20000 }).catch(() => {});
-    await B.page.waitForFunction(() => /מצטרפת|אני בפנים|הצטרפות/.test(document.querySelector('#screen').innerText), null, { timeout: 20000 });
+    await B.page.waitForSelector('#pf-name'); await B.page.waitForFunction(() => /מיכל מחכה לך/.test(document.querySelector('#screen').innerText), null, { timeout: 15000 });
+    await B.page.click('.ob-agree'); await B.page.click('#pf-go');
+    await B.page.waitForSelector('.inv-screen', { timeout: 20000 });
+    assert.ok(/מיכל מזמינה אותך/.test(await B.page.innerText('.inv-screen')), 'מסך ההצטרפות: מי מזמינה');
     await B.page.evaluate((t) => App.acceptInvite(t), token);
     await B.page.waitForFunction((id) => typeof Mila !== 'undefined' && !!Mila.getState().circles[id], circleId, { timeout: 20000 });
     assert.strictEqual(await B.page.evaluate(() => localStorage.getItem('mila.invite')), null, 'אחרי ההצטרפות ההזמנה השמורה נמחקת');
     await B.page.reload(); await B.page.waitForSelector('.today-head, .tg-row, #nav:not(.hidden)', { timeout: 20000 });
     assert.ok(!/באה איתי\?|הפעם לא/.test(await B.page.innerText('#screen')), 'מסך ההזמנה לא קופץ שוב בפתיחה הבאה');
+    await B.page.evaluate((id) => App.go('circle', { id }, { reset: true }), circleId);
+    assert.ok(/הצטרפת לקבוצה\. מיכל הזמינה אותך/.test(await B.page.innerText('#screen')), 'בקבוצה כתוב מי הזמינה אותי');
   });
 
   await test('שם עם תווי HTML לא מריץ קוד אצל החברות', async () => {

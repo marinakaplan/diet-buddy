@@ -209,18 +209,21 @@ const App = (() => {
     'יאללה, מהיום אני לא צועקת על הילדים.',
   ];
   SCREENS.welcome = () => {
-    const cta = Api.enabled ? `<button class="btn dark hero-btn" onclick="App.googleSignIn()">${googleMark()} יאללה, אני בפנים</button>` : `<button class="btn dark hero-btn" onclick="App.go('signup')">יאללה, אני בפנים</button>`;
+    const cta = Api.enabled ? `<button class="btn dark hero-btn" onclick="App.googleSignIn()">${googleMark()} ${invitePeek && invitePeek.ok ? 'אני בפנים' : 'יאללה, אני בפנים'}</button>` : `<button class="btn dark hero-btn" onclick="App.go('signup')">יאללה, אני בפנים</button>`;
     /* מסך פתיחה מצומצם: לוגו חי, משפט אחד, הבטחה מתחלפת, כפתור. */
     return `
     <div class="hero w2">
       <div class="hero-blobs" aria-hidden="true"><i></i><i></i><i></i></div>
-      <div class="w2-main">
+      ${invitePeek && invitePeek.ok ? `<div class="w2-main">
+        <div class="w2-brand w2-brand-sm">${liveLogo(30)} מילה.</div>
+        <div class="w2-invite">${inviteHero(invitePeek)}</div>
+      </div>` : `<div class="w2-main">
         <div class="w2-logo">${liveLogo(76)}</div>
         <div class="w2-brand">מילה.</div>
         <h1 class="w2-h"><span>כולנו מבטיחות.</span><span>בואי נראה מי <mark>מקיימת</mark>.</span></h1>
         <div class="w2-rot" aria-hidden="true">${PROMISES.map((t, i) => `<span style="--i:${i}">${t}</span>`).join('')}</div>
       </div>
-      ${pendingInviteToken ? `<div class="invited-banner w2-inv">💌 הוזמנת לקבוצה של חברה. נכנסת עם Google, ומצטרפת.</div>` : ''}
+      ${pendingInviteToken ? `<div class="invited-banner w2-inv">חברה הזמינה אותך לקבוצה שלה. נכנסת עם Google, ומצטרפת.</div>` : ''}`}
       <div class="hero-cta w2-cta">${cta}
         <button class="btn text" onclick="App.howSheet()">איך זה עובד?</button>
         <div class="disclaimer">כניסה עם Google · מגיל 18 · חינם · בטא</div>
@@ -267,12 +270,37 @@ const App = (() => {
     else { ob = { step: 2, picks: [], friend: null }; go('onboard', {}, { reset: true }); }
   }
   let pendingInviteToken = null;
+  let invitePeek = null;   // מי מזמינה ולאיזו קבוצה (נטען מהשרת לפי הקוד, לפני הכניסה)
   let lostOnce = false;   // כדי ש״החיבור פג״ יוצג פעם אחת, ולא בזמן יציאה יזומה
   /* קישור הזמנה שנפתח נשמר במכשיר עד שהיא מצטרפת או מוותרת (עד 7 ימים): רענון, סגירת הלשונית או כניסה שנכשלה לא מאבדים אותו */
   const INVITE_KEY = 'mila.invite';
   const saveInvite = (token) => { try { localStorage.setItem(INVITE_KEY, JSON.stringify({ token, at: Date.now() })); } catch (e) { /* בלי אחסון: נשאר רק בזיכרון */ } };
   const savedInvite = () => { try { const v = JSON.parse(localStorage.getItem(INVITE_KEY) || 'null'); return v && /^[A-Za-z0-9]{4,12}$/.test(v.token || '') && Date.now() - v.at < 7 * 86400000 ? v.token : null; } catch (e) { return null; } };
-  const clearInvite = () => { try { localStorage.removeItem(INVITE_KEY); } catch (e) { /* ignore */ } };
+  const clearInvite = () => { invitePeek = null; try { localStorage.removeItem(INVITE_KEY); } catch (e) { /* ignore */ } };   // ההזמנה מומשה או בוטלה: גם ״מי הזמינה״ לא מוצג יותר
+  /* ״מי הזמינה אותי״ לפני הכניסה: נטען מהשרת לפי הקוד, ומוצג במסך הפתיחה ובשלב השם */
+  function loadInvitePeek(token) {
+    if (!token || !Api.enabled) return;
+    Api.peekInvite(token).then(p => {
+      if (p && p.busy) return;                                   // עומס רגעי: נשארות עם הנוסח הכללי
+      invitePeek = p && p.ok ? p : null;
+      if (!invitePeek) { clearInvite(); if (pendingInviteToken === token) pendingInviteToken = null; }   // הקישור כבר לא בתוקף
+      if (stack.length && ['welcome', 'profile'].includes(current().name) && !sheetOpen()) { const el = document.activeElement; const typing = el && el.id === 'pf-name'; if (!typing) render(); }
+    }).catch(() => {});
+  }
+  const INVITE_WHAT = {
+    follow: (p) => `רוצה שתראי אם היא עומדת במילה שלה.`,
+    compete: (p) => `רוצה לראות מי מכן מתמידה יותר.`,
+    same: (p) => p.wordTitle ? `רוצה שתעשו יחד: ${esc(p.wordTitle)}.` : `רוצה שתעשו את אותו אתגר יחד.`,
+  };
+  /* ״יעל מזמינה אותך״: מי, לאיזו קבוצה, ומה היא כתבה. משותף למסך הפתיחה ולמסך ההצטרפות */
+  function inviteHero(p, { what = true } = {}) {
+    const name = esc(String(p.inviter.name || '').split(' ')[0]);
+    return `${avatar(p.inviter, 76)}
+      <h1 class="inv-h"><b>${name}</b> מזמינה אותך</h1>
+      <div class="inv-g">לקבוצה ״${esc(p.circleName)}״${p.members > 1 ? ` · ${p.members} חברות` : ''}</div>
+      ${p.message ? `<div class="inv-bubble">${esc(p.message)}</div>` : ''}
+      ${what ? `<div class="inv-what">${name} ${(INVITE_WHAT[p.kind] || INVITE_WHAT.follow)(p)}</div>` : ''}`;
+  }
 
   /* ============================================================
      S02b — כניסה אמיתית: Google OAuth (השרת מנהל את הסשן בעוגיית HttpOnly)
@@ -301,7 +329,7 @@ const App = (() => {
       ${obDots(1)}
       <div class="ob-hero">${liveLogo(72)}</div>
       <h1 class="ob-title">נעים להכיר!<br>איך קוראים לך?</h1>
-      <p class="ob-sub">ככה החברות יראו אותך.</p>
+      <p class="ob-sub">${invitePeek && invitePeek.ok ? `<b>${esc(invitePeek.inviter.name)}</b> מחכה לך בקבוצה ״${esc(invitePeek.circleName)}״. ככה היא תראה אותך.` : 'ככה החברות יראו אותך.'}</p>
       <input class="input ob-input" id="pf-name" placeholder="השם שלך" maxlength="30" value="${esc(authForm.name || (Api.me && Api.me.name) || '')}" oninput="App.authSet('name', this.value)">
       <div class="checkbox-row ob-agree ${agreed ? 'on' : ''}" role="presentation" tabindex="-1" onclick="App.authAgree()"><span class="box" role="checkbox" tabindex="0" aria-checked="${agreed}" aria-labelledby="agree-text" onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();App.authAgree()}">${agreed ? icon('check', 16) : ''}</span><span id="agree-text">אני בת 18 ומעלה ומסכימה ל<a href="/terms" target="_blank" rel="noopener" onclick="event.stopPropagation()">תנאי השימוש</a> ול<a href="/privacy" target="_blank" rel="noopener" onclick="event.stopPropagation()">מדיניות הפרטיות</a></span></div>
       <div class="ob-foot"><button class="btn primary" id="pf-go" ${busy ? 'disabled' : ''} onclick="App.completeProfile()">${busy ? 'רגע…' : 'ממשיכה'}</button>
@@ -933,7 +961,7 @@ const App = (() => {
         case 'group_word_proposed': return `<b>פתחת</b> אתגר משותף: ${t}`;
         case 'group_word_adopted': return `<b>הצטרפת</b> ל${t}`;
         case 'word_committed': return `<b>התחלת</b> את ${t}`;
-        case 'member_joined': return `<b>הצטרפת</b> לקבוצה`;
+        case 'member_joined': { const by = e.payload && e.payload.inviterId && Mila.user(e.payload.inviterId); return `<b>הצטרפת</b> לקבוצה${by ? `. ${esc(by.name)} הזמינה אותך` : ''}`; }
         case 'circle_created': return `<b>פתחת</b> את הקבוצה`;
         case 'admin_transferred': return `<b>את מנהלת</b> עכשיו`;
         case 'encouragement': { const to = Mila.user(e.payload.toUserId); return `<b>שלחת</b> מילה טובה ל${to ? esc(to.name) : 'חברה'} ${icon(REACTION_ICON[e.payload.reaction] || 'clap', 14)}`; }
@@ -949,7 +977,7 @@ const App = (() => {
       case 'group_word_proposed': return `${n} פתחה אתגר משותף: ${t}`;
       case 'group_word_adopted': return `${n} הצטרפה ל${t}`;
       case 'word_committed': return `${n} התחילה את ${t}`;
-      case 'member_joined': return `${n} הצטרפה`;
+      case 'member_joined': { const by = e.payload && e.payload.inviterId && Mila.user(e.payload.inviterId); return `${n} הצטרפה${by ? (Mila.me() && by.id === Mila.me().id ? '. את הזמנת אותה' : `. ${esc(by.name)} הזמינה אותה`) : ''}`; }
       case 'member_left': return `${n} עזבה`;
       case 'member_removed': return `${n} הסירה חברה`;
       case 'admin_transferred': return `${n} מנהלת עכשיו`;
@@ -1159,20 +1187,13 @@ const App = (() => {
     const p = Store().cachedPreview(token) || { ok: false, reason: 'not_found' };
     if (!p.ok) return `${topbar({ title: 'הזמנה' })}<div class="card empty"><span class="tile lg gray">${icon('hourglass', 28)}</span><div class="t">${p.reason === 'expired' ? 'הקוד פג' : p.reason === 'revoked' ? 'הקוד בוטל' : 'הקוד לא נמצא'}</div><div class="m">בקשי מהחברה קוד חדש.</div></div>`;
     const kind = INVITE_KINDS[p.kind] ? p.kind : 'follow';
-    const v = INVITE_KINDS[kind];
-    const msg = p.message || inviteMessages(kind, p.wordTitle || (p.challenge && p.challenge.title) || '', p.libraryId)[0];
-    const what = kind === 'follow' ? 'את רואה. בלי התחייבות.' : kind === 'compete' ? 'את בוחרת 3 אתגרים משלך. הדירוג משותף.' : `אותו אתגר: ${esc(p.wordTitle || (p.challenge && p.challenge.title) || '')}`;
+    const title = p.wordTitle || (p.challenge && p.challenge.title) || '';
+    const hero = { inviter: p.inviter, circleName: p.circle.name, members: p.memberCount, message: p.message || '', kind, wordTitle: title };
+    const next = kind === 'follow' ? `תראי כל יום אם ${esc(String(p.inviter.name || '').split(' ')[0])} עמדה במילה שלה. בלי התחייבות מצדך.` : kind === 'compete' ? 'אחרי ההצטרפות בוחרת עד 3 אתגרים משלך, ונכנסת לדירוג.' : `אחרי ההצטרפות מתחילה את ${title ? `״${esc(title)}״` : 'אותו אתגר'} ל-14 יום.`;
     return `${topbar({ title: 'הזמנה' })}
-      <div class="sheet-hero">${avatar(p.inviter, 72)}<div class="sheet-title" style="margin-top:10px">${v.title}</div><div class="sheet-sub">${esc(p.inviter.name)} · ${esc(p.circle.name)}</div></div>
-      <div class="quote">${esc(msg)}</div>
-      <div class="card tight"><div class="card-title">מה קורה כשלוחצים ״אני בפנים״</div>
-        <ol class="inv-steps"><li>מצטרפת לקבוצה <b>${esc(p.circle.name)}</b> של ${esc(p.inviter.name)}.</li><li>${kind === 'follow' ? `רואה כל יום אם ${esc(p.inviter.name)} עומדת במילה שלה.` : kind === 'compete' ? 'בוחרת עד 3 אתגרים משלך ל-14 יום.' : `מתחילה את האתגר <b>${esc(p.wordTitle || (p.challenge && p.challenge.title) || '')}</b> ל-14 יום.`}</li>${kind === 'follow' ? '' : '<li>נכנסת לדירוג ״מי מובילה?״.</li>'}</ol>
-      </div>
-      <div class="card tight">
-        <div class="kv"><span class="k">${icon('users', 18)} חברות</span><span class="v">${p.memberCount} מתוך ${p.maxMembers}</span></div>
-        <div class="kv"><span class="k">${icon('calendar', 18)} הסבב</span><span class="v">${p.round.dayIndex > 0 ? `יום ${p.round.dayIndex}` : `מתחיל ${Mila.fmtDate(p.round.start)}`}</span></div>
-      </div>
-      ${p.alreadyMember ? `<button class="btn primary mt" onclick="App.go('circle',{id:'${p.circle.id}'})">את כבר בפנים</button>` : `<button class="btn primary mt" onclick="App.acceptInvite('${token}')">${kind === 'follow' ? 'אני בפנים' : kind === 'compete' ? 'אני בפנים. בוחרת אתגרים' : 'אני בפנים'}</button>`}
+      <div class="inv-screen">${inviteHero(hero, { what: false })}</div>
+      <div class="note lime">${icon('info', 18)}<span>${next}</span></div>
+      ${p.alreadyMember ? `<button class="btn primary mt" onclick="App.go('circle',{id:'${p.circle.id}'})">את כבר בפנים</button>` : `<button class="btn primary mt" onclick="App.acceptInvite('${token}')">אני בפנים</button>`}
       <div class="btn-row mt"><button class="btn text" onclick="App.declineInvite('${token}')">הפעם לא</button><button class="btn text" onclick="App.safetySheet('${p.inviter.id}', null, '${token}')">${icon('flag', 16)} דיווח</button></div>`;
   };
   const acceptInvite = once(async (token) => {
@@ -1808,7 +1829,7 @@ const App = (() => {
           const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && $('#screen').contains(document.activeElement);
           if (stack.length && !sheetOpen() && !busy && !acting && !typing) render({ keepSheet: true });   // לא מציירות מחדש באמצע הקלדה (הפוקוס והמקלדת היו נעלמים)
         });
-        if (Api.hasSession() && !Api.isCloud()) { pendingInviteToken = token; go('profile', {}, { reset: true }); return; }
+        if (Api.hasSession() && !Api.isCloud()) { pendingInviteToken = token; loadInvitePeek(token); go('profile', {}, { reset: true }); return; }
         if (Api.isCloud()) {
           await Api.sync();
           Api.startAutoSync();
@@ -1825,7 +1846,7 @@ const App = (() => {
       }
       // אין session: אם יש מצב דמו מקומי שמור – נכבד אותו; אחרת מסך פתיחה
       if (Mila.me() && Mila.getState().meta.demo) { go('today', {}, { reset: true }); return; }
-      pendingInviteToken = token; go('welcome', {}, { reset: true }); return;
+      pendingInviteToken = token; loadInvitePeek(token); go('welcome', {}, { reset: true }); return;
     }
     if (!Mila.me()) { pendingInviteToken = token; go('welcome', {}, { reset: true }); }
     else { go('today', {}, { reset: true }); if (token) openInvite(token); }

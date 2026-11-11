@@ -101,6 +101,7 @@ async function handleApi(req, env, ctx, url) {
   if (path === 'auth/test-login' && req.method === 'POST') { if (await limited(env, 'RL_PUBLIC', 'login|' + ip, 60)) return tooMany(); return auth.testLogin(req, env); }
   if (path === 'track' && req.method === 'POST') { if (await limited(env, 'RL_PUBLIC', 'track|' + ip, 30) || !anonBudget()) return json({ ok: false }); return json(await track(env, await body(req))); }
   if (path === 'invite/open' && req.method === 'POST') { if (await limited(env, 'RL_PUBLIC', 'open|' + ip, 30) || !anonBudget()) return json({ ok: false }); return json(await game.trackInviteOpen(env, await body(req))); }
+  if (path === 'invite/peek' && req.method === 'GET') { if (await limited(env, 'RL_PUBLIC', 'peek|' + ip, 30)) return json({ ok: false, busy: true }); return json(await game.peekInvite(env, url.searchParams.get('token'))); }
   if (path === 'push/key' && req.method === 'GET') return json(await push.publicKey(env));
   if (path === 'auth/config') return json({ google: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET), testLogin: env.ALLOW_TEST_LOGIN === 'true', env: env.APP_ENV });
 
