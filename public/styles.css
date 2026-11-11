@@ -1034,3 +1034,12 @@ body:has(#sheet.open) #a11y-btn { display: none; }
 
 /* תחום נעול (מגיל 18) בספרייה */
 .cat.locked .cat-head .name { color: var(--ink-2); }
+
+/* קרדיט בתחתית ההגדרות */
+.made-by { margin: 22px 0 6px; text-align: center; font-size: .9rem; color: var(--ink-2); }
+.made-by a { color: var(--ink); font-weight: 600; text-decoration: underline; padding: 6px 2px; display: inline-block; }
+.made-heart { display: inline-block; vertical-align: -2px; color: #D6336C; animation: madebeat 1.6s ease-in-out infinite; }
+.made-heart svg { fill: currentColor; stroke: currentColor; }
+@keyframes madebeat { 0%, 60%, 100% { transform: scale(1); } 20% { transform: scale(1.25); } 40% { transform: scale(1.08); } }
+.sup-q { font-size: 1.02rem; line-height: 1.35; }
+@media (prefers-reduced-motion: reduce) { .made-heart { animation: none; } }
