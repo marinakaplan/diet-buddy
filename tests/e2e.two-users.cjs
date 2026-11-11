@@ -84,6 +84,7 @@ const sync = (p) => p.page.evaluate(() => Api.sync());
 
   console.log('4. א מציעה מילה קבוצתית ומאמצת אותה');
   await a.page.evaluate((id) => App.openGroupWizard(id), circleId);
+  await a.page.click('.ideas-open');   // הרעיונות סגורים כברירת מחדל
   await a.page.click('.ideas .chip.select >> nth=1');
   await a.page.click('text=פותחת ומזמינה');
   await a.page.waitForSelector('text=החברות קיבלו הודעה', { timeout: 20000 });

@@ -23,7 +23,7 @@
   const isActive = () => !!(prefs.text || prefs.contrast || prefs.links || prefs.still || prefs.font);
   apply(); // לפני שהאפליקציה מציירת, כדי שלא יהיה הבהוב
 
-  const ICON = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="6.6" r="1.4" fill="currentColor" stroke="none"/><path d="M7 9.2l5 1 5-1M12 10.2v4.3M12 14.5l-2.6 4.3M12 14.5l2.6 4.3"/></svg>';
+  const ICON = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="6.6" r="1.4" fill="currentColor" stroke="none"/><path d="M7 9.2l5 1 5-1M12 10.2v4.3M12 14.5l-2.6 4.3M12 14.5l2.6 4.3"/></svg>';
 
   function panelHtml() {
     const row = (k, label, on) => `<button class="a11y-opt ${on ? 'on' : ''}" role="switch" aria-checked="${!!on}" data-k="${k}"><span>${label}</span><i aria-hidden="true"></i></button>`;

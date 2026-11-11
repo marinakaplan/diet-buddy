@@ -28,7 +28,7 @@ const Api = (() => {
       const err = new Error((data && data.error) || `HTTP ${res.status}`);
       err.code = data && data.error; err.userMessage = (data && data.hint) || 'משהו השתבש. נסי שוב.'; err.status = res.status;
       if (data && data.cap) err.cap = data.cap;
-      if (res.status === 401 && me) { me = null; stopAutoSync(); try { sessionStorage.removeItem('mila.cache'); } catch (e) { /* ignore */ } notify(); }   // הכניסה פגה: האפליקציה חוזרת למסך הפתיחה (app.js → authLost)
+      if (res.status === 401 && me) { me = null; stopAutoSync(); try { localStorage.removeItem('mila.cache'); } catch (e) { /* ignore */ } notify(); }   // הכניסה פגה: האפליקציה חוזרת למסך הפתיחה (app.js → authLost)
       throw err;
     }
     return data;
@@ -53,7 +53,7 @@ const Api = (() => {
     stopAutoSync();
     try { await call('auth/logout', { method: 'POST', body: {} }); } catch (e) { /* ignore */ }
     me = null;
-    try { sessionStorage.removeItem('mila.cache'); } catch (e) { /* ignore */ }
+    try { localStorage.removeItem('mila.cache'); } catch (e) { /* ignore */ }
     Mila.setState(Object.assign(Mila.emptyState(), { meta: { createdAt: new Date().toISOString(), demo: false, cloud: false } }));
   }
 
@@ -77,12 +77,12 @@ const Api = (() => {
     const prev = Mila.getState();
     const next = Object.assign(Mila.emptyState(), s, { drafts: (prev && prev.drafts) || {}, meta: { createdAt: s.serverNow, demo: false, cloud: true, serverNow: s.serverNow, syncedAt: new Date().toISOString() } });
     Mila.setState(next);
-    try { sessionStorage.setItem('mila.cache', JSON.stringify(next)); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('mila.cache', JSON.stringify(next)); } catch (e) { /* ignore */ }
     notify();
     return next;
   }
-  /* טעינת עותק אחרון לקריאה בלבד כשאין רשת */
-  function loadCache() { try { const s = sessionStorage.getItem('mila.cache'); if (s) { const st = JSON.parse(s); st.meta.offline = true; Mila.setState(st); return true; } } catch (e) { /* ignore */ } return false; }
+  /* טעינת עותק אחרון לקריאה בלבד כשאין רשת. נשמר במכשיר (localStorage) כדי שגם פתיחה של האפליקציה המותקנת בלי רשת תציג את המצב האחרון; נמחק ביציאה מהחשבון. */
+  function loadCache() { try { const s = localStorage.getItem('mila.cache'); if (s) { const st = JSON.parse(s); st.meta.offline = true; Mila.setState(st); return true; } } catch (e) { /* ignore */ } return false; }
   function onSync(fn) { listeners.add(fn); return () => listeners.delete(fn); }
   function notify() { listeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); }
   /* ריענון קל: כל 45 שניות בודקות חותמת זולה (/api/ping). טוענות מצב מלא רק כשמשהו השתנה,

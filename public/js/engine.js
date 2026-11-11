@@ -433,12 +433,6 @@ const Mila = (() => {
     for (const o of obligationsOf(commitmentId)) if (o.status === 'scheduled' || o.status === 'open') o.status = 'cancelled';
     save();
   }
-  function updateWordVisibility(defId, visibility) {
-    const def = state.wordDefs[defId];
-    if (def.ownerId !== state.me) throw err('אין הרשאה');
-    def.visibility = visibility; save();
-  }
-
   /* ---------- אירועים יומיים ודיווח ---------- */
   function windowOf(o) {
     const opens = parseDate(o.localDate);                           // 00:00 ביום
@@ -570,7 +564,9 @@ const Mila = (() => {
   function canCorrect(o, at = now()) {
     if (!o.outcome) return false;
     if (o.userId !== state.me) return false;
-    return (at - new Date(o.resolvedAt)) < RULES.CORRECTION_HOURS * 3600000;
+    // 24 שעות מההכרעה הראשונה (לא מהתיקון האחרון), כמו בשרת
+    const firstAt = (state.resolutionHistory || []).filter(h => h.obligationId === o.id).map(h => h.at).sort()[0] || o.resolvedAt;
+    return (at - new Date(firstAt)) < RULES.CORRECTION_HOURS * 3600000;
   }
   function correct(obligationId, newOutcome, reason) {
     const o = state.obligations[obligationId];
@@ -831,7 +827,7 @@ const Mila = (() => {
     createCircle, updateCircle, myCircles, membership, isMember, isAdmin, circleMembers, circleRound, leaveCircle, removeMember, setMemberRole, deleteCircle,
     createInvite, currentInvite, revokeInvite, revokeCircleInvites, inviteUrl, previewInvite, acceptInvite,
     wordDef, commitment, myCommitments, activeCommitments, obligationsOf, capCheck, activeWordsOn,
-    createPersonalWord, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment, updateWordVisibility,
+    createPersonalWord, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment,
     windowOf, isOpenNow, refreshStatuses, excusesUsed, report, canCorrect, correct,
     activeLedger, bankSummary, circlePool, circlePoolAllTime, streak, commitmentStats,
     todayCards, decorate, upcomingWords, wordHistory, leaderboard, rankInsight, previousRoundWinner,

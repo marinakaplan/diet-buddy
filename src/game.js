@@ -258,7 +258,7 @@ export async function correct(env, user, b) {
   const o = await first(env, `select * from daily_obligations where id = ?`, b.obligationId);
   if (!o || o.user_id !== user.id) throw err('FORBIDDEN', 'אין הרשאה', 403);
   if (!o.outcome) throw err('VALIDATION', 'עוד אין דיווח לתקן');
-  if (o.resolve_reason === 'auto_unreported') throw err('VALIDATION', 'היום הזה נסגר בלי דיווח (אפשר לדווח עד 10:00 למחרת), ואי אפשר לשנות אותו.');
+  // יום שנסגר אוטומטית כפספוס ניתן לתיקון כמו כל דיווח (החלטת מוצר קיימת; ראו docs/SPEC-OPEN.md)
   // 24 שעות נמדדות מהדיווח הראשון, לא מהתיקון האחרון (אחרת החלון מתגלגל בלי סוף)
   const firstAt = (await first(env, `select min(created_at) as t from resolution_history where obligation_id = ?`, o.id)).t || o.resolved_at;
   if (Date.now() - Date.parse(firstAt) >= CORRECTION_MS) throw err('VALIDATION', 'חלון התיקון (24 שעות) נסגר');

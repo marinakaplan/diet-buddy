@@ -16,7 +16,8 @@
     "test:load": "node tests/load.cjs",
     "test:engine": "node tests/engine.test.cjs",
     "test:api": "node tests/api.test.cjs",
-    "test:e2e": "node tests/e2e.two-users.cjs"
+    "test:e2e": "node tests/e2e.two-users.cjs",
+    "test:regress": "node tests/e2e.regressions.cjs"
   },
   "devDependencies": {
     "wrangler": "^4.45.0"
