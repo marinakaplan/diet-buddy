@@ -396,6 +396,11 @@ const invariants = async (c) => {
     await J.ok('leaveCircle', { circleId: g });
     assert.strictEqual((await J.state()).commitments[w.commitmentId].status, 'active', 'עזיבה לא עוצרת אתגר אישי');
     assert.ok(!(await sees(H, w.defId)), 'מי שנשארה בקבוצה שעזבתי כבר לא רואה אותו'); assert.ok(await sees(K, w.defId));
+    // אתגר של 21 יום: 21 ימים בדיוק; ערך אחר נשאר 14
+    const w21 = await K.ok('createPersonalWord', { title: 'הליכה כל יום', rule: 'לפחות 20 דקות', days: 21 });
+    const sK = await K.state(); assert.strictEqual(Object.values(sK.obligations).filter(o => o.commitmentId === w21.commitmentId).length, 21);
+    const w14 = await K.ok('createPersonalWord', { title: 'מים', rule: '8 כוסות', days: 99 });
+    assert.strictEqual(Object.values((await K.state()).obligations).filter(o => o.commitmentId === w14.commitmentId).length, 14);
     // אתגר חדש נוצר גלוי לחברות גם בלי לציין קבוצה
     const w2 = await J.ok('createPersonalWord', { libraryId: 'food_8_water' });
     assert.ok(await sees(K, w2.defId));

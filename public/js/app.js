@@ -741,10 +741,12 @@ const App = (() => {
     wiz.step = 2; wiz.startDate = Mila.today();
     const circles = Mila.myCircles();
     if (wiz.circleId && !circles.some(c => c.id === wiz.circleId)) wiz.circleId = null;
-    const cap = Mila.capCheck(Mila.me().id, wiz.startDate);
+    const wd = wiz.days === 21 ? 21 : 14;
+    const cap = Mila.capCheck(Mila.me().id, wiz.startDate, wd);
     return `${header}${steps}
-      <div class="step-title">מוכנה?</div><div class="step-sub">14 יום, מהיום. כל ערב מסמנת אם עמדת באתגר.</div>
+      <div class="step-title">מוכנה?</div><div class="step-sub">${wd} יום, מהיום. כל ערב מסמנת אם עמדת באתגר.</div>
       <div class="card"><div style="display:flex;gap:12px;align-items:center">${wordTile({ title: wiz.title, icon: wiz.icon }, 'lg')}<div><div class="bold" style="font-size:1.15rem">${esc(wiz.title)}</div><div class="small muted">${esc(wiz.rule)}</div></div></div></div>
+      <div class="field"><label>לכמה זמן?</label><div class="chips"><button class="chip select ${wd === 14 ? 'on' : ''}" onclick="App.wizSet('days', 14); App.refresh()">14 יום</button><button class="chip select ${wd === 21 ? 'on' : ''}" onclick="App.wizSet('days', 21); App.refresh()">21 יום</button></div></div>
       ${circles.length ? `<div class="field"><label>מי רואה?</label><div class="chips"><button class="chip select ${!wiz.private ? 'on' : ''}" onclick="App.wizSet('private', false); App.refresh()">${icon('users', 14)} החברות שלי</button><button class="chip select ${wiz.private ? 'on' : ''}" onclick="App.wizSet('private', true); App.refresh()">${icon('lock', 14)} רק אני</button></div></div>` : ''}
       <div class="field"><label for="w-reward">אם אצליח, אני…</label><input class="input" id="w-reward" maxlength="80" placeholder="למשל: קונה לעצמי משהו נחמד" value="${esc(wiz.reward || '')}" oninput="App.wizSet('reward', this.value)"><div class="hint">לא חובה.</div></div>
       ${!cap.ok ? `<div class="note warn">${icon('info', 18)}<span>יש לך כבר 3 אתגרים, וזה המקסימום. כשאחד מהם נגמר אפשר להתחיל את זה. שמרנו לך את הניסוח.</span></div>` : ''}
@@ -771,7 +773,7 @@ const App = (() => {
   function wizCancel() { Mila.getState().drafts.word = { ...wiz }; Mila.save(); wiz = null; back(); if (Mila.getState().drafts.word && Mila.getState().drafts.word.title) toast('שמרנו טיוטה.'); }
   const wizCommit = once(async () => {
     try {
-      const { def, commitment } = await Store().createPersonalWord({ title: wiz.title, rule: wiz.rule, icon: wiz.icon, startDate: wiz.startDate, circleId: wiz.circleId, private: !!wiz.private, reward: wiz.reward || '' });
+      const { def, commitment } = await Store().createPersonalWord({ title: wiz.title, rule: wiz.rule, icon: wiz.icon, startDate: wiz.startDate, circleId: wiz.circleId, private: !!wiz.private, days: wiz.days === 21 ? 21 : 14, reward: wiz.reward || '' });
       wiz = null; pick = null;
       stack = [{ name: 'today', params: {} }];
       go('word', { id: commitment.id, fresh: true });
@@ -962,7 +964,7 @@ const App = (() => {
       <div class="stat-grid mb"><div class="stat lime"><div class="n">${st.success}</div><div class="l">עמדתי</div></div><div class="stat pink"><div class="n">${st.miss}</div><div class="l">פספסתי</div></div><div class="stat lav"><div class="n">${st.current}${icon('flame', 18)}</div><div class="l">ברצף</div></div></div>
       ${c.reward ? `<div class="card tight pastel-lav"><div class="tiny muted">${mine ? 'אם אצליח, אני…' : `${esc(Mila.user(c.userId).name)} הבטיחה לעצמה`}</div><div class="bold">${esc(c.reward)}</div></div>` : ''}
       ${mine && c.status === 'active' ? `<div class="btn-row mb word-invite"><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'follow' })">בואי תעזרי לי לעמוד במילה שלי</button><button class="btn ghost sm" onclick="App.inviteFlow({ commitmentId: '${id}', kind: 'same' })">בואי, שתינו צריכות את זה</button></div>` : ''}
-      <div class="card"><div class="card-title">14 הימים <span class="link">${c.status === 'active' ? `יום ${Math.max(st.dayIndex, 1)}` : `${Mila.fmtDate(c.startDate)} – ${Mila.fmtDate(c.endDate)}`}</span></div>${days14(id)}</div>
+      <div class="card"><div class="card-title">${st.length || 14} הימים <span class="link">${c.status === 'active' ? `יום ${Math.max(st.dayIndex, 1)}` : `${Mila.fmtDate(c.startDate)} – ${Mila.fmtDate(c.endDate)}`}</span></div>${days14(id)}</div>
       ${mine && todayOb && !todayOb.outcome && Mila.isOpenNow(todayOb) ? `<button class="btn primary mb" onclick="App.reportSheet('${todayOb.id}')">${icon('check', 20)} דיווח על היום</button>` : ''}
       <div class="card tight">
         <div class="kv"><span class="k">${icon('calendar', 18)} הסבב</span><span class="v">${Mila.fmtDate(c.startDate)} – ${Mila.fmtDate(c.endDate)}</span></div>
@@ -993,7 +995,7 @@ const App = (() => {
     const rate = s.stats.rate === null ? null : s.stats.rate;
     const line = rate === null ? 'לא היו ימים לספור.' : rate >= 0.85 ? 'כמעט בלי לפספס.' : rate >= 0.6 ? 'רוב הימים עמדת.' : 'סבב קשה. מה שעמדת בו נשאר.';
     return `${topbar({ title: 'סיכום', back: true })}
-      <div class="sheet-hero">${wordTile(s.def, 'lg')}<div class="sheet-title">${rate !== null && s.stats.miss === 0 && s.stats.success >= 14 ? 'מילה בסלע.' : 'אמרת ועשית.'}</div><div class="sheet-sub">${esc(s.def.title)} · 14 יום</div></div>
+      <div class="sheet-hero">${wordTile(s.def, 'lg')}<div class="sheet-title">${rate !== null && s.stats.miss === 0 && s.stats.success >= (s.stats.length || 14) ? 'מילה בסלע.' : 'אמרת ועשית.'}</div><div class="sheet-sub">${esc(s.def.title)} · ${s.stats.length || 14} יום</div></div>
       <div class="card balance-card pastel-lime"><div class="label">נקודות בסבב</div><div class="amount">${icon('star', 34)}<span class="num">${s.earned}</span><span class="cur">נק׳</span></div><div class="note" style="display:inline-flex;margin:8px 0 0">${line}</div></div>
       <div class="stat-grid mb"><div class="stat lime"><div class="n">${s.stats.success}</div><div class="l">עמדתי</div></div><div class="stat pink"><div class="n">${s.stats.miss}</div><div class="l">פספסתי</div></div><div class="stat lav"><div class="n">${s.stats.excused}</div><div class="l">ימים חריגים</div></div></div>
       <div class="card"><div class="card-title">יום אחרי יום <span class="link">${s.stats.rate !== null ? pct(s.stats.rate) : ''}</span></div>${days14(id)}<div class="kv mt"><span class="k">${icon('flame', 18)} הרצף הכי ארוך</span><span class="v">${s.stats.best} ימים</span></div></div>
@@ -1281,7 +1283,11 @@ const App = (() => {
     hab_no_impulse_buy: { follow: [`14 ימים בלי לקנות שטויות. ${HELP_ME}`], same: ['14 ימים בלי לקנות שטויות. אני בפנים. את באה?', 'בלי קניות אימפולסיביות. שתינו יודעות שאנחנו צריכות את זה.'] },
     food_no_sweets_evening: { follow: [`בלי מתוק אחרי ארוחת ערב, 14 ימים. ${HELP_ME}`], same: ['בלי מתוק אחרי ארוחת ערב, 14 ימים. אני בפנים. את באה?'] },
   };
-  function inviteMessages(kind, w, libraryId, group) {
+  function inviteMessages(kind, w, libraryId, group, days = 14) {
+    const out = inviteMessages14(kind, w, libraryId, group);
+    return days === 14 ? out : out.map(t => t.replace(/ל-14\b/g, `ל-${days}`).replace(/\b14 (ימים|יום|לילות)/g, `${days} $1`));   // אתגר של 21 יום: אותם נוסחים, עם המספר שלו
+  }
+  function inviteMessages14(kind, w, libraryId, group) {
     const n = Math.min(Math.max(Mila.me() ? Mila.activeCommitments().length : 3, 1), 3); const nA = n === 1 ? 'אתגר אחד' : `${n} אתגרים`;
     if (group) {   // הזמנה לקבוצה: אותו קישור הולך לכמה חברות, אז ההודעה פונה לכולן
       if (kind === 'compete') return ['פתחתי לנו קבוצה במילה. 14 ימים, כל אחת בוחרת עד 3 אתגרים. מי בפנים?', '14 ימים, 3 אתגרים, ואחת מאיתנו מנצחת. מי באה?', 'אני בטוחה שאני מתמידה יותר מכולכן. תוכיחו שלא.'];
@@ -1307,9 +1313,10 @@ const App = (() => {
   function newInv(opts = {}) {
     const circles = Mila.myCircles();
     let wordTitle = opts.wordTitle || '', libraryId = opts.libraryId || null, circleId = opts.circleId || null, commitmentId = opts.commitmentId || null;
-    if (commitmentId) { const k = Mila.commitment(commitmentId); const d = k && Mila.wordDef(k.defId); if (d) { wordTitle = d.title; libraryId = d.libraryId || null; circleId = circleId || d.circleId || null; } }
+    let days = 14;
+    if (commitmentId) { const k = Mila.commitment(commitmentId); const d = k && Mila.wordDef(k.defId); if (k) days = Mila.diffDays(k.startDate, k.endDate) + 1 === 21 ? 21 : 14; if (d) { wordTitle = d.title; libraryId = d.libraryId || null; circleId = circleId || d.circleId || null; } }
     if (!circleId && circles.length === 1) circleId = circles[0].id;
-    return { created: !!opts.created, group: !commitmentId, step: 1, kind: opts.kind || (opts.created ? 'compete' : null), circleId, commitmentId, wordTitle, libraryId, newCircle: `${Mila.me().name} והחברות`, message: null, idx: 0, token: null, busy: false };
+    return { created: !!opts.created, group: !commitmentId, days, step: 1, kind: opts.kind || (opts.created ? 'compete' : null), circleId, commitmentId, wordTitle, libraryId, newCircle: `${Mila.me().name} והחברות`, message: null, idx: 0, token: null, busy: false };
   }
   function inviteFlow(opts = {}) { inv = newInv(opts); go('inviteNew', {}, { replace: stack.length > 0 && current().name === 'inviteNew' }); }
   function myActiveWords() { return Mila.activeCommitments().map(k => ({ k, d: Mila.wordDef(k.defId) })).filter(x => x.d); }
@@ -1339,7 +1346,7 @@ const App = (() => {
         ${needWord && !words.length ? '' : ''}`;
     }
     if (inv.step === 2) {
-      const msgs = inviteMessages(inv.kind, inv.wordTitle, inv.libraryId, inv.group);
+      const msgs = inviteMessages(inv.kind, inv.wordTitle, inv.libraryId, inv.group, inv.days);
       if (inv.message === null) inv.message = msgs[0];
       const v = KIND_PLAIN[inv.kind];
       return `${head}${dots}${created}
@@ -1371,7 +1378,7 @@ const App = (() => {
   function invHeadBack() { if (inv && inv.step === 2) invBack(); else inviteClose(); }
   function inviteClose() { const cid = inv && inv.circleId; const created = inv && inv.created; inv = null; popAll('inviteNew', cid ? 'circles' : 'today'); if (created) afterFirstCommit(); }
   function inviteDone() { const cid = inv.circleId; const created = inv.created; inv = null; stack = [{ name: 'circles', params: {} }]; go('circle', { id: cid }); if (created) afterFirstCommit(); }
-  function inviteRotate() { const msgs = inviteMessages(inv.kind, inv.wordTitle, inv.libraryId, inv.group); inv.idx = (inv.idx + 1) % msgs.length; inv.message = msgs[inv.idx]; const t = $('#inv-msg'); if (t) t.value = inv.message; }
+  function inviteRotate() { const msgs = inviteMessages(inv.kind, inv.wordTitle, inv.libraryId, inv.group, inv.days); inv.idx = (inv.idx + 1) % msgs.length; inv.message = msgs[inv.idx]; const t = $('#inv-msg'); if (t) t.value = inv.message; }
   function inviteMsg(v) { inv.message = v; }
   async function inviteSend(how) {
     if (inv.busy) return;

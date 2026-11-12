@@ -122,9 +122,11 @@ export async function createPersonalWord(env, user, b) {
   const vis = priv ? 'private' : 'status';
   const reward = String(b.reward || '').trim().slice(0, 80) || null;
   const rewardShared = reward && b.rewardShared === true ? 1 : 0;
-  const cap = await capInfo(env, user.id, start);
+  // אורך האתגר: 14 יום כברירת מחדל, או 21 יום אם נבחר (אתגר משלי)
+  const days = Number(b.days) === 21 ? 21 : ROUND_DAYS;
+  const cap = await capInfo(env, user.id, start, days);
   if (!cap.ok) throw err('CAP', 'כבר יש לך 3 אתגרים בימים האלה', 409, { cap });
-  const did = uid(); const end = addDays(start, ROUND_DAYS - 1);
+  const did = uid(); const end = addDays(start, days - 1);
   const { kid, stmts } = commitmentStmts(env, did, user, start, end);
   const batch = [S(env, `insert into word_definitions(id, kind, circle_id, owner_id, title, rule, icon, visibility, start_date, end_date, status, library_id, category, library_version) values (?,?,?,?,?,?,?,?,?,?,'active',?,?,?)`, did, 'personal', circleId, user.id, title, rule, icon(lib ? lib.icon : b.icon), vis, start, end, lib ? lib.id : null, lib ? lib.cat : null, lib ? lib.version : null), ...stmts];
   if (reward) batch.push(S(env, `update word_commitments set reward = ?, reward_shared = ? where id = ?`, reward, rewardShared, kid));

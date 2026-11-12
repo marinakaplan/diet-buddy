@@ -389,7 +389,8 @@ const Mila = (() => {
     save();
     return { shared };
   }
-  function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, libraryId = null, reward = '', rewardShared = false, shareSensitive = false, private: onlyMe = false }) {
+  function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, libraryId = null, reward = '', rewardShared = false, shareSensitive = false, private: onlyMe = false, days = RULES.ROUND_DAYS }) {
+    days = Number(days) === 21 ? 21 : RULES.ROUND_DAYS;   // 14 יום כברירת מחדל, או 21
     let lib = null, category = null, sensitive = false;
     if (libraryId) {
       lib = LIB.get(libraryId);
@@ -405,11 +406,11 @@ const Mila = (() => {
     if (!priv && !circleId) circleId = (myCircles()[0] || {}).id || null;
     const visibility = priv ? 'private' : 'status';
     reward = String(reward || '').trim().slice(0, 80);
-    const cap = capCheck(state.me, startDate);
+    const cap = capCheck(state.me, startDate, days);
     if (!cap.ok) throw Object.assign(err('כבר יש לך 3 אתגרים בימים האלה'), { code: 'CAP', cap });
     const def = { id: uid('w'), kind: 'personal', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility, version: 1, startDate, status: 'active', createdAt: nowISO(), libraryId: libraryId || null, category, sensitive };
     state.wordDefs[def.id] = def;
-    const c = createCommitment(def.id, state.me, startDate);
+    const c = createCommitment(def.id, state.me, startDate, days);
     c.reward = reward; c.rewardShared = !!(reward && rewardShared);
     if (circleId && visibility !== 'private') addEvent(circleId, state.me, 'word_committed', { defId: def.id, title: def.title });
     grant(state.me, 'first_word', def.id);
@@ -418,10 +419,10 @@ const Mila = (() => {
     return { def, commitment: c };
   }
 
-  function createCommitment(defId, userId, startDate) {
-    const c = { id: uid('k'), defId, userId, startDate, endDate: addDays(startDate, RULES.ROUND_DAYS - 1), status: 'active', createdAt: nowISO() };
+  function createCommitment(defId, userId, startDate, days = RULES.ROUND_DAYS) {
+    const c = { id: uid('k'), defId, userId, startDate, endDate: addDays(startDate, days - 1), status: 'active', createdAt: nowISO() };
     state.commitments[c.id] = c;
-    for (const d of dateRange(startDate, RULES.ROUND_DAYS)) {
+    for (const d of dateRange(startDate, days)) {
       const o = { id: uid('o'), commitmentId: c.id, userId, localDate: d, status: 'scheduled', outcome: null, resolvedAt: null, reportedAt: null };
       state.obligations[o.id] = o;
     }
@@ -704,8 +705,9 @@ const Mila = (() => {
     const excused = obs.filter(o => o.outcome === 'excused').length;
     const resolved = success + miss;
     const c = state.commitments[commitmentId];
-    const dayIndex = Math.min(Math.max(diffDays(c.startDate, today()) + 1, 0), RULES.ROUND_DAYS);
-    return { success, miss, excused, resolved, rate: resolved ? success / resolved : null, total: obs.length, dayIndex, remaining: obs.filter(o => !o.outcome).length, ...streak(commitmentId) };
+    const length = diffDays(c.startDate, c.endDate) + 1;   // 14 או 21
+    const dayIndex = Math.min(Math.max(diffDays(c.startDate, today()) + 1, 0), length);
+    return { length, success, miss, excused, resolved, rate: resolved ? success / resolved : null, total: obs.length, dayIndex, remaining: obs.filter(o => !o.outcome).length, ...streak(commitmentId) };
   }
 
   /* ---------- היום שלי ---------- */

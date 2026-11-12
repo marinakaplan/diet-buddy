@@ -325,6 +325,16 @@ test('״המהפך״: עקיפה בדירוג יוצרת אירוע והתראה
 });
 
 
+test('אתגר של 21 יום: 21 ימים, מונה ימים לפי האורך שלו; כל ערך אחר נשאר 14', () => {
+  fresh('דנה');
+  const k21 = Mila.createPersonalWord({ title: 'הליכה כל יום', rule: 'לפחות 20 דקות', days: 21 }).commitment;
+  const k14 = Mila.createPersonalWord({ title: 'מים', rule: '8 כוסות', days: 99 }).commitment;
+  assert.strictEqual(Mila.obligationsOf(k21.id).length, 21); assert.strictEqual(Mila.commitment(k21.id).endDate, Mila.addDays(today, 20));
+  assert.strictEqual(Mila.commitmentStats(k21.id).length, 21);
+  assert.strictEqual(Mila.obligationsOf(k14.id).length, 14); assert.strictEqual(Mila.commitmentStats(k14.id).length, 14);
+  checkInvariants();
+});
+
 test('אתגר אישי מופיע בכל הקבוצות של מי שלקחה אותו; פרטי לא מופיע באף אחת; הדירוג סופר אותו בכל קבוצה', () => {
   const me = fresh('דנה');
   const loose = Mila.createPersonalWord({ libraryId: 'move_walk_30' }).commitment;                      // עוד בלי קבוצה
