@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "Mila — We all make promises. Let's see who keeps them.",
+  "short_name": "Mila",
+  "description": "3 challenges. 14 days. Friends. Keep your word and see who sticks with it longer.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#FFF6F3",
+  "theme_color": "#FFF6F3",
+  "orientation": "portrait",
+  "dir": "ltr",
+  "lang": "en",
+  "categories": ["lifestyle", "health", "social"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/badge-96.png", "sizes": "96x96", "type": "image/png", "purpose": "monochrome" }
+  ],
+  "shortcuts": [
+    { "name": "Check in for today", "short_name": "Check in", "url": "/?go=today&source=shortcut", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Invite a friend", "short_name": "Invite", "url": "/?go=invite&source=shortcut", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,0 +1,903 @@
+/* ============================================================
+   מילה — מנוע המשחק (engine.js)
+   מקור האמת לחוקי המשחק. כרגע רץ בצד הלקוח מעל localStorage,
+   אבל כתוב כך שניתן להעביר אותו אחד־לאחד לשרת:
+   כל פעולה מקבלת state, מאמתת הרשאות וחוקים, וכותבת ביומן.
+
+   חוקים מרכזיים (לפי האפיון):
+   - סבב = 14 ימים.          - לכל היותר 3 אירועים מחייבים ביום, בכל הקבוצות יחד.
+   - נקודה (EARN) נוצרת רק בהכרעה. - הצלחה -> EARN ; פספוס -> MISS_TO_CIRCLE / MISS_PERSONAL ; החרגה -> אין מטבע.
+   - יומן תנועות append-only. תיקון = REVERSE + תנועה חדשה, לא מחיקה.
+   - דיווח חוזר מחזיר את ההכרעה הקיימת (idempotent).
+   ============================================================ */
+
+const Mila = (() => {
+  'use strict';
+
+  const STORAGE_KEY = 'mila.state.v1';
+  const RULES = {
+    ROUND_DAYS: 14,
+    DAILY_CAP: 3,
+    MAX_EXCUSES_PER_ROUND: 2,
+    GRACE_HOUR: 10,          // חלון השלמה עד 10:00 למחרת
+    CORRECTION_HOURS: 24,    // חלון תיקון אחרי הכרעה
+    INVITE_DAYS: 7,
+    MAX_MEMBERS_DEFAULT: 8,
+    MIN_RANKED_EVENTS: 3,
+  };
+
+  let state = null;
+
+  /* ---------- כלי עזר ---------- */
+  const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
+  // שעון ניתן להזרקה (לבדיקות ולמסע-בזמן ב-QA). בייצור: השעון של השרת.
+  let clockFn = null;
+  const now = () => (clockFn ? new Date(clockFn()) : new Date());
+  function setClock(fn) { clockFn = fn; }
+  const nowISO = () => now().toISOString();
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function toLocalDate(d = new Date()) {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  function parseDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+  function addDays(s, n) { const d = parseDate(s); d.setDate(d.getDate() + n); return toLocalDate(d); }
+  function diffDays(a, b) { return Math.round((parseDate(b) - parseDate(a)) / 86400000); }
+  function today() { return toLocalDate(now()); }
+  function dateRange(start, days) { return Array.from({ length: days }, (_, i) => addDays(start, i)); }
+  function fmtDate(s, opts = { day: 'numeric', month: 'numeric' }) {
+    return parseDate(s).toLocaleDateString('en-US', opts);
+  }
+  function fmtDateLong(s) {
+    return parseDate(s).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+  function relDay(s) {
+    const d = diffDays(today(), s);
+    if (d === 0) return 'Today';
+    if (d === -1) return 'Yesterday';
+    if (d === 1) return 'Tomorrow';
+    return fmtDate(s);
+  }
+  function fmtTime(iso) {
+    return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+  function hashStr(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
+
+  /* ---------- state ---------- */
+  function emptyState() {
+    return {
+      version: 1,
+      me: null,                 // user id
+      users: {},                // id -> {id,name,color,createdAt,settings,ageConfirmed}
+      circles: {},              // id -> {...}
+      memberships: [],          // {id,circleId,userId,role,joinedAt,leftAt}
+      invites: {},              // token -> {token,circleId,inviterId,createdAt,expiresAt,status,uses,maxUses}
+      wordDefs: {},             // id -> {id,kind:'personal'|'group',circleId,ownerId,title,rule,icon,visibility,version,startDate,status,createdAt}
+      commitments: {},          // id -> {id,defId,userId,startDate,endDate,status,createdAt}
+      obligations: {},          // id -> {id,commitmentId,userId,localDate,status,outcome,resolvedAt,reportedAt}
+      ledger: [],               // append-only
+      resolutionHistory: [],    // {id,obligationId,from,to,reason,actorId,at}
+      achievements: [],         // {id,userId,type,earnedAt,sourceRef}
+      socialEvents: [],         // {id,circleId,actorId,type,payload,createdAt}
+      encouragements: [],       // {id,eventId,userId,reaction,createdAt}
+      blocks: [],               // {blockerId,blockedId,at}
+      abuseReports: [],
+      notifications: [],        // {id,userId,type,title,body,createdAt,read,ref}
+      drafts: {},               // {word: {...}}
+      meta: { createdAt: nowISO(), demo: false },
+    };
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      state = raw ? JSON.parse(raw) : emptyState();
+    } catch (e) { state = emptyState(); }
+    if (!state.version) state = emptyState();
+    return state;
+  }
+  function save() {
+    if (state && state.meta && state.meta.cloud) return; // במצב ענן השרת הוא מקור האמת; לא שומרים עותק מקומי
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+  }
+  function reset() { state = emptyState(); save(); return state; }
+  function getState() { return state; }
+  function setState(s) { state = s; save(); }
+
+  /* ---------- משתמשים ---------- */
+  const AVATAR_COLORS = ['lime', 'pink', 'lavender', 'mint', 'peach', 'sky'];
+
+  function createUser({ name, ageConfirmed = false, color }) {
+    const id = uid('u');
+    const user = {
+      id, name: name.trim(), color: color || AVATAR_COLORS[hashStr(name) % AVATAR_COLORS.length],
+      createdAt: nowISO(), ageConfirmed, adult: ageConfirmed ? true : null, adultFrom: null,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      settings: { reminderTime: '20:00', pushReminders: true, socialDigest: true, hideFromLeaderboard: false, lockScreenPrivacy: true },
+    };
+    state.users[id] = user;
+    return user;
+  }
+  function me() { return state.me ? state.users[state.me] : null; }
+  function user(id) { return state.users[id]; }
+  function updateSettings(patch) { Object.assign(me().settings, patch); save(); }
+  function renameMe(name) { me().name = name.trim(); save(); }
+
+  /* ---------- קבוצות ---------- */
+  function activeMemberships(circleId) {
+    return state.memberships.filter(m => m.circleId === circleId && !m.leftAt);
+  }
+  function myCircles(userId = state.me) {
+    return state.memberships
+      .filter(m => m.userId === userId && !m.leftAt)
+      .map(m => state.circles[m.circleId])
+      .filter(c => c && c.status === 'active');
+  }
+  function membership(circleId, userId = state.me) {
+    return state.memberships.find(m => m.circleId === circleId && m.userId === userId && !m.leftAt) || null;
+  }
+  function isMember(circleId, userId = state.me) { return !!membership(circleId, userId); }
+  function isAdmin(circleId, userId = state.me) { const m = membership(circleId, userId); return !!m && m.role === 'admin'; }
+  function circleMembers(circleId) { return activeMemberships(circleId).map(m => ({ ...state.users[m.userId], role: m.role, joinedAt: m.joinedAt })); }
+
+  /* ---------- אתגר אישי שייך למי שלקחה אותו, ומופיע בכל הקבוצות שהיא חברה בהן ----------
+     (אלא אם הוא פרטי.) circleId של אתגר אישי הוא רק ״עוגן״ לעדכונים; מי רואה אותו נקבע לפי חברות בקבוצה. */
+  const PROGRESS_EVENTS = ['day_success', 'day_miss', 'day_excused', 'streak', 'word_committed'];
+  function inCircle(def, circleId) { if (!def || !circleId) return false; return def.kind === 'group' ? def.circleId === circleId : def.visibility !== 'private' && !!membership(circleId, def.ownerId); }
+  function defCircles(def) { if (!def) return []; if (def.kind === 'group') return def.circleId ? [def.circleId] : []; if (def.visibility === 'private') return []; return state.memberships.filter(m => m.userId === def.ownerId && !m.leftAt && state.circles[m.circleId] && state.circles[m.circleId].status === 'active').map(m => m.circleId); }
+  function eventInCircle(e, circleId) {
+    if (!PROGRESS_EVENTS.includes(e.type)) return e.circleId === circleId;
+    const d = e.payload && e.payload.defId ? state.wordDefs[e.payload.defId] : null;
+    return d ? inCircle(d, circleId) : e.circleId === circleId;
+  }
+  /* נכנסתי לקבוצה: האתגרים האישיים שלי (שאינם פרטיים) מקבלים עוגן אם אין להם. ״רק אני״ נשאר פרטי תמיד. */
+  function afterJoin(circleId) {
+    Object.values(state.wordDefs).filter(d => d.kind === 'personal' && d.ownerId === state.me && d.status !== 'cancelled' && !d.circleId && d.visibility !== 'private').forEach(d => { d.circleId = circleId; });
+  }
+  /* הקבוצה נעלמה מבחינתה: האתגרים האישיים ממשיכים, והעוגן עובר לקבוצה אחרת שלה (או מתרוקן) */
+  function rehome(circleId, userId = null) {
+    Object.values(state.wordDefs).filter(d => d.kind === 'personal' && d.circleId === circleId && (!userId || d.ownerId === userId)).forEach(d => {
+      const other = state.memberships.find(m => m.userId === d.ownerId && !m.leftAt && m.circleId !== circleId);
+      d.circleId = other ? other.circleId : null;
+    });
+  }
+  function createCircle({ name, description = '', color, whoCanPropose = 'all', maxMembers = RULES.MAX_MEMBERS_DEFAULT, roundStart = today() }) {
+    if (!name || !name.trim()) throw err("The group name can't be empty");
+    if (name.trim().length > 50) throw err('The group name is too long (up to 50 characters)');
+    const id = uid('c');
+    const circle = {
+      id, name: name.trim(), description: description.trim(), ownerId: state.me,
+      color: color || AVATAR_COLORS[hashStr(name) % AVATAR_COLORS.length],
+      whoCanPropose, maxMembers, roundStart, status: 'active', createdAt: nowISO(), rulesVersion: 1,
+    };
+    state.circles[id] = circle;
+    state.memberships.push({ id: uid('m'), circleId: id, userId: state.me, role: 'admin', joinedAt: nowISO(), leftAt: null });
+    afterJoin(id);
+    const invite = createInvite(id);
+    addEvent(id, state.me, 'circle_created', {});
+    grant(state.me, 'first_circle', id);
+    save();
+    return { circle, invite };
+  }
+
+  function updateCircle(circleId, patch) {
+    if (!isAdmin(circleId)) throw err('Only an admin can change the group details');
+    const c = state.circles[circleId];
+    const allowed = ['name', 'description', 'whoCanPropose', 'maxMembers', 'color'];
+    for (const k of allowed) if (k in patch) c[k] = patch[k];
+    save();
+    return c;
+  }
+
+  /* סבב של קבוצה: חלונות של 14 יום מעוגנים ל-roundStart */
+  function circleRound(circleId, date = today()) {
+    const c = state.circles[circleId];
+    const d = diffDays(c.roundStart, date);
+    const idx = Math.floor(d / RULES.ROUND_DAYS);
+    const start = addDays(c.roundStart, idx * RULES.ROUND_DAYS);
+    const end = addDays(start, RULES.ROUND_DAYS - 1);
+    const dayIndex = Math.min(Math.max(diffDays(start, date) + 1, 0), RULES.ROUND_DAYS);
+    return { index: idx + 1, start, end, dayIndex, nextStart: addDays(start, RULES.ROUND_DAYS) };
+  }
+
+  /* ---------- הזמנות ---------- */
+  const INVITE_KINDS = ['follow', 'compete', 'same'];
+  function createInvite(circleId, { maxUses = 20, kind = 'follow', message = '', libraryId = null, wordTitle = '' } = {}) {
+    if (!isMember(circleId)) throw err("You don't have permission to do that");
+    if (!INVITE_KINDS.includes(kind)) kind = 'follow';
+    if (libraryId && !LIB.get(libraryId)) libraryId = null;
+    const token = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const inv = { token, circleId, inviterId: state.me, createdAt: nowISO(), expiresAt: new Date(now().getTime() + RULES.INVITE_DAYS * 86400000).toISOString(), status: 'active', uses: 0, maxUses, kind, message: String(message || '').trim().slice(0, 200), libraryId, wordTitle: String(wordTitle || '').trim().slice(0, 60) };
+    state.invites[token] = inv;
+    save();
+    return inv;
+  }
+  function currentInvite(circleId) {
+    const list = Object.values(state.invites).filter(i => i.circleId === circleId && i.status === 'active' && new Date(i.expiresAt) > now());
+    return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] || null;
+  }
+  function revokeInvite(token) { const i = state.invites[token]; if (i) i.status = 'revoked'; save(); }
+  function revokeCircleInvites(circleId) { if (!isAdmin(circleId)) throw err('Only an admin can cancel invite links'); Object.values(state.invites).filter(i => i.circleId === circleId).forEach(i => { i.status = 'revoked'; }); save(); }
+  function inviteUrl(token) { return `${location.origin}${location.pathname}?invite=${token}`; }
+
+  function previewInvite(token) {
+    const inv = state.invites[(token || '').toUpperCase()];
+    if (!inv) return { ok: false, reason: 'not_found' };
+    if (inv.status !== 'active') return { ok: false, reason: 'revoked', inv };
+    if (new Date(inv.expiresAt) < now()) return { ok: false, reason: 'expired', inv };
+    if (inv.uses >= inv.maxUses) return { ok: false, reason: 'full', inv };
+    const circle = state.circles[inv.circleId];
+    if (!circle || circle.status !== 'active') return { ok: false, reason: 'not_found' };
+    const inviter = state.users[inv.inviterId];
+    // משתמשת חסומה לא נחשפת לפרטי הקבוצה
+    if (isBlocked(inv.inviterId, state.me) || isBlocked(state.me, inv.inviterId)) return { ok: false, reason: 'not_found' };
+    const members = circleMembers(circle.id);
+    const sample = Object.values(state.wordDefs).find(d => d.circleId === circle.id && d.kind === 'group' && d.status !== 'cancelled');
+    return { ok: true, inv, kind: inv.kind || 'follow', message: inv.message || '', libraryId: inv.libraryId || null, wordTitle: inv.wordTitle || '', challenge: inv.libraryId ? LIB.get(inv.libraryId) : null, circle: { id: circle.id, name: circle.name, description: circle.description, color: circle.color }, inviter, memberCount: members.length, maxMembers: circle.maxMembers, alreadyMember: isMember(circle.id), sampleWord: sample ? { title: sample.title } : null, round: circleRound(circle.id) };
+  }
+
+  function acceptInvite(token) {
+    const p = previewInvite(token);
+    if (!p.ok) throw err(inviteError(p.reason));
+    if (p.alreadyMember) return state.circles[p.circle.id];
+    if (p.memberCount >= p.maxMembers) throw err('The group is full. You can ask the group admin to add more spots.');
+    state.memberships.push({ id: uid('m'), circleId: p.circle.id, userId: state.me, role: 'member', joinedAt: nowISO(), leftAt: null });
+    afterJoin(p.circle.id);
+    p.inv.uses += 1;
+    addEvent(p.circle.id, state.me, 'member_joined', {});
+    grant(state.me, 'first_circle', p.circle.id);
+    save();
+    return state.circles[p.circle.id];
+  }
+  function inviteError(reason) {
+    return { not_found: "The link wasn't found. Maybe it was copied incorrectly?", revoked: 'The group cancelled this link. You can ask for a new one.', expired: 'This link has expired. You can ask for a new invite.', full: 'This link has been fully used. You can ask for a new one.' }[reason] || "You can't join right now.";
+  }
+
+  function leaveCircle(circleId, { endWords = true } = {}) {
+    const m = membership(circleId);
+    if (!m) return;
+    if (m.role === 'admin') {
+      const others = activeMemberships(circleId).filter(x => x.userId !== state.me);
+      if (others.length) { others[0].role = 'admin'; addEvent(circleId, others[0].userId, 'admin_transferred', {}); }
+      else { state.circles[circleId].status = 'archived'; }
+    }
+    m.leftAt = nowISO();
+    if (endWords) {
+      // האתגר המשותף של הקבוצה נעצר אצלי (ההיסטוריה נשמרת); האתגרים האישיים שלי ממשיכים
+      myCommitments().filter(c => { const d = state.wordDefs[c.defId] || {}; return d.kind === 'group' && d.circleId === circleId && c.status === 'active'; }).forEach(c => endCommitment(c.id, 'left_circle'));
+    }
+    rehome(circleId, state.me);
+    addEvent(circleId, state.me, 'member_left', {});
+    save();
+  }
+  function removeMember(circleId, userId) {
+    if (!isAdmin(circleId)) throw err('Only the group admin can remove friends from the group');
+    const m = membership(circleId, userId);
+    if (!m) return;
+    m.leftAt = nowISO();
+    m.removedBy = state.me;
+    endCircleCommitments(circleId, userId, 'removed_from_circle');
+    rehome(circleId, userId);
+    addEvent(circleId, state.me, 'member_removed', { userId });
+    save();
+  }
+  /* עוצרת את האתגרים המשותפים של הקבוצה (אצל משתמשת אחת, או אצל כולן). אתגרים אישיים ממשיכים. */
+  function endCircleCommitments(circleId, userId, reason) {
+    Object.values(state.commitments).filter(c => { const d = state.wordDefs[c.defId] || {}; return c.status === 'active' && (!userId || c.userId === userId) && d.kind === 'group' && d.circleId === circleId; }).forEach(c => {
+      c.status = 'ended_early'; c.endReason = reason;
+      obligationsOf(c.id).filter(o => !o.outcome && ['scheduled', 'open'].includes(o.status)).forEach(o => { o.status = 'cancelled'; });
+    });
+  }
+  function setMemberRole(circleId, userId, role) {
+    if (!isAdmin(circleId)) throw err('Only an admin can change permissions');
+    const m = membership(circleId, userId); if (!m) throw err("This friend isn't in the group");
+    role = role === 'admin' ? 'admin' : 'member';
+    if (role === 'member' && m.role === 'admin' && activeMemberships(circleId).filter(x => x.role === 'admin').length <= 1) throw err('The group needs at least one admin');
+    if (m.role !== role) { m.role = role; if (role === 'admin') addEvent(circleId, userId, 'admin_transferred', {}); }
+    save();
+  }
+  /* סגירת קבוצה: אתגרים נעצרים, הזמנות מבוטלות, כולן יוצאות, הקבוצה בארכיון. הנקודות נשארות. */
+  function deleteCircle(circleId) {
+    if (!isAdmin(circleId)) throw err('Only an admin can close the group');
+    endCircleCommitments(circleId, null, 'circle_deleted');
+    rehome(circleId);
+    Object.values(state.wordDefs).filter(d => d.circleId === circleId && d.status === 'proposed').forEach(d => { d.status = 'cancelled'; });
+    Object.values(state.invites).filter(i => i.circleId === circleId).forEach(i => { i.status = 'revoked'; });
+    activeMemberships(circleId).forEach(m => { m.leftAt = nowISO(); });
+    state.circles[circleId].status = 'archived';
+    save();
+  }
+
+  /* ---------- מילים ---------- */
+  const WORD_ICONS = ['walk', 'run', 'dumbbell', 'book', 'noPhone', 'water', 'sleep', 'moon', 'noSugar', 'leaf', 'meditate', 'pencil', 'heart', 'smile', 'home', 'users', 'coffee', 'call', 'tools', 'star'];
+
+  /* ספריית האתגרים הקבועה (library.js). TEMPLATES נשמר לתאימות: רשימה שטוחה עם שם קטגוריה. */
+  const LIB = typeof MilaLibrary !== 'undefined' ? MilaLibrary : { VERSION: 0, CATEGORIES: [], CHALLENGES: [], get: () => null, category: () => null, isSensitive: () => false, inCategory: () => [] };
+  const TEMPLATES = LIB.CHALLENGES.map(ch => ({ id: ch.id, cat: (LIB.category(ch.cat) || {}).name || ch.cat, catId: ch.cat, title: ch.title, rule: ch.rule, icon: ch.icon, sensitive: LIB.isSensitive(ch.id) }));
+
+  function wordDef(id) { return state.wordDefs[id]; }
+  function commitment(id) { return state.commitments[id]; }
+  function myCommitments(userId = state.me) { return Object.values(state.commitments).filter(c => c.userId === userId); }
+  function activeCommitments(userId = state.me, date = today()) {
+    return myCommitments(userId).filter(c => c.status === 'active' && c.startDate <= date && c.endDate >= date);
+  }
+  function obligationsOf(commitmentId) {
+    return Object.values(state.obligations).filter(o => o.commitmentId === commitmentId).sort((a, b) => a.localDate.localeCompare(b.localDate));
+  }
+
+  /* תקרה: ספירת אירועים מחייבים לכל תאריך */
+  function bindingCountByDate(userId, dates) {
+    const counts = {};
+    for (const d of dates) counts[d] = 0;
+    for (const o of Object.values(state.obligations)) {
+      if (o.userId !== userId || o.status === 'cancelled') continue;
+      if (o.localDate in counts) counts[o.localDate] += 1;
+    }
+    return counts;
+  }
+  function capCheck(userId, startDate, days = RULES.ROUND_DAYS) {
+    const dates = dateRange(startDate, days);
+    const counts = bindingCountByDate(userId, dates);
+    const conflicts = dates.filter(d => counts[d] >= RULES.DAILY_CAP);
+    const maxCount = Math.max(...dates.map(d => counts[d]));
+    // התאריך הראשון שבו יש מקום לכל 14 הימים
+    let nextFree = null;
+    for (let i = 0; i < 60 && !nextFree; i++) {
+      const s = addDays(startDate, i);
+      const c = bindingCountByDate(userId, dateRange(s, days));
+      if (Object.values(c).every(v => v < RULES.DAILY_CAP)) nextFree = s;
+    }
+    return { ok: conflicts.length === 0, conflicts, maxCount, nextFree, conflictingWords: conflicts.length ? activeWordsOn(userId, conflicts[0]) : [] };
+  }
+  function activeWordsOn(userId, date) {
+    return Object.values(state.obligations)
+      .filter(o => o.userId === userId && o.localDate === date && o.status !== 'cancelled')
+      .map(o => ({ ...state.wordDefs[state.commitments[o.commitmentId].defId], commitmentId: o.commitmentId }));
+  }
+
+  function validateWordInput({ title, rule }) {
+    if (!title || !title.trim()) throw err('The challenge needs a name');
+    if (title.trim().length > 60) throw err('The challenge name is too long (up to 60 characters)');
+    if (!rule || !rule.trim()) throw err("Write what counts as success, so you know what you're checking in on");
+    const banned = /(starv|eat(ing)? nothing|not eat(ing)? anything|\bfast(ing)? for\b|vomit|throw(ing)? up|(hurt|harm|cut)(ting|ing)? (myself|yourself)|self[- ]?harm|\bdrugs\b|drink(ing)? (un)?till?\b|gain(ing)? weight|get(ting)? fat)/i;   // same list as the server (src/game.js)
+    if (banned.test(title) || banned.test(rule)) throw err('This wording could be risky. Try a challenge that adds something good to your day, instead of an extreme restriction.');
+  }
+
+  /* גיל: התחום הרגיש פתוח מגיל 18. תאריך הלידה עצמו לא נשמר (רק ״פתוח״ או מתי ייפתח). */
+  function isAdult() { const u = me(); return !!u && u.adult === true; }
+  function setBirthDate(birthDate) {
+    const u = me(); const t = today();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate || '') || birthDate > t || birthDate < '1900-01-01') throw err("That date of birth isn't valid");
+    if (u.adult === true) return { adult: true, adultFrom: null };
+    if (u.adultFrom) throw err("We already have on record when this category opens for you. If there's a mistake, write to us.");
+    const [y, m, d] = birthDate.split('-'); const turns18 = `${Number(y) + 18}-${m}-${d}`;
+    const adult = turns18 <= t;
+    u.adult = adult; u.adultFrom = adult ? null : turns18; save();
+    return { adult, adultFrom: u.adultFrom };
+  }
+  /* יצירת מילה אישית (ואופציונלית – חשיפה לקבוצה אחד) */
+  /* להביא לקבוצה אתגרים אישיים שכבר רצים; אתגר שהיה בקבוצה אחרת שלי עובר לכאן */
+  function shareToCircle(circleId, commitmentIds = []) {
+    if (!isMember(circleId)) throw err("You're not in this group");
+    let shared = 0;
+    for (const id of commitmentIds) {
+      const k = state.commitments[id]; const d = k && state.wordDefs[k.defId];
+      if (!k || k.userId !== state.me || k.status !== 'active' || !d || d.kind !== 'personal' || d.circleId === circleId) continue;
+      d.circleId = circleId; d.visibility = 'status'; shared++;
+      addEvent(circleId, state.me, 'word_committed', { defId: d.id, title: d.title });
+    }
+    save();
+    return { shared };
+  }
+  function createPersonalWord({ title, rule, icon = 'leaf', startDate = today(), circleId = null, libraryId = null, reward = '', rewardShared = false, shareSensitive = false, private: onlyMe = false, days = RULES.ROUND_DAYS }) {
+    days = Number(days) === 21 ? 21 : RULES.ROUND_DAYS;   // 14 יום כברירת מחדל, או 21
+    let lib = null, category = null, sensitive = false;
+    if (libraryId) {
+      lib = LIB.get(libraryId);
+      if (!lib) throw err("This challenge isn't in the library");
+      title = lib.title; rule = lib.rule; icon = lib.icon; category = lib.cat; sensitive = LIB.isSensitive(libraryId);
+      if (sensitive && !isAdult()) throw Object.assign(err('This category is for ages 18 and up.'), { code: 'ADULT_ONLY' });
+    }
+    validateWordInput({ title, rule });
+    // פרטי: תחום רגיש שלא נבחר לשתף, או בחירה מפורשת ב״רק אני״. כל השאר מופיע בכל הקבוצות שלי.
+    const priv = (sensitive && !shareSensitive) || onlyMe === true;
+    if (priv) circleId = null;
+    if (circleId && !isMember(circleId)) throw err("You're not in this group");
+    if (!priv && !circleId) circleId = (myCircles()[0] || {}).id || null;
+    const visibility = priv ? 'private' : 'status';
+    reward = String(reward || '').trim().slice(0, 80);
+    const cap = capCheck(state.me, startDate, days);
+    if (!cap.ok) throw Object.assign(err('You already have 3 challenges on those days'), { code: 'CAP', cap });
+    const def = { id: uid('w'), kind: 'personal', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility, version: 1, startDate, status: 'active', createdAt: nowISO(), libraryId: libraryId || null, category, sensitive };
+    state.wordDefs[def.id] = def;
+    const c = createCommitment(def.id, state.me, startDate, days);
+    c.reward = reward; c.rewardShared = !!(reward && rewardShared);
+    if (circleId && visibility !== 'private') addEvent(circleId, state.me, 'word_committed', { defId: def.id, title: def.title });
+    grant(state.me, 'first_word', def.id);
+    delete state.drafts.word;
+    save();
+    return { def, commitment: c };
+  }
+
+  function createCommitment(defId, userId, startDate, days = RULES.ROUND_DAYS) {
+    const c = { id: uid('k'), defId, userId, startDate, endDate: addDays(startDate, days - 1), status: 'active', createdAt: nowISO() };
+    state.commitments[c.id] = c;
+    for (const d of dateRange(startDate, days)) {
+      const o = { id: uid('o'), commitmentId: c.id, userId, localDate: d, status: 'scheduled', outcome: null, resolvedAt: null, reportedAt: null };
+      state.obligations[o.id] = o;
+    }
+    refreshStatuses();
+    return c;
+  }
+
+  /* הצעת מילה קבוצתית */
+  function proposeGroupWord(circleId, { title, rule, icon = 'leaf', startDate, visibility = 'status' }) {
+    const circle = state.circles[circleId];
+    if (!circle) throw err('Group not found');
+    if (!isMember(circleId)) throw err("You're not in this group");
+    if (circle.whoCanPropose === 'admins' && !isAdmin(circleId)) throw err('In this group, only admins can start a shared challenge');
+    validateWordInput({ title, rule });
+    if (!startDate) startDate = today();
+    const cap0 = capCheck(state.me, startDate);
+    if (!cap0.ok) throw Object.assign(err("You already have 3 challenges, and that's the maximum. When one of them ends, you can start a shared challenge."), { code: 'CAP', cap: cap0 });
+    const def = { id: uid('w'), kind: 'group', circleId, ownerId: state.me, title: title.trim(), rule: rule.trim(), icon, visibility, version: 1, startDate, endDate: addDays(startDate, RULES.ROUND_DAYS - 1), status: 'proposed', createdAt: nowISO() };
+    state.wordDefs[def.id] = def;
+    addEvent(circleId, state.me, 'group_word_proposed', { defId: def.id, title: def.title });
+    // התראה לחברות
+    for (const m of activeMemberships(circleId)) if (m.userId !== state.me) notify(m.userId, 'group_word', `Are you in? · ${circle.name}`, `${me().name} started a shared challenge: ${def.title}`, { defId: def.id, circleId });
+    adoptGroupWord(def.id, { silent: true });   // מי שפותחת כבר בפנים
+    save();
+    return def;
+  }
+  function adopters(defId) {
+    return Object.values(state.commitments).filter(c => c.defId === defId && c.status !== 'cancelled').map(c => ({ ...state.users[c.userId], commitmentId: c.id, status: c.status }));
+  }
+  function myAdoption(defId, userId = state.me) { return Object.values(state.commitments).find(c => c.defId === defId && c.userId === userId && c.status !== 'cancelled') || null; }
+
+  function adoptGroupWord(defId, { silent = false } = {}) {
+    const def = state.wordDefs[defId];
+    if (!def || def.kind !== 'group') throw err('Challenge not found');
+    if (!isMember(def.circleId)) throw err("You're not in this group");
+    if (def.status === 'cancelled') throw err('This shared challenge was cancelled');
+    if (myAdoption(defId)) return myAdoption(defId);
+    const start = def.startDate < today() ? today() : def.startDate; // הצטרפות מאוחרת מתחילה מהיום
+    if (def.endDate && start > def.endDate) throw err('This challenge has already ended. You can start it again for the next round.');
+    const cap = capCheck(state.me, start);
+    if (!cap.ok) throw Object.assign(err('You already have 3 challenges on those days'), { code: 'CAP', cap });
+    const c = createCommitment(def.id, state.me, start);
+    // התחייבות של מילה קבוצתית מסתיימת עם המילה הקבוצתית
+    if (def.endDate && c.endDate > def.endDate) { c.endDate = def.endDate; obligationsOf(c.id).filter(o => o.localDate > def.endDate).forEach(o => { o.status = 'cancelled'; }); }
+    if (def.status === 'proposed') def.status = 'active';
+    if (!silent) addEvent(def.circleId, state.me, 'group_word_adopted', { defId: def.id, title: def.title });
+    grant(state.me, 'first_word', def.id);
+    grant(state.me, 'first_group_word', def.id);
+    save();
+    return c;
+  }
+  function cancelProposal(defId) {
+    const def = state.wordDefs[defId];
+    if (def.ownerId !== state.me && !isAdmin(def.circleId)) throw err("You don't have permission to do that");
+    if (adopters(defId).length) throw err("Friends have already joined this challenge, so it can't be cancelled. You can stop your own challenge.");
+    def.status = 'cancelled';
+    save();
+  }
+
+  function endCommitment(commitmentId, reason = 'ended_by_user') {
+    const c = state.commitments[commitmentId];
+    if (!c || c.userId !== state.me) throw err("You don't have permission to do that");
+    c.status = 'ended_early';
+    c.endedAt = nowISO();
+    c.endReason = reason;
+    // אירועים שטרם נפתחו מבוטלים; אירועים שהוכרעו נשארים
+    for (const o of obligationsOf(commitmentId)) if (o.status === 'scheduled' || o.status === 'open') o.status = 'cancelled';
+    save();
+  }
+  /* ---------- אירועים יומיים ודיווח ---------- */
+  function windowOf(o) {
+    const opens = parseDate(o.localDate);                           // 00:00 ביום
+    const closes = parseDate(addDays(o.localDate, 1)); closes.setHours(RULES.GRACE_HOUR, 0, 0, 0); // 10:00 למחרת
+    return { opens, closes };
+  }
+  function isOpenNow(o, at = now()) { const w = windowOf(o); return at >= w.opens && at < w.closes; }
+
+  /* רענון סטטוסים: scheduled -> open -> (אוטומטי) confirmed_miss אחרי חלון */
+  function refreshStatuses(at = now()) {
+    if (state.meta && state.meta.seeding) return; // בזמן זריעת דמו אין הכרעות אוטומטיות
+    if (state.meta && state.meta.cloud) {
+      // במצב ענן ההכרעות האוטומטיות נעשות בשרת (fn_settle). כאן רק פותחים ימים שהגיעו.
+      for (const o of Object.values(state.obligations)) if (o.status === 'scheduled' && !o.outcome && at >= windowOf(o).opens) o.status = 'open';
+      return;
+    }
+    let changed = false;
+    for (const o of Object.values(state.obligations)) {
+      if (o.status === 'cancelled' || o.outcome) continue;
+      const c = state.commitments[o.commitmentId];
+      if (!c || c.status !== 'active') { continue; }
+      const w = windowOf(o);
+      if (at >= w.closes) {
+        // יום שלא דווח ועבר חלון ההשלמה – נזקף כפספוס. ניתן לתקן בחלון התיקונים.
+        resolve(o, 'miss', { reason: 'auto_unreported', actorId: 'system', at: w.closes.toISOString() });
+        changed = true;
+      } else if (at >= w.opens && o.status === 'scheduled') { o.status = 'open'; changed = true; }
+    }
+    // סיום התחייבויות שהסתיימו
+    for (const c of Object.values(state.commitments)) {
+      if (c.status === 'active' && c.endDate < today() && obligationsOf(c.id).every(o => o.outcome || o.status === 'cancelled')) {
+        c.status = 'completed'; c.completedAt = nowISO(); changed = true;
+        grant(c.userId, 'round_complete', c.id);
+        const prev = myCommitments(c.userId).filter(x => x.status === 'completed').length;
+        if (prev >= 2) grant(c.userId, 'second_round', c.id);
+      }
+    }
+    if (changed) save();
+  }
+
+  function excusesUsed(commitmentId) { return obligationsOf(commitmentId).filter(o => o.outcome === 'excused').length; }
+
+  function report(obligationId, outcome, { note = '' } = {}) {
+    const o = state.obligations[obligationId];
+    if (!o) throw err("That day wasn't found");
+    if (o.userId !== state.me) throw err('Only the person who took on the challenge can check in for it');
+    if (o.status === 'cancelled') throw err('That day was cancelled');
+    if (o.outcome) return { obligation: o, duplicate: true };   // idempotent
+    const at = now();
+    const w = windowOf(o);
+    if (at < w.opens) throw err("You can't check in for a day that hasn't started yet");
+    if (at >= w.closes) throw err("It's too late to check in for that day (you can until 10:00 the next day).");
+    if (outcome === 'excused') {
+      if (excusesUsed(o.commitmentId) >= RULES.MAX_EXCUSES_PER_ROUND) throw err(`You've already used ${RULES.MAX_EXCUSES_PER_ROUND} ${RULES.MAX_EXCUSES_PER_ROUND === 1 ? 'day off' : 'days off'} in this round`);
+    }
+    const def = state.wordDefs[state.commitments[o.commitmentId].defId];
+    const cids = outcome === 'success' ? defCircles(def) : []; const before = cids.map(cid => leaderboard(cid).rows);
+    resolve(o, outcome, { reason: 'self_report', actorId: state.me, note });
+    cids.forEach((cid, i) => overtakes(cid, before[i], leaderboard(cid).rows, def));
+    save();
+    return { obligation: o, duplicate: false };
+  }
+  /* ״המהפך״: מי שהייתה מעליי בדירוג לפני הדיווח ונמצאת מתחתיי אחריו */
+  function overtakes(circleId, before, after, def) {
+    const pos = (rows, id) => { const i = rows.findIndex(r => r.user.id === id && r.ranked); return i < 0 ? null : i; };
+    const myBefore = pos(before, state.me), myAfter = pos(after, state.me);
+    if (myAfter === null) return [];
+    const passed = after.filter((r, i) => r.user.id !== state.me && r.ranked && i > myAfter && (myBefore === null ? pos(before, r.user.id) !== null : pos(before, r.user.id) < myBefore));
+    for (const r of passed) {
+      addEvent(circleId, state.me, 'overtake', { passedUserId: r.user.id, title: def.title });
+      notify(state.me, 'overtake', `You passed ${r.user.name}.`, `Now let's see if ${r.user.name} lets you stay there.`, { circleId });
+      notify(r.user.id, 'overtake', `${me().name} passed you.`, "One more win and you're back.", { circleId });
+    }
+    return passed;
+  }
+  /* משפט המצב שלי בתחרות (לכותרת הקבוצה ולמסך היום) */
+  function rankInsight(circleId, userId = state.me) {
+    const { rows } = leaderboard(circleId);
+    const ranked = rows.filter(r => r.ranked);
+    const mine = rows.find(r => r.user.id === userId);
+    if (!mine) return null;
+    const pct = (x) => Math.round(x * 100);
+    if (!mine.ranked) { const left = Math.max(RULES.MIN_RANKED_EVENTS - mine.resolved, 1); return { place: null, total: ranked.length, text: mine.hidden ? "You're out of the ranking." : `${left === 1 ? 'One more check-in' : `${left} more check-ins`} and you're in the ranking.` }; }
+    const i = ranked.findIndex(r => r.user.id === userId);
+    const above = i > 0 ? ranked[i - 1] : null;
+    const below = i < ranked.length - 1 ? ranked[i + 1] : null;
+    if (!above) {
+      if (!below) return { place: mine.place, total: ranked.length, text: "You're leading. Just you, for now." };
+      const gap = pct(mine.rate) - pct(below.rate);
+      return { place: mine.place, total: ranked.length, text: gap > 0 ? `You're leading. ${below.user.name} is behind you.` : `You're leading, and ${below.user.name} is right on your heels.` };
+    }
+    const gap = pct(above.rate) - pct(mine.rate);
+    const next = (mine.success + 1) / (mine.resolved + 1);
+    const text = gap <= 0 ? `You're level with ${above.user.name}. One more win and you're ahead.` : next >= above.rate ? `${above.user.name} is ahead of you. One more win and you switch places.` : `${above.user.name} is ahead of you. Every win gets you closer.`;
+    return { place: mine.place, total: ranked.length, above: above.user, gap, text };
+  }
+
+  /* הכרעה: יוצרת תנועה אחת בלבד לכל אירוע */
+  function resolve(o, outcome, { reason, actorId, note = '', at = nowISO() }) {
+    const from = o.status;
+    const c = state.commitments[o.commitmentId];
+    const def = state.wordDefs[c.defId];
+    o.outcome = outcome;
+    o.status = outcome === 'success' ? 'confirmed_success' : outcome === 'miss' ? 'confirmed_miss' : 'excused';
+    o.resolvedAt = at;
+    o.reportedAt = at;
+    o.resolveReason = reason;
+    if (note) o.note = note;
+    state.resolutionHistory.push({ id: uid('h'), obligationId: o.id, from, to: o.status, reason, actorId, at });
+    postLedger(o, outcome, def);
+    if (outcome === 'success') {
+      grant(o.userId, 'first_day', o.id);
+      const s = streak(o.commitmentId).current;
+      if (s >= 7) grant(o.userId, 'streak_7', c.id);
+      if (s >= 14) grant(o.userId, 'streak_14', c.id);
+      if (def.circleId && def.visibility !== 'private' && (s === 3 || s === 7 || s === 14)) addEvent(def.circleId, o.userId, 'streak', { title: def.title, streak: s });
+    }
+    if (def.circleId && def.visibility !== 'private' && reason === 'self_report') {
+      addEvent(def.circleId, o.userId, outcome === 'success' ? 'day_success' : outcome === 'miss' ? 'day_miss' : 'day_excused', { title: def.title, defId: def.id, date: o.localDate });
+    }
+  }
+
+  function postLedger(o, outcome, def) {
+    if (outcome === 'excused') return; // אין מטבע
+    const type = outcome === 'success' ? 'EARN' : def.circleId ? 'MISS_TO_CIRCLE' : 'MISS_PERSONAL';
+    state.ledger.push({ id: uid('t'), obligationId: o.id, userId: o.userId, type, circleId: def.circleId || null, defId: def.id, amount: 1, reversalOf: null, createdAt: o.resolvedAt || nowISO(), localDate: o.localDate });
+  }
+
+  function canCorrect(o, at = now()) {
+    if (!o.outcome) return false;
+    if (o.userId !== state.me) return false;
+    // 24 שעות מההכרעה הראשונה (לא מהתיקון האחרון), כמו בשרת
+    const firstAt = (state.resolutionHistory || []).filter(h => h.obligationId === o.id).map(h => h.at).sort()[0] || o.resolvedAt;
+    return (at - new Date(firstAt)) < RULES.CORRECTION_HOURS * 3600000;
+  }
+  function correct(obligationId, newOutcome, reason) {
+    const o = state.obligations[obligationId];
+    if (!o) throw err("That day wasn't found");
+    if (!canCorrect(o)) throw err('The correction window (24 hours) has closed');
+    if (!reason || !reason.trim()) throw err('A short reason is needed for the correction');
+    if (o.outcome === newOutcome) return o;
+    const c = state.commitments[o.commitmentId];
+    const def = state.wordDefs[c.defId];
+    if (newOutcome === 'excused' && excusesUsed(c.id) >= RULES.MAX_EXCUSES_PER_ROUND) throw err(`You've already used ${RULES.MAX_EXCUSES_PER_ROUND} ${RULES.MAX_EXCUSES_PER_ROUND === 1 ? 'day off' : 'days off'} in this round`);
+    // היפוך התנועה המקורית
+    const original = activeLedger().find(t => t.obligationId === o.id);
+    if (original) state.ledger.push({ id: uid('t'), obligationId: o.id, userId: o.userId, type: 'REVERSE', circleId: original.circleId, defId: def.id, amount: -1, reversalOf: original.id, createdAt: nowISO(), localDate: o.localDate, reason });
+    const from = o.status;
+    o.outcome = newOutcome;
+    o.status = newOutcome === 'success' ? 'confirmed_success' : newOutcome === 'miss' ? 'confirmed_miss' : 'excused';
+    o.correctedAt = nowISO();
+    o.resolvedAt = nowISO(); // חלון תיקון חדש של 24 שעות
+    o.correctionReason = reason;
+    state.resolutionHistory.push({ id: uid('h'), obligationId: o.id, from, to: 'corrected:' + o.status, reason, actorId: state.me, at: nowISO() });
+    postLedger(o, newOutcome, def);
+    save();
+    return o;
+  }
+
+  /* ---------- בנק ויתרות ---------- */
+  function activeLedger() {
+    const reversed = new Set(state.ledger.filter(t => t.type === 'REVERSE').map(t => t.reversalOf));
+    return state.ledger.filter(t => t.type !== 'REVERSE' && !reversed.has(t.id));
+  }
+  function bankSummary(userId = state.me) {
+    const mine = activeLedger().filter(t => t.userId === userId);
+    const earnedTotal = mine.filter(t => t.type === 'EARN').length;
+    const missedTotal = mine.filter(t => t.type !== 'EARN').length;
+    const active = activeCommitments(userId);
+    const activeIds = new Set(active.map(c => c.id));
+    const roundObs = Object.values(state.obligations).filter(o => activeIds.has(o.commitmentId));
+    const earnedCurrentRound = roundObs.filter(o => o.outcome === 'success').length;
+    const missedCurrentRound = roundObs.filter(o => o.outcome === 'miss').length;
+    const excusedCurrentRound = roundObs.filter(o => o.outcome === 'excused').length;
+    const pendingToday = roundObs.filter(o => o.localDate === today() && !o.outcome && o.status !== 'cancelled').length;
+    const potential = roundObs.filter(o => o.status !== 'cancelled').length;
+    const byCircle = {};
+    for (const t of mine) { const k = t.circleId || 'personal'; byCircle[k] = byCircle[k] || { earned: 0, missed: 0 }; byCircle[k][t.type === 'EARN' ? 'earned' : 'missed'] += 1; }
+    const transactions = state.ledger.filter(t => t.userId === userId).slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(t => {
+      const def = state.wordDefs[t.defId] || {};
+      return { ...t, title: def.title, icon: def.icon, circleName: t.circleId ? (state.circles[t.circleId] || {}).name : null, reversed: !activeLedger().includes(t) && t.type !== 'REVERSE' };
+    });
+    return { earnedTotal, missedTotal, earnedCurrentRound, missedCurrentRound, excusedCurrentRound, pendingToday, potential, byCircle, transactions, pendingSlots: potential - earnedCurrentRound - missedCurrentRound - excusedCurrentRound };
+  }
+  function circlePool(circleId, round = circleRound(circleId)) {
+    return activeLedger().filter(t => t.circleId === circleId && t.type === 'MISS_TO_CIRCLE' && t.localDate >= round.start && t.localDate <= round.end).length;
+  }
+  function circlePoolAllTime(circleId) { return activeLedger().filter(t => t.circleId === circleId && t.type === 'MISS_TO_CIRCLE').length; }
+
+  /* ---------- רצף, סטטיסטיקה ---------- */
+  function streak(commitmentId) {
+    const obs = obligationsOf(commitmentId).filter(o => o.status !== 'cancelled' && o.localDate <= today());
+    let current = 0, best = 0, run = 0;
+    for (const o of obs) {
+      if (o.outcome === 'success') { run += 1; best = Math.max(best, run); }
+      else if (o.outcome === 'miss') { run = 0; }
+      // excused / לא הוכרע עדיין – לא שובר ולא מוסיף
+    }
+    // רצף נוכחי: מהסוף אחורה
+    for (let i = obs.length - 1; i >= 0; i--) {
+      const o = obs[i];
+      if (o.outcome === 'success') current += 1;
+      else if (o.outcome === 'miss') break;
+    }
+    return { current, best };
+  }
+  function commitmentStats(commitmentId) {
+    const obs = obligationsOf(commitmentId).filter(o => o.status !== 'cancelled');
+    const success = obs.filter(o => o.outcome === 'success').length;
+    const miss = obs.filter(o => o.outcome === 'miss').length;
+    const excused = obs.filter(o => o.outcome === 'excused').length;
+    const resolved = success + miss;
+    const c = state.commitments[commitmentId];
+    const length = diffDays(c.startDate, c.endDate) + 1;   // 14 או 21
+    const dayIndex = Math.min(Math.max(diffDays(c.startDate, today()) + 1, 0), length);
+    return { length, success, miss, excused, resolved, rate: resolved ? success / resolved : null, total: obs.length, dayIndex, remaining: obs.filter(o => !o.outcome).length, ...streak(commitmentId) };
+  }
+
+  /* ---------- היום שלי ---------- */
+  function todayCards(userId = state.me, date = today()) {
+    refreshStatuses();
+    const items = Object.values(state.obligations)
+      .filter(o => o.userId === userId && o.localDate === date && o.status !== 'cancelled')
+      .map(o => decorate(o));
+    // גם אירועים של אתמול שעדיין פתוחים (חלון השלמה)
+    const y = addDays(date, -1);
+    const late = Object.values(state.obligations).filter(o => o.userId === userId && o.localDate === y && !o.outcome && o.status === 'open' && isOpenNow(o)).map(o => ({ ...decorate(o), late: true }));
+    return [...late, ...items];
+  }
+  function decorate(o) {
+    const c = state.commitments[o.commitmentId];
+    const def = state.wordDefs[c.defId];
+    const circle = def.circleId ? state.circles[def.circleId] : null;
+    return { ...o, commitment: c, def, circle, stats: commitmentStats(c.id), open: isOpenNow(o), canCorrect: canCorrect(o) };
+  }
+  function upcomingWords(userId = state.me) {
+    return myCommitments(userId).filter(c => c.status === 'active' && c.startDate > today()).map(c => ({ ...c, def: state.wordDefs[c.defId] }));
+  }
+  function wordHistory(userId = state.me) {
+    return myCommitments(userId).filter(c => c.status === 'completed' || c.status === 'ended_early').map(c => ({ ...c, def: state.wordDefs[c.defId], stats: commitmentStats(c.id) })).sort((a, b) => b.endDate.localeCompare(a.endDate));
+  }
+
+  /* ---------- דירוג ---------- */
+  function leaderboard(circleId, round = circleRound(circleId)) {
+    const members = circleMembers(circleId);
+    const rows = members.map(u => {
+      const cs = myCommitments(u.id).filter(c => inCircle(state.wordDefs[c.defId], circleId) && c.status !== 'cancelled');
+      const obs = cs.flatMap(c => obligationsOf(c.id)).filter(o => o.status !== 'cancelled' && o.localDate >= round.start && o.localDate <= round.end);
+      const success = obs.filter(o => o.outcome === 'success').length;
+      const miss = obs.filter(o => o.outcome === 'miss').length;
+      const resolved = success + miss;
+      const bestStreak = Math.max(0, ...cs.map(c => streak(c.id).current));
+      const hidden = !!(u.settings && u.settings.hideFromLeaderboard);
+      return { user: u, success, miss, resolved, rate: resolved ? success / resolved : null, streak: bestStreak, words: cs.length, ranked: resolved >= RULES.MIN_RANKED_EVENTS && !hidden, hidden };
+    });
+    rows.sort((a, b) => {
+      if (a.ranked !== b.ranked) return a.ranked ? -1 : 1;
+      if ((b.rate || 0) !== (a.rate || 0)) return (b.rate || 0) - (a.rate || 0);
+      if (b.success !== a.success) return b.success - a.success;
+      return b.streak - a.streak;
+    });
+    // מקום משותף בשוויון מלא
+    let place = 0, prevKey = null;
+    rows.forEach((r, i) => {
+      if (!r.ranked) { r.place = null; return; }
+      const key = `${r.rate}|${r.success}|${r.streak}`;
+      if (key !== prevKey) { place = i + 1; prevKey = key; }
+      r.place = place;
+    });
+    return { round, rows };
+  }
+
+  /* המנצחת של הסבב הקודם (מוצג בתחילת סבב חדש) */
+  function previousRoundWinner(circleId) {
+    const round = circleRound(circleId);
+    if (round.index < 2) return null;
+    const prev = circleRound(circleId, addDays(round.start, -1));
+    const top = leaderboard(circleId, prev).rows.find(r => r.ranked && r.place === 1);
+    return top ? { ...top, round: prev } : null;
+  }
+
+  /* ---------- פיד חברתי ---------- */
+  function addEvent(circleId, actorId, type, payload) {
+    state.socialEvents.push({ id: uid('e'), circleId, actorId, type, payload, createdAt: nowISO() });
+  }
+  function feed(circleId, limit = 40) {
+    const blocked = new Set(state.blocks.filter(b => b.blockerId === state.me).map(b => b.blockedId));
+    return state.socialEvents.filter(e => eventInCircle(e, circleId) && !blocked.has(e.actorId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)
+      .map(e => ({ ...e, actor: state.users[e.actorId] || { name: 'Someone' }, reactions: state.encouragements.filter(x => x.eventId === e.id) }));
+  }
+  function myFeedDigest(limit = 3) {
+    const ids = new Set(myCircles().map(c => c.id));
+    const blocked = new Set(state.blocks.filter(b => b.blockerId === state.me).map(b => b.blockedId));
+    // גם התקדמות של חברה שנרשמה בקבוצה אחרת שלה: מוצגת תחת קבוצה שמשותפת לשתינו
+    const shared = (e) => (ids.has(e.circleId) ? e.circleId : [...ids].find(id => eventInCircle(e, id))) || null;
+    return state.socialEvents.map(e => ({ e, cid: shared(e) })).filter(({ e, cid }) => cid && e.actorId !== state.me && !blocked.has(e.actorId)).sort((a, b) => b.e.createdAt.localeCompare(a.e.createdAt)).slice(0, limit)
+      .map(({ e, cid }) => ({ ...e, actor: state.users[e.actorId], circle: state.circles[cid] }));
+  }
+  const REACTIONS = ['clap', 'heart', 'muscle', 'fire', 'star'];
+  function encourage(eventId, reaction) {
+    if (!REACTIONS.includes(reaction)) throw err("That reaction isn't supported");
+    const existing = state.encouragements.find(x => x.eventId === eventId && x.userId === state.me);
+    if (existing) { if (existing.reaction === reaction) { state.encouragements = state.encouragements.filter(x => x !== existing); } else existing.reaction = reaction; }
+    else state.encouragements.push({ id: uid('r'), eventId, userId: state.me, reaction, createdAt: nowISO() });
+    grant(state.me, 'first_encouragement', eventId);
+    save();
+  }
+  function sendEncouragement(circleId, toUserId, reaction, obligationId = null) {
+    const o = obligationId ? state.obligations[obligationId] : null; const d = o ? state.wordDefs[(state.commitments[o.commitmentId] || {}).defId] : null;
+    if (o && state.socialEvents.some(e => e.type === 'encouragement' && e.actorId === state.me && e.payload && e.payload.obligationId === o.id)) return;
+    addEvent(circleId, state.me, 'encouragement', o ? { toUserId, reaction: 'heart', obligationId: o.id, title: d ? d.title : '' } : { toUserId, reaction });
+    grant(state.me, 'first_encouragement', circleId);
+    notify(toUserId, 'encouragement', o && d ? (o.outcome === 'success' ? `${me().name} cheered you on for “${d.title}”` : `${me().name} is with you. Tomorrow is a new day.`) : `${me().name} sent you a kind word`, '', { circleId });
+    save();
+  }
+
+  /* ---------- הישגים ---------- */
+  const ACHIEVEMENTS = {
+    first_word: { title: 'I gave my word', desc: 'Your first challenge', icon: 'pencil' },
+    first_day: { title: 'Signed and sealed', desc: 'Your first point', icon: 'check' },
+    streak_7: { title: 'Word after word', desc: 'Seven wins in a row on the same challenge', icon: 'flame' },
+    streak_14: { title: 'Rock solid', desc: '14 wins in a row. A perfect round', icon: 'trophy' },
+    first_circle: { title: 'First group', desc: 'You joined a group', icon: 'users' },
+    first_group_word: { title: 'You have my word', desc: 'You joined a shared challenge', icon: 'link' },
+    first_encouragement: { title: 'A kind word', desc: 'You cheered a friend on', icon: 'clap' },
+    round_complete: { title: 'You said it. You did it.', desc: 'You finished a whole round', icon: 'medal' },
+    second_round: { title: 'Another round?', desc: 'You came back for a second round', icon: 'repeat' },
+  };
+  function grant(userId, type, sourceRef) {
+    if (!ACHIEVEMENTS[type]) return;
+    if (state.achievements.some(a => a.userId === userId && a.type === type)) return;
+    state.achievements.push({ id: uid('a'), userId, type, earnedAt: nowISO(), sourceRef });
+    if (userId === state.me) notify(userId, 'achievement', `New achievement: ${ACHIEVEMENTS[type].title}`, ACHIEVEMENTS[type].desc, { type });
+  }
+  function achievementsFor(userId = state.me) {
+    return Object.entries(ACHIEVEMENTS).map(([type, meta]) => ({ type, ...meta, earned: state.achievements.find(a => a.userId === userId && a.type === type) || null }));
+  }
+
+  /* ---------- התראות ---------- */
+  function notify(userId, type, title, body, ref) {
+    if (userId !== state.me) return; // בדמו שומרים התראות רק למשתמשת
+    const key = `${type}|${title}|${today()}`;
+    if (state.notifications.some(n => n.dedupeKey === key)) return;
+    state.notifications.push({ id: uid('n'), userId, type, title, body, ref, createdAt: nowISO(), read: false, dedupeKey: key });
+  }
+  function notifications() { return state.notifications.filter(n => n.userId === state.me).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); }
+  function unreadCount() { return notifications().filter(n => !n.read).length; }
+  function markAllRead() { notifications().forEach(n => n.read = true); save(); }
+
+  /* ---------- בטיחות ---------- */
+  function isBlocked(blockerId, blockedId) { return state.blocks.some(b => b.blockerId === blockerId && b.blockedId === blockedId); }
+  function block(userId) { if (!isBlocked(state.me, userId)) state.blocks.push({ blockerId: state.me, blockedId: userId, at: nowISO() }); save(); }
+  function unblock(userId) { state.blocks = state.blocks.filter(b => !(b.blockerId === state.me && b.blockedId === userId)); save(); }
+  function blockedUsers() { return state.blocks.filter(b => b.blockerId === state.me).map(b => state.users[b.blockedId]).filter(Boolean); }
+  function reportAbuse({ entityType, entityId, reason, details = '' }) {
+    state.abuseReports.push({ id: uid('ab'), reporterId: state.me, entityType, entityId, reason, details, status: 'open', createdAt: nowISO() });
+    save();
+  }
+
+  /* ---------- סיכום סבב ---------- */
+  function roundSummary(commitmentId) {
+    const c = state.commitments[commitmentId];
+    const def = state.wordDefs[c.defId];
+    const obs = obligationsOf(commitmentId);
+    const st = commitmentStats(commitmentId);
+    return { commitment: c, def, obligations: obs, stats: st, circle: def.circleId ? state.circles[def.circleId] : null, earned: activeLedger().filter(t => t.userId === c.userId && t.type === 'EARN' && obs.some(o => o.id === t.obligationId)).length };
+  }
+  function pendingSummaries(userId = state.me) {
+    return myCommitments(userId).filter(c => c.status === 'completed' && !c.summarySeen);
+  }
+  function markSummarySeen(commitmentId) { const c = state.commitments[commitmentId]; if (c) c.summarySeen = true; save(); }
+
+  /* ---------- חשבון ---------- */
+  function exportData() {
+    const u = me();
+    return JSON.stringify({ user: u, commitments: myCommitments(), obligations: Object.values(state.obligations).filter(o => o.userId === state.me), ledger: state.ledger.filter(t => t.userId === state.me), achievements: state.achievements.filter(a => a.userId === state.me) }, null, 2);
+  }
+  function deleteAccount() {
+    // מחיקה: פרטי המשתמשת נמחקים; תנועות היסטוריות של קבוצות הופכות לאנונימיות לצורכי תקינות
+    const id = state.me;
+    for (const m of state.memberships) if (m.userId === id && !m.leftAt) m.leftAt = nowISO();
+    state.users[id] = { id, name: 'Someone who left', color: 'sky', deleted: true, settings: {} };
+    state.me = null;
+    save();
+    localStorage.removeItem(STORAGE_KEY);
+    state = emptyState();
+    save();
+  }
+
+  function err(msg) { const e = new Error(msg); e.userMessage = msg; return e; }
+
+  return {
+    RULES, TEMPLATES, LIBRARY: LIB, WORD_ICONS, ACHIEVEMENTS, REACTIONS, AVATAR_COLORS,
+    load, save, reset, emptyState, getState, setState, uid, nowISO, now, setClock,
+    today, addDays, diffDays, dateRange, fmtDate, fmtDateLong, relDay, fmtTime, toLocalDate, hashStr,
+    createUser, me, user, updateSettings, renameMe,
+    createCircle, updateCircle, myCircles, membership, isMember, isAdmin, circleMembers, circleRound, leaveCircle, removeMember, setMemberRole, deleteCircle,
+    createInvite, currentInvite, revokeInvite, revokeCircleInvites, inviteUrl, previewInvite, acceptInvite,
+    wordDef, commitment, myCommitments, activeCommitments, obligationsOf, capCheck, activeWordsOn,
+    isAdult, setBirthDate, createPersonalWord, shareToCircle, inCircle, defCircles, createCommitment, proposeGroupWord, adoptGroupWord, adopters, myAdoption, cancelProposal, endCommitment,
+    windowOf, isOpenNow, refreshStatuses, excusesUsed, report, canCorrect, correct,
+    activeLedger, bankSummary, circlePool, circlePoolAllTime, streak, commitmentStats,
+    todayCards, decorate, upcomingWords, wordHistory, leaderboard, rankInsight, previousRoundWinner,
+    addEvent, feed, myFeedDigest, encourage, sendEncouragement,
+    grant, achievementsFor, notify, notifications, unreadCount, markAllRead,
+    isBlocked, block, unblock, blockedUsers, reportAbuse,
+    roundSummary, pendingSummaries, markSummarySeen, exportData, deleteAccount,
+  };
+})();

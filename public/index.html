@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#FFF6F3">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Mila">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="application-name" content="Mila">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="description" content="We all make promises. Let's see who keeps them. 3 challenges, 14 days, friends.">
+  <title>Mila. — We all make promises. Let's see who keeps them.</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:site_name" content="Mila">
+  <meta property="og:title" content="Mila. We all make promises. Let's see who keeps them.">
+  <meta property="og:description" content="3 challenges, 14 days, friends. Who keeps their word?">
+  <meta property="og:url" content="%ORIGIN%/">
+  <meta property="og:image" content="%ORIGIN%/icons/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Mila. We all make promises. Let's see who keeps them.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="%ORIGIN%/icons/og.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=25">
+  <script src="js/a11y.js?v=25"></script>
+</head>
+<body>
+  <div class="bg-blobs" aria-hidden="true"><i></i></div>
+
+  <div id="app">
+    <main id="screen" aria-live="polite"></main>
+
+    <nav id="nav" class="hidden" aria-label="Main navigation">
+      <button data-tab="today" onclick="App.tab('today')"><span class="ic" id="nav-ic-today"></span>Today</button>
+      <button data-tab="circles" onclick="App.tab('circles')"><span class="ic" id="nav-ic-circles"></span>Groups</button>
+      <button data-tab="me" onclick="App.tab('me')"><span class="ic" id="nav-ic-me"></span>Me</button>
+    </nav>
+  </div>
+
+  <div id="sheet-backdrop" onclick="App.closeSheet()"></div>
+  <div id="sheet" role="dialog" aria-modal="true"></div>
+  <div id="toast" role="status"></div>
+
+  
+  
+  <script src="js/library.js?v=25"></script>
+  <script src="js/engine.js?v=25"></script>
+  <script src="js/icons.js?v=25"></script>
+  <script src="js/demo.js?v=25"></script>
+  <script src="js/api.js?v=25"></script>
+  <script src="js/install.js?v=25"></script>
+  <script src="js/app.js?v=25"></script>
+</body>
+</html>

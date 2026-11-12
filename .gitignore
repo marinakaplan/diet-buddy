@@ -1,0 +1,8 @@
+node_modules
+.wrangler
+.dev.vars
+*.log
+shots-e2e
+src/assets.generated.js
+backup-*.sql
+.work

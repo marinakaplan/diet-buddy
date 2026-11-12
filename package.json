@@ -1,0 +1,25 @@
+{
+  "name": "mila-en",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Mila — a social game of commitments. Cloudflare Workers + D1 + Static Assets.",
+  "type": "module",
+  "scripts": {
+    "embed": "node scripts/embed-assets.mjs",
+    "dev": "npm run embed && wrangler dev",
+    "deploy": "npm run embed && wrangler deploy --env=\"\"",
+    "deploy:prod": "npm run embed && wrangler deploy --env production",
+    "db:migrate:local": "wrangler d1 migrations apply mila-en-db --local",
+    "db:migrate": "wrangler d1 migrations apply mila-en-db --remote",
+    "db:migrate:prod": "wrangler d1 migrations apply mila-en-db-prod --remote --env production",
+    "backup:prod": "wrangler d1 export mila-en-db-prod --remote --env production --output backup-prod.sql",
+    "test:load": "node tests/load.cjs",
+    "test:engine": "node tests/engine.test.cjs",
+    "test:api": "node tests/api.test.cjs",
+    "test:e2e": "node tests/e2e.two-users.cjs",
+    "test:regress": "node tests/e2e.regressions.cjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.0"
+  }
+}
