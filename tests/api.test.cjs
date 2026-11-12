@@ -411,10 +411,11 @@ const invariants = async (c) => {
     await L.fail('poke', { circleId: g, toUserId: lId }, 'VALIDATION');                                   // לא לעצמי
     assert.deepStrictEqual(await L.ok('poke', { circleId: g, toUserId: mId }), { sent: false, reason: 'done' }, 'אין לה מה לדווח היום');
     const w = await M2.ok('createPersonalWord', { libraryId: 'hab_read_10', circleId: g });
-    assert.strictEqual((await L.ok('poke', { circleId: g, toUserId: mId })).sent, true);
+    const pk = await L.ok('poke', { circleId: g, toUserId: mId });
+    assert.strictEqual(pk.sent, true); assert.strictEqual(pk.push, false, 'אין לה מכשיר עם התראות: הלקוח יציע וואטסאפ');
     const n = (await M2.state()).notifications.find(x => x.type === 'poke');
     assert.ok(n && /ליה: נו, מה איתך\?/.test(n.title), 'קיבלה התראה עם השם של מי ששלחה');
-    assert.deepStrictEqual(await L.ok('poke', { circleId: g, toUserId: mId }), { sent: false, reason: 'wait' }, 'לא פעמיים ברצף');
+    assert.deepStrictEqual(await L.ok('poke', { circleId: g, toUserId: mId }), { sent: false, reason: 'wait', push: false }, 'לא פעמיים ברצף');
     assert.ok(!(await L.state()).socialEvents.some(e => e.type === 'poke'), 'לא מופיע בעדכוני הקבוצה');
     const st = await M2.state(); const ob = Object.values(st.obligations).find(o => o.userId === st.me && o.commitmentId === w.commitmentId && !o.outcome && o.status === 'open');
     await M2.ok('report', { obligationId: ob.id, outcome: 'success' });

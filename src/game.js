@@ -602,11 +602,13 @@ export async function poke(env, user, b) {
   if (!to) return { sent: false };
   const open = await first(env, `select 1 as x from daily_obligations where user_id = ? and local_date = ? and outcome is null and status in ('scheduled','open') limit 1`, to.id, localDate(to.timezone));
   if (!open) return { sent: false, reason: 'done' };
+  // האם ה״נו״ יגיע אליה כהתראה (יש לה מכשיר עם התראות), או שתראה אותו רק כשתפתח את מילה
+  const push = !!(await first(env, `select 1 as x from push_subscriptions where user_id = ? limit 1`, to.id));
   const recent = await first(env, `select 1 as x from notifications where user_id = ? and type = 'poke' and created_at > ? and ref like ? limit 1`, to.id, new Date(Date.now() - 6 * 3600000).toISOString(), `%${String(user.id)}%`);
-  if (recent) return { sent: false, reason: 'wait' };
+  if (recent) return { sent: false, reason: 'wait', push };
   const name = String(user.display_name || '').split(' ')[0] || 'חברה';
   await env.DB.batch([notifyStmt(env, to.id, 'poke', `${name}: נו, מה איתך?`, 'את עומדת במילה שלך היום?', { circleId: b.circleId, fromUserId: user.id }, String(Date.now()))]);
-  return { sent: true };
+  return { sent: true, push };
 }
 export async function block(env, user, b) { if (b.userId !== user.id) await S(env, `insert or ignore into user_blocks(blocker_id, blocked_id) values (?,?)`, user.id, b.userId).run(); }
 export async function unblock(env, user, b) { await S(env, `delete from user_blocks where blocker_id = ? and blocked_id = ?`, user.id, b.userId).run(); }

@@ -1480,6 +1480,13 @@ const App = (() => {
     } catch (e) { cheeredNow.delete(obId); render({ keepSheet: true }); fail(e); }
   });
 
+  function nudgeByWhatsapp(name) {
+    const text = `נו, מה איתך? את עומדת במילה שלך היום?\n${location.origin}/?go=today`;
+    sheet(`<button class="icon-btn sheet-x" aria-label="סגירה" onclick="App.closeSheet()">${icon('x', 22)}</button>
+      <div class="sheet-title">ה״נו״ מחכה ל${esc(name)} במילה</div>
+      <div class="sheet-sub">היא עוד לא הפעילה התראות, אז היא תראה אותו רק כשתיכנס. בוואטסאפ היא תראה אותו עכשיו.</div>
+      <a class="btn dark" href="https://wa.me/?text=${encodeURIComponent(text)}" target="_blank" rel="noopener" onclick="App.closeSheet()">לשלוח לה גם בוואטסאפ</a>`);
+  }
   /* ״נו, מה איתך?״ לחברה שעוד לא דיווחה היום. השרת שולח לה התראה, פעם ב-6 שעות. */
   const poked = {};
   const poke = once(async (circleId, toUserId) => {
@@ -1488,6 +1495,8 @@ const App = (() => {
       const r = await Store().poke(circleId, toUserId);
       if (r && (r.sent || r.reason === 'wait')) poked[toUserId] = Date.now();
       render({ keepSheet: true });
+      // אין לה התראות: ה״נו״ מחכה לה בתוך מילה, אז מציעות לשלוח אותו גם בוואטסאפ (שם היא בטוח תראה)
+      if (r && r.push === false && (r.sent || r.reason === 'wait')) { nudgeByWhatsapp(name); return; }
       toast(r && r.sent ? `שלחת ל${name}: נו, מה איתך?` : r && r.reason === 'done' ? `${name} כבר דיווחה היום.` : r && r.reason === 'wait' ? `כבר שלחת ל${name}. אפשר שוב בעוד כמה שעות.` : 'לא נשלח.', r && r.sent ? 'lime' : '');
     } catch (e) { fail(e); }
   });
