@@ -41,31 +41,31 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     await A.page.evaluate(() => { App.inviteClose(); App.closeSheet(); App.tab('today'); });
     await A.page.evaluate(() => { App.openPick(); App.pickCustom(); });
     await A.page.waitForSelector('#w-title'); await A.page.evaluate(() => App.wizHeadBack());
-    assert.ok((await A.page.innerText('#screen')).includes('אז במה את מתחילה?'), 'חוזרת למסך הבחירה');
+    assert.ok((await A.page.innerText('#screen')).includes('So what are you starting with?'), 'חוזרת למסך הבחירה');
     await A.page.evaluate(() => App.pickCancel());
     assert.ok((await A.page.innerText('#screen')).trim().length > 40, 'מסך היום מוצג');
     await A.page.evaluate((id) => { App.tab('circles'); App.inviteFlow({ circleId: id }); App.inviteFlow({ circleId: id }); App.inviteClose(); }, circleId);
-    assert.ok((await A.page.innerText('#screen')).includes('הקבוצות שלי'), 'סגירת ההזמנה מחזירה לקבוצות');
+    assert.ok((await A.page.innerText('#screen')).includes('My groups'), 'סגירת ההזמנה מחזירה לקבוצות');
     assert.deepStrictEqual(A.page.errors, []);
   });
 
   await test('קישור הזמנה שורד רענון של הדף לפני הכניסה, והחברה החדשה מגיעה למסך ההצטרפות', async () => {
     token = await A.page.evaluate(async (id) => (await Api.cloud.createInvite(id, { kind: 'follow', message: 'בואי' })).token, circleId);
     await B.page.goto(`${BASE}/?invite=${token}`); await B.page.waitForSelector('.w2-invite');
-    let txt = await B.page.innerText('.w2-invite'); assert.ok(/מיכל מזמינה אותך/.test(txt) && /הקבוצה של מיכל/.test(txt) && /בואי/.test(txt), 'לפני הכניסה רואים מי מזמינה, לאיזו קבוצה ומה כתבה: ' + txt.replace(/\s+/g, ' '));
+    let txt = await B.page.innerText('.w2-invite'); assert.ok(/מיכל is inviting you/.test(txt) && /מיכל's group/.test(txt) && /בואי/.test(txt), 'לפני הכניסה רואים מי מזמינה, לאיזו קבוצה ומה כתבה: ' + txt.replace(/\s+/g, ' '));
     await B.page.reload(); await B.page.waitForSelector('.w2-invite');   // הכתובת כבר בלי ?invite=, ועדיין זוכרות
     await login(B.page, `reg.b.${stamp}@test.mila`, 'שני'); await B.page.reload();
-    await B.page.waitForSelector('#pf-name'); await B.page.waitForFunction(() => /מיכל מחכה לך/.test(document.querySelector('#screen').innerText), null, { timeout: 15000 });
+    await B.page.waitForSelector('#pf-name'); await B.page.waitForFunction(() => /מיכל is waiting for you/.test(document.querySelector('#screen').innerText), null, { timeout: 15000 });
     await B.page.click('.ob-agree'); await B.page.click('#pf-go');
     await B.page.waitForSelector('.inv-screen', { timeout: 20000 });
-    assert.ok(/מיכל מזמינה אותך/.test(await B.page.innerText('.inv-screen')), 'מסך ההצטרפות: מי מזמינה');
+    assert.ok(/מיכל is inviting you/.test(await B.page.innerText('.inv-screen')), 'מסך ההצטרפות: מי מזמינה');
     await B.page.evaluate((t) => App.acceptInvite(t), token);
     await B.page.waitForFunction((id) => typeof Mila !== 'undefined' && !!Mila.getState().circles[id], circleId, { timeout: 20000 });
     assert.strictEqual(await B.page.evaluate(() => localStorage.getItem('mila.invite')), null, 'אחרי ההצטרפות ההזמנה השמורה נמחקת');
     await B.page.reload(); await B.page.waitForSelector('.today-head, .tg-row, #nav:not(.hidden)', { timeout: 20000 });
-    assert.ok(!/באה איתי\?|הפעם לא/.test(await B.page.innerText('#screen')), 'מסך ההזמנה לא קופץ שוב בפתיחה הבאה');
+    assert.ok(!/is inviting you|Not this time/.test(await B.page.innerText('#screen')), 'מסך ההזמנה לא קופץ שוב בפתיחה הבאה');
     await B.page.evaluate((id) => App.go('circle', { id }, { reset: true }), circleId);
-    assert.ok(/הצטרפת לקבוצה\. מיכל הזמינה אותך/.test(await B.page.innerText('#screen')), 'בקבוצה כתוב מי הזמינה אותי');
+    assert.ok(/You joined the group\. מיכל invited you/.test(await B.page.innerText('#screen')), 'בקבוצה כתוב מי הזמינה אותי');
   });
 
   await test('שם עם תווי HTML לא מריץ קוד אצל החברות', async () => {
@@ -81,11 +81,11 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     const yr = new Date().getFullYear();
     // B (צעירה)
     await B.page.evaluate(() => { App.closeSheet(); App.tab('today'); App.openPick(); });
-    await B.page.waitForSelector('.cat.locked'); assert.ok(/מגיל 18/.test(await B.page.innerText('.cat.locked')));
+    await B.page.waitForSelector('.cat.locked'); assert.ok(/18\+/.test(await B.page.innerText('.cat.locked')));
     await B.page.click('.cat.locked .cat-head'); await B.page.waitForSelector('#age-bd');
-    assert.ok(/לא מתאימים למי שעוד לא בת 18/.test(await B.page.innerText('#sheet')));
+    assert.ok(/aren't suitable for anyone under 18/.test(await B.page.innerText('#sheet')));
     await B.page.fill('#age-bd', `${yr - 16}-03-10`); await B.page.click('#sheet .btn.primary');
-    await B.page.waitForFunction(() => /ייפתח לך ב-/.test(document.querySelector('#sheet').innerText), null, { timeout: 15000 });
+    await B.page.waitForFunction(() => /opens for you on /.test(document.querySelector('#sheet').innerText), null, { timeout: 15000 });
     await B.page.evaluate(() => App.closeSheet());
     assert.strictEqual(await B.page.locator('.cat.locked').count(), 1, 'נשאר נעול');
     assert.strictEqual(await B.page.evaluate(async () => { try { await Api.call('action/createPersonalWord', { method: 'POST', body: { libraryId: 'cpl_hug_20' } }); return 'created'; } catch (e) { return e.code; } }), 'ADULT_ONLY', 'גם ישירות מול השרת');
@@ -95,7 +95,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     await A.page.click('.cat.locked .cat-head'); await A.page.waitForSelector('#age-bd');
     await A.page.fill('#age-bd', '1988-07-01'); await A.page.click('#sheet .btn.primary');
     await A.page.waitForFunction(() => document.querySelectorAll('.cat.locked').length === 0 && !!document.querySelector('.cat.open'), null, { timeout: 15000 });
-    assert.ok(/חיבוק של 20 שניות/.test(await A.page.innerText('.cat.open')), 'התחום נפתח');
+    assert.ok(/A 20-second hug/.test(await A.page.innerText('.cat.open')), 'התחום נפתח');
     await A.page.evaluate(() => App.pickCancel());
   });
 
@@ -145,7 +145,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     const open = await A.page.evaluate(() => { const c = Mila.todayCards().find(c => !c.outcome); return c ? c.id : null; });
     if (open) {
       await A.page.evaluate((id) => App.doReport(id, 'success'), open);
-      await A.page.waitForFunction(() => /אין חיבור/.test(document.querySelector('#toast').textContent), null, { timeout: 10000 });
+      await A.page.waitForFunction(() => /No connection/.test(document.querySelector('#toast').textContent), null, { timeout: 10000 });
       assert.strictEqual(await A.page.evaluate((id) => Mila.getState().obligations[id].outcome, open), null, 'לא סומן כאילו נשמר');
     }
     await A.ctx.setOffline(false);
@@ -158,7 +158,7 @@ const test = async (name, fn) => { try { await fn(); passed++; console.log('  �
     await A.ctx.clearCookies();
     await A.page.evaluate(() => Api.sync().catch(() => {}));
     await A.page.waitForSelector('.w2', { timeout: 15000 });
-    assert.ok(/פג/.test(await A.page.innerText('#toast')));
+    assert.ok(/expired/.test(await A.page.innerText('#toast')));
   });
 
   await browser.close();
